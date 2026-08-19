@@ -44,7 +44,8 @@ public sealed class StorageTests : IDisposable
         Assert.Contains("files", tables);
         Assert.Contains("dir_totals", tables);
         Assert.Contains("snapshots", tables);
-        Assert.Contains("snapshot_dirs", tables);
+        Assert.Contains("dir_history", tables);
+        Assert.Contains("dir_names", tables);
         Assert.Contains("snapshot_top_files", tables);
         Assert.Contains("events", tables);
         Assert.Contains("usn_cursors", tables);
@@ -313,50 +314,6 @@ public sealed class StorageTests : IDisposable
         // dir_totals holds every directory regardless of size, because Phase 2 maintains it
         // incrementally and needs a row for any ancestor of any changed file.
         Assert.Equal(4, QueryLong(connection, "SELECT COUNT(*) FROM dir_totals;"));
-    }
-
-    /// <summary>
-    /// The historical rollup is bounded by a depth cap and a size floor. That bounding is the whole
-    /// reason the database stays affordable, so it is asserted rather than assumed.
-    /// </summary>
-    [Fact]
-    public void SnapshotDirsRespectTheDepthCapAndSizeFloor()
-    {
-        using var connection = _database.Open();
-        var volumeId = VolumeRepository.Upsert(connection, Volume());
-
-        var result = ScanOf(BuildRollup());
-
-        SnapshotWriter.Write(connection, volumeId, result, new SnapshotOptions
-        {
-            MaxDepth = 1,
-            SizeFloorBytes = 1_000,
-        });
-
-        var paths = QueryStrings(connection, "SELECT path FROM snapshot_dirs ORDER BY path;");
-
-        // The root is depth 0 and deep is depth 1, so both are kept. deep\deeper is depth 2 and
-        // falls outside the cap; tiny is inside the cap but under the floor.
-        Assert.DoesNotContain(paths, p => p.Contains("deeper", StringComparison.Ordinal));
-        Assert.DoesNotContain(paths, p => p.EndsWith("tiny", StringComparison.Ordinal));
-        Assert.Contains(paths, p => p.EndsWith(@"T:\deep", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void SnapshotDirPathsAreFullyMaterialised()
-    {
-        using var connection = _database.Open();
-        var volumeId = VolumeRepository.Upsert(connection, Volume());
-
-        SnapshotWriter.Write(connection, volumeId, ScanOf(BuildRollup()), new SnapshotOptions
-        {
-            MaxDepth = 10,
-            SizeFloorBytes = 0,
-        });
-
-        var paths = QueryStrings(connection, "SELECT path FROM snapshot_dirs;");
-
-        Assert.Contains(@"T:\deep\deeper", paths);
     }
 
     private static Dictionary<long, DirectoryNode> BuildRollup()

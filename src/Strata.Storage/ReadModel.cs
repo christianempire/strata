@@ -82,9 +82,6 @@ public sealed record SnapshotRow
     public long HardLinkBytes { get; init; }
 
     public long ReparseCount { get; init; }
-
-    /// <summary>Directory rows this snapshot recorded. Zero means it cannot take part in a diff.</summary>
-    public long RolledUpDirCount { get; init; }
 }
 
 /// <summary>

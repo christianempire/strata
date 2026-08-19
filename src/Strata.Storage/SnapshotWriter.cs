@@ -52,7 +52,6 @@ public static class SnapshotWriter
         var snapshotId = InsertSnapshot(connection, transaction, volumeId, result);
 
         WriteDirTotals(connection, transaction, volumeId, result.Rollup);
-        WriteSnapshotDirs(connection, transaction, snapshotId, result, options);
 
         transaction.Commit();
         return snapshotId;
@@ -152,50 +151,4 @@ public static class SnapshotWriter
         }
     }
 
-    /// <summary>
-    /// Writes the historical rollup: directories above the size floor and within the depth cap,
-    /// with their paths materialised so history stays readable after the directory is gone.
-    /// </summary>
-    private static void WriteSnapshotDirs(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
-        long snapshotId,
-        ScanResult result,
-        SnapshotOptions options)
-    {
-        var rootPrefix = result.Volume.DriveLetter ?? result.Volume.GuidPath;
-
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = """
-            INSERT OR REPLACE INTO snapshot_dirs
-                (snapshot_id, dir_id, path, depth, subtree_bytes, subtree_on_disk, subtree_files)
-            VALUES ($snapshot, $dir, $path, $depth, $bytes, $ondisk, $files);
-            """;
-
-        command.Parameters.Add("$snapshot", SqliteType.Integer).Value = snapshotId;
-        command.Parameters.Add("$dir", SqliteType.Integer);
-        command.Parameters.Add("$path", SqliteType.Text);
-        command.Parameters.Add("$depth", SqliteType.Integer);
-        command.Parameters.Add("$bytes", SqliteType.Integer);
-        command.Parameters.Add("$ondisk", SqliteType.Integer);
-        command.Parameters.Add("$files", SqliteType.Integer);
-        command.Prepare();
-
-        foreach (var node in result.Rollup.Nodes.Values)
-        {
-            if (node.Depth > options.MaxDepth || node.SubtreeBytes < options.SizeFloorBytes)
-            {
-                continue;
-            }
-
-            command.Parameters[1].Value = node.Id;
-            command.Parameters[2].Value = PathBuilder.BuildPath(result.Rollup.Nodes, node.Id, rootPrefix);
-            command.Parameters[3].Value = node.Depth;
-            command.Parameters[4].Value = node.SubtreeBytes;
-            command.Parameters[5].Value = node.SubtreeSizeOnDisk;
-            command.Parameters[6].Value = node.SubtreeFileCount;
-            command.ExecuteNonQuery();
-        }
-    }
 }

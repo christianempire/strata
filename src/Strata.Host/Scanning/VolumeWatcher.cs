@@ -59,13 +59,10 @@ internal sealed record TickOutcome
     internal IReadOnlyDictionary<long, DirectoryDelta> Seeds { get; init; }
         = new Dictionary<long, DirectoryDelta>();
 
-    /// <summary>Cost of materialising the historical directory rollup for this tick.</summary>
-    internal long SnapshotDirsMs { get; init; }
+    /// <summary>Cost of recording this tick's directory history.</summary>
+    internal long HistoryMs { get; init; }
 
-    /// <summary>Directory rows the historical rollup recorded.</summary>
-    internal int SnapshotDirCount { get; init; }
-
-    /// <summary>Rows the sparse history recorded. The number the storage model turns on.</summary>
+    /// <summary>Rows the history recorded. The number the storage model turns on.</summary>
     internal int HistoryRows { get; init; }
 
     internal long EventMs { get; init; }
@@ -179,30 +176,14 @@ internal sealed class VolumeWatcher : IDisposable
             connection, transaction, volumeId, DateTime.UtcNow,
             (long)clock.Elapsed.TotalMilliseconds, Volume.FreeBytes);
 
-        // The historical rollup, which is what the Compare screen diffs and what the Timeline's
-        // stacked area is drawn from. Tier 1 wrote this from the rollup it had just built in memory;
-        // Tier 2 derives it from dir_totals, which it has been maintaining all along. Without it a
-        // tick's snapshot has totals and nothing to attribute them to.
-        var rolledUp = IncrementalRepository.WriteSnapshotRollup(
-            connection,
-            transaction,
-            volumeId,
-            snapshotId,
-            Volume.DriveLetter ?? Volume.GuidPath,
-            new SnapshotOptions
-            {
-                MaxDepth = settings.SnapshotMaxDepth,
-                SizeFloorBytes = settings.SnapshotSizeFloorBytes,
-            });
-
-        // The sparse history that replaces the per-snapshot rollup above. Only the directories the
-        // rollup just touched can have drifted, so only those are considered — everything else on
-        // the volume is unchanged by definition and costs nothing to skip.
+        // Only the directories the rollup just touched can have drifted, so only those are
+        // considered — everything else on the volume is unchanged by definition and costs nothing
+        // to skip. This is what replaced writing all 5,740 qualifying directories every tick.
         var historyRows = DirectoryHistoryRepository.Record(
             connection, transaction, volumeId, DateTime.UtcNow, fanOut.Touched.Keys,
             settings.HistoryBandBytes);
 
-        var snapshotDirsMs = phase.ElapsedMilliseconds;
+        var historyMs = phase.ElapsedMilliseconds;
 
         phase.Restart();
         var changes = Attribute(connection, transaction, volumeId, result, settings);
@@ -242,8 +223,7 @@ internal sealed class VolumeWatcher : IDisposable
             RollupMs = rollupMs,
             RollupFanOut = fanOut.Touched,
             Seeds = result.Deltas,
-            SnapshotDirsMs = snapshotDirsMs,
-            SnapshotDirCount = rolledUp,
+            HistoryMs = historyMs,
             HistoryRows = historyRows,
             EventMs = eventMs,
             CommitMs = commitMs,

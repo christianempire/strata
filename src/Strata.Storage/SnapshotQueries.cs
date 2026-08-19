@@ -25,8 +25,7 @@ public static class SnapshotQueries
         command.CommandText = """
             SELECT s.id, s.volume_id, s.taken_utc, s.scan_tier, s.duration_ms, s.total_bytes,
                    s.total_on_disk, s.free_bytes, s.file_count, s.dir_count, s.inaccessible_count,
-                   s.hard_link_count, s.hard_link_bytes, s.reparse_count,
-                   (SELECT COUNT(*) FROM snapshot_dirs sd WHERE sd.snapshot_id = s.id)
+                   s.hard_link_count, s.hard_link_bytes, s.reparse_count
             FROM snapshots s
             WHERE ($v IS NULL OR s.volume_id = $v)
               AND ($f IS NULL OR s.taken_utc >= $f)
@@ -59,8 +58,7 @@ public static class SnapshotQueries
         command.CommandText = """
             SELECT s.id, s.volume_id, s.taken_utc, s.scan_tier, s.duration_ms, s.total_bytes,
                    s.total_on_disk, s.free_bytes, s.file_count, s.dir_count, s.inaccessible_count,
-                   s.hard_link_count, s.hard_link_bytes, s.reparse_count,
-                   (SELECT COUNT(*) FROM snapshot_dirs sd WHERE sd.snapshot_id = s.id)
+                   s.hard_link_count, s.hard_link_bytes, s.reparse_count
             FROM snapshots s WHERE s.id = $id;
             """;
 
@@ -86,7 +84,6 @@ public static class SnapshotQueries
         HardLinkCount = reader.GetInt64(11),
         HardLinkBytes = reader.GetInt64(12),
         ReparseCount = reader.GetInt64(13),
-        RolledUpDirCount = reader.GetInt64(14),
     };
 }
 

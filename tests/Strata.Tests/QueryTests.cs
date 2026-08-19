@@ -212,18 +212,9 @@ public sealed class QueryTests : IDisposable
         Assert.True(string.CompareOrdinal(rows[0].TakenUtc, rows[1].TakenUtc) > 0);
     }
 
-    /// <summary>
-    /// A snapshot with no directory rows cannot take part in a diff, and the UI has to be able to
-    /// see that before offering it as a comparison endpoint.
-    /// </summary>
     [Fact]
-    public void ASnapshotReportsHowManyDirectoryRowsItRecorded()
+    public void ASnapshotThatDoesNotExistIsNull()
     {
-        var snapshotId = WriteBaseline();
-        var incremental = InsertSnapshot(DateTime.UtcNow);
-
-        Assert.True(SnapshotQueries.ById(_connection, snapshotId)!.RolledUpDirCount > 0);
-        Assert.Equal(0, SnapshotQueries.ById(_connection, incremental)!.RolledUpDirCount);
         Assert.Null(SnapshotQueries.ById(_connection, 9999));
     }
 
@@ -309,45 +300,84 @@ public sealed class QueryTests : IDisposable
 
     // --- historical tree ----------------------------------------------------------------------
 
+    /// <summary>
+    /// The historical walk shows every directory, including ones the old rollup could not record.
+    /// </summary>
+    /// <remarks>
+    /// <c>snapshot_dirs</c> was bounded by a depth cap and a 10 MB size floor, so the 1 MB directory
+    /// here was simply absent from history at any price. The sparse history has no floor: it records
+    /// whatever moved, wherever it sits.
+    /// </remarks>
     [Fact]
-    public async Task ASnapshotTreeReadsFromTheHistoricalRollup()
+    public async Task TheHistoricalTreeShowsDirectoriesBelowTheOldSizeFloor()
     {
-        var snapshotId = WriteBaseline();
+        WriteBaseline();
 
-        var nodes = new List<TreeNode>();
+        var nodes = await WalkHistory(RootDirId, At(1), depth: 10);
 
-        await foreach (var node in TreeQueries.WalkSnapshotAsync(
-            _connection, snapshotId, null, depth: 10, limit: 1000, CancellationToken.None))
-        {
-            nodes.Add(node);
-        }
-
-        // Every directory except the 1 MB one, which falls under this snapshot's size floor.
-        Assert.Equal(Tree().Count - 1, nodes.Count);
-        Assert.Equal("T:", nodes[0].Name);
+        Assert.Equal(Tree().Count, nodes.Count);
         Assert.Contains(nodes, n => n.Name == "Documents");
-        Assert.DoesNotContain(nodes, n => n.Name == "tiny");
+        Assert.Contains(nodes, n => n.Name == "tiny");
     }
 
     /// <summary>
-    /// The historical rollup is keyed on paths, so a subtree is a string range. "T:\Users" must not
-    /// pull in a sibling called "T:\UsersBackup" — the range has to stop at the separator.
+    /// A subtree is bounded by ancestry, not by a string prefix.
     /// </summary>
+    /// <remarks>
+    /// Under the old model a subtree was a range over materialised paths, so <c>T:\Users</c> could
+    /// pull in a sibling called <c>T:\UsersBackup</c> unless the range stopped at the separator.
+    /// Keyed on parent ids, that class of bug cannot be expressed.
+    /// </remarks>
     [Fact]
-    public async Task ASnapshotSubtreeDoesNotSwallowASiblingWithASharedPrefix()
+    public async Task AHistoricalSubtreeIsBoundedByAncestryNotByStringPrefix()
     {
-        var snapshotId = WriteBaseline();
+        WriteBaseline();
 
-        var nodes = new List<TreeNode>();
+        var users = DirectoryHistoryQueries.ResolvePath(_connection, _volumeId, @"T:\Users");
 
-        await foreach (var node in TreeQueries.WalkSnapshotAsync(
-            _connection, snapshotId, @"T:\Users", depth: 10, limit: 1000, CancellationToken.None))
-        {
-            nodes.Add(node);
-        }
+        Assert.NotNull(users);
+
+        var nodes = await WalkHistory(users!.Value, At(1), depth: 10);
 
         Assert.Equal(3, nodes.Count);
         Assert.DoesNotContain(nodes, n => n.Name.Contains("Backup", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The historical tree shows what was there then, not what is there now.
+    /// </summary>
+    /// <remarks>
+    /// The point of keeping history at all. A directory that has since grown reports its size at the
+    /// moment asked for, and one created afterwards does not appear.
+    /// </remarks>
+    [Fact]
+    public async Task TheHistoricalTreeReportsSizesAsTheyStoodAtTheInstant()
+    {
+        WriteBaseline();
+
+        using (var command = _connection.CreateCommand())
+        {
+            command.CommandText = """
+                UPDATE dir_totals SET subtree_bytes = subtree_bytes + 5368709120
+                WHERE volume_id = $v AND dir_id = 22;
+                """;
+            command.Parameters.AddWithValue("$v", _volumeId);
+            command.ExecuteNonQuery();
+        }
+
+        using (var store = new SqliteFileStateStore(_connection, _volumeId))
+        {
+            store.AddDirectory(90, RootDirId, "Later");
+        }
+
+        DirectoryHistoryRepository.Record(_connection, null, _volumeId, At(10), [22, 90], 0);
+
+        var then = await WalkHistory(RootDirId, At(5), depth: 10);
+        var now = await WalkHistory(RootDirId, At(20), depth: 10);
+
+        Assert.DoesNotContain(then, n => n.Name == "Later");
+        Assert.Equal(60 * GB, Assert.Single(then, n => n.Name == "Documents").SubtreeBytes);
+        Assert.Equal(65 * GB, Assert.Single(now, n => n.Name == "Documents").SubtreeBytes);
     }
 
     // --- the cached directory tree --------------------------------------------------------------
@@ -480,11 +510,29 @@ public sealed class QueryTests : IDisposable
             TotalSizeOnDisk = rollup.TotalSizeOnDisk,
         };
 
-        return SnapshotWriter.Write(_connection, _volumeId, result, new SnapshotOptions
+        var snapshotId = SnapshotWriter.Write(_connection, _volumeId, result, new SnapshotOptions
         {
             MaxDepth = 8,
             SizeFloorBytes = 10 * MB,
         });
+
+        DirectoryHistoryRepository.MergeNames(_connection, null, _volumeId, result.StartedUtc);
+        DirectoryHistoryRepository.WriteAnchor(_connection, null, _volumeId, result.StartedUtc);
+
+        return snapshotId;
+    }
+
+    private async Task<List<TreeNode>> WalkHistory(long rootDirId, DateTime instant, int depth)
+    {
+        var nodes = new List<TreeNode>();
+
+        await foreach (var node in HistoryTreeWalk.WalkAsync(
+            _connection, _volumeId, rootDirId, instant, depth, limit: 10_000, CancellationToken.None))
+        {
+            nodes.Add(node);
+        }
+
+        return nodes;
     }
 
     private async Task<List<TreeNode>> Walk(long rootDirId, int depth)
@@ -499,6 +547,9 @@ public sealed class QueryTests : IDisposable
 
         return nodes;
     }
+
+    private static DateTime At(int minutes)
+        => new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc).AddMinutes(minutes);
 
     private long InsertSnapshot(DateTime takenUtc)
     {
