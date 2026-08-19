@@ -31,11 +31,22 @@ the app ships.
 
 ### Tests
 
-`npm test` runs Karma, which needs to launch and capture a real browser. In a sandboxed or headless
-environment where Chrome cannot be captured it will time out rather than fail — that is the runner,
-not the tests. `src/app/core/format.spec.ts` is the one that matters: it pins the number, unit and
-time rules against the exact figures from the design brief, so a regression shows up as a mockup that
-no longer matches.
+```
+npm test                     # watch mode
+npm run test:once            # single run, headless
+```
+
+`src/app/core/format.spec.ts` is the one that matters: it pins the number, unit and time rules
+against the exact figures from the design brief, so a regression shows up as a mockup that no longer
+matches.
+
+**`karma.conf.js` exists only to move karma off port 9876.** That is karma's default and also
+Blender's MCP add-on default, and this machine runs Blender. When they collide karma reports its
+server as started, launches the browser at `http://localhost:9876/`, and the browser reaches a raw
+TCP socket that does not speak HTTP — so nothing ever captures and karma eventually gives up with
+"ChromeHeadless has not captured in 60000 ms". That reads as a browser problem and is nothing of the
+sort. If you hit the same symptom on another machine, check what else holds the port before
+suspecting Chrome.
 
 ## Layout
 
