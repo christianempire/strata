@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Deliberately platform-neutral: Core must have no I/O and no Win32 dependency.
+      Targeting plain net9.0 makes the compiler enforce that rather than relying on discipline.
+      It also references no NuGet packages, only the BCL. Keep it that way.
+    -->
+    <TargetFramework>net9.0</TargetFramework>
+  </PropertyGroup>
+
+</Project>
