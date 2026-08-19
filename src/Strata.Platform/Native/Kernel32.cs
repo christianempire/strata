@@ -202,6 +202,16 @@ internal static partial class Kernel32
     [LibraryImport(Library)]
     internal static partial nint GetCurrentThread();
 
+    /// <summary>
+    /// System-wide idle, kernel and user time. Kernel time already includes idle time.
+    /// </summary>
+    [LibraryImport(Library, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetSystemTimes(
+        out FILETIME lpIdleTime,
+        out FILETIME lpKernelTime,
+        out FILETIME lpUserTime);
+
     [LibraryImport(Library, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetThreadPriority(nint hThread, int nPriority);
@@ -259,6 +269,14 @@ internal struct FILE_STANDARD_INFO
     internal uint NumberOfLinks;
     [MarshalAs(UnmanagedType.U1)] internal bool DeletePending;
     [MarshalAs(UnmanagedType.U1)] internal bool Directory;
+}
+
+/// <summary>FILETIME as a pair of DWORDs, matching the C layout's 4-byte alignment.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FILETIME
+{
+    internal uint dwLowDateTime;
+    internal uint dwHighDateTime;
 }
 
 [StructLayout(LayoutKind.Sequential)]
