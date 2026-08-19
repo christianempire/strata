@@ -17,6 +17,25 @@
       application is when nobody is looking at it.
     -->
     <ApplicationIcon>..\..\docs\design\icon\strata.ico</ApplicationIcon>
+
+    <!--
+      Framework-dependent, and allowed to roll forward a major version.
+
+      `strata install` puts this build somewhere permanent and a scheduled task starts it at every
+      logon, so the one thing that must not happen is a silent failure to start: with no console
+      attached, "you must install .NET" goes nowhere anybody will read it. Self-contained removes
+      that risk and costs 105.5 MB against 3.8 MB — measured, both, in docs/MEASUREMENTS.md — which
+      is a poor trade for a tool whose entire subject is what is filling up your disk.
+
+      RollForward=Major buys the same safety for nothing: Strata runs on .NET 9 while it is there,
+      and on the lowest higher major if it is ever removed. `Major` rather than `LatestMajor`, which
+      would jump to .NET 10 on this machine today and quietly run the shipped process on a runtime
+      the tests never saw.
+
+      Publish self-contained anyway with tools/publish.ps1 -SelfContained if a machine will not have
+      a runtime at all.
+    -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>

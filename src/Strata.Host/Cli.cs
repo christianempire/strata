@@ -1,4 +1,5 @@
 using Strata.Core.Model;
+using Strata.Host.Setup;
 using Strata.Storage;
 
 namespace Strata.Host;
@@ -33,6 +34,8 @@ internal static class Cli
                 "serve" => ServeCommand.Run(ParseOptions(args)),
                 "tray" => TrayCommand.Run(ParseOptions(args)),
                 "enable-journal" => EnableJournalCommand.Run(ParseOptions(args)),
+                "install" => InstallCommand.Run(ParseOptions(args)),
+                "uninstall" => UninstallCommand.Run(ParseOptions(args)),
                 _ => UnknownVerb(args[0]),
             };
         }
@@ -182,6 +185,26 @@ internal static class Cli
                     options.Quiet = true;
                     break;
 
+                case "--path":
+                    options.InstallPath = RequireValue(args, ref i);
+                    break;
+
+                case "--delay":
+                    options.LogonDelaySeconds = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
+                case "--no-task":
+                    options.RegisterTask = false;
+                    break;
+
+                case "--no-start":
+                    options.StartAfterInstall = false;
+                    break;
+
+                case "--purge-data":
+                    options.PurgeData = true;
+                    break;
+
                 default:
                     if (arg.StartsWith('-'))
                     {
@@ -224,6 +247,8 @@ internal static class Cli
               strata serve                       run the scanner and the localhost API together
               strata tray                        the same, from the notification area, no console
               strata enable-journal [<volume>]   create a change journal (needs elevation)
+              strata install                     copy this build somewhere stable, start it at logon
+              strata uninstall                   undo that, keeping the database
 
             SCAN OPTIONS
               --db <path>          database file (default: %LOCALAPPDATA%\Strata\strata.db)
@@ -256,6 +281,13 @@ internal static class Cli
               --port <n>           API port on localhost (default: 5177)
               --verbose            log a line per HTTP request with its duration
 
+            INSTALL OPTIONS
+              --path <dir>         program directory (default: %LOCALAPPDATA%\Programs\Strata)
+              --delay <s>          pause between logon and launch (default: 30, 0 for none)
+              --no-task            copy the files without registering the logon task
+              --no-start           do not start Strata once it is installed
+              --purge-data         uninstall only: also delete %LOCALAPPDATA%\Strata and its history
+
             EXAMPLES
               strata scan D:
               strata scan --all --histogram
@@ -263,6 +295,8 @@ internal static class Cli
               strata watch --once
               strata watch --interval 60
               strata serve --verbose
+              strata install
+              strata uninstall
             """);
     }
 }
@@ -352,6 +386,18 @@ internal sealed class CliOptions
     internal bool SkipCompact { get; set; }
 
     internal bool Quiet { get; set; }
+
+    /// <summary>Where <c>install</c> puts the program, and where <c>uninstall</c> looks for it.</summary>
+    internal string? InstallPath { get; set; }
+
+    internal int LogonDelaySeconds { get; set; } = LogonTask.DefaultDelaySeconds;
+
+    internal bool RegisterTask { get; set; } = true;
+
+    internal bool StartAfterInstall { get; set; } = true;
+
+    /// <summary>Deletes the database on uninstall. Off, and only ever on because it was typed.</summary>
+    internal bool PurgeData { get; set; }
 
     /// <summary>
     /// Matches a user-supplied target ("D:", "d", or a GUID path) against a discovered volume.
