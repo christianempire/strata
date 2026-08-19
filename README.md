@@ -20,10 +20,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 Phases 1 and 2 are done: volume enumeration, full baseline scanner, SQLite storage, the NTFS change
 journal incremental scanner, the diff engine, the resource guards, and a scheduler. No API or UI yet.
 
-Strata runs elevated. Reading the journal does not require it, but creating one on a volume that
-lacks it does, and elevation also lets a baseline read ACL'd directories. See
-[docs/RUNTIME.md](docs/RUNTIME.md) for how this looks once it is installed - short version: it lives
-in the tray and you never run anything from a console.
+Strata runs unelevated. The one thing that needs administrator is creating a change journal on a
+volume that lacks one, which is a one-time `strata enable-journal` from an elevated prompt. See
+[docs/RUNTIME.md](docs/RUNTIME.md) for how this looks once installed - short version: it lives in the
+tray and you never run anything from a console.
 
 ## Build
 
@@ -41,7 +41,3 @@ strata usn-probe               report what the change journal permits here
 strata enable-journal          create a journal on volumes lacking one (elevated)
 strata watch                   run the incremental scanner on a schedule
 ```
-
-Build an unelevated binary for development with
-`dotnet build -c Release -p:RequireAdministrator=false`; a `requireAdministrator` executable cannot
-be launched from a script.

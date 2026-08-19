@@ -6,28 +6,30 @@
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
         <!--
-          Strata runs elevated.
+          Strata runs unelevated.
 
-          Reading the change journal does not require it: a directory handle on the volume root plus
-          FSCTL_READ_UNPRIVILEGED_USN_JOURNAL is enough, and that path is kept working. Elevation
-          buys three things that unprivileged operation cannot:
+          It does not need elevation for its ordinary work: reading the NTFS change journal only
+          requires a directory handle on the volume root plus FSCTL_READ_UNPRIVILEGED_USN_JOURNAL,
+          which any user has. Verified end to end on this machine.
 
-            1. FSCTL_CREATE_USN_JOURNAL, needed one time per volume. On the target machine D: and E:
-               have no journal at all, so without this they are stuck on full rescans.
-            2. Journal records that carry file names. The unprivileged read redacts them, forcing a
-               path resolution per changed file.
-            3. A baseline scan that can read ACL'd directories. Unelevated, 557 directories on C:
-               were unreadable and the volume total came out 29.6 GB short of what the OS reports.
+          Two things are given up by not elevating, both acceptable:
 
-          Consequence worth knowing: an executable marked requireAdministrator cannot be started from
-          the Run key or the Startup folder without a UAC prompt at every login. Auto-start has to go
-          through Task Scheduler with "Run with highest privileges", which elevates silently. See
-          docs/RUNTIME.md.
+            1. Journal records arrive with their file names redacted, so a path has to be resolved
+               from the file ID per changed file. Measured at 0.06 ms against the 0.09 ms size read
+               it accompanies, so this is a rounding error rather than a cost.
+            2. A baseline cannot read ACL'd directories. Unelevated, 557 directories on C: were
+               unreadable and the volume total came out 29.6 GB short of what Windows reports. The
+               scan counts and reports them, so the shortfall is visible rather than silent.
 
-          Build with -p:RequireAdministrator=false to produce an asInvoker binary for development,
-          which is otherwise identical and degrades to the unprivileged paths.
+          One operation still requires administrator: FSCTL_CREATE_USN_JOURNAL, needed once per
+          volume on volumes where Windows has not already enabled a journal. That is what
+          'strata enable-journal' is for, and it is a one-time manual step from an elevated prompt
+          rather than a reason to elevate the resident process.
+
+          Staying asInvoker also means auto-start is a plain scheduled task or Run key entry with no
+          UAC prompt at login. See docs/RUNTIME.md.
         -->
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

@@ -42,26 +42,35 @@ at rest.
 
 ## Starting at login
 
-This is where the decision to run elevated has a consequence worth knowing.
-
-An executable marked `requireAdministrator` **cannot be started silently from the usual places.** The
-`Run` registry key and the Startup folder both trigger a UAC consent prompt, so you would be
-approving a dialog at every single login. That is unacceptable for something meant to be invisible.
-
-The way to auto-start an elevated process without a prompt is **Task Scheduler with "Run with highest
-privileges"**, triggered at logon. Windows starts the task elevated without asking, because the task
-was registered by an administrator once.
-
-So installation, whenever it is built, registers a scheduled task rather than a Run key. Until then,
-starting it by hand costs one UAC prompt per launch.
+Strata runs **unelevated**, so this is simple: a plain scheduled task at logon, or a Run key entry,
+or a shortcut in the Startup folder. No UAC prompt, ever, at login or otherwise.
 
 ```
 Task:     Strata
 Trigger:  At log on (current user)
 Action:   C:\...\strata.exe watch
-Settings: Run with highest privileges
-          Do not start if on battery  (optional; it already defers under load)
 ```
+
+Whenever an installer exists it will register that. Until then, starting it by hand is just running
+the executable, with no prompt.
+
+### The one thing that does need administrator
+
+`FSCTL_CREATE_USN_JOURNAL` requires elevation, and it is needed once per volume on volumes where
+Windows has not already enabled a journal. On this machine that is D: and E:; C: always has one
+because Search and maintenance rely on it.
+
+Without a journal a volume falls back to Tier 3, a throttled full walk every few hours instead of a
+15-minute incremental tick. So this is worth doing once:
+
+```
+# from an elevated prompt, one time
+strata enable-journal
+```
+
+That is a deliberate one-off manual step rather than a reason to elevate the resident process. The
+scanner never does it silently: it is a persistent change to a volume's filesystem metadata and the
+user should be the one asking for it.
 
 ## During development
 
@@ -71,30 +80,27 @@ Different, and only for developers:
   which is how the resource behaviour gets judged — every deferral and tick duration prints.
 - `ng serve` runs the Angular dev server on its own port with hot reload, proxying `/api` to
   `localhost:5177`. This exists so a CSS change does not need a full rebuild.
-- Build with `-p:RequireAdministrator=false` for an `asInvoker` binary. Identical in every other way,
-  and it degrades to the unprivileged journal path. A `requireAdministrator` binary cannot be
-  launched from a script or a test run, because the consent prompt has no one to answer it.
 
 None of that is part of using the app.
 
-## What elevation buys, and what it costs
+## Why not elevated
 
-Reading the change journal does **not** need elevation — a directory handle on the volume root plus
-`FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` is sufficient, and that path stays supported and working.
-Running elevated buys three things:
+Reading the change journal does not need it. A directory handle on the volume root plus
+`FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` is sufficient for any user, and the whole incremental loop is
+verified end to end that way.
 
-1. **`FSCTL_CREATE_USN_JOURNAL`**, one time per volume. On this machine D: and E: have no journal at
-   all, so without it they are stuck on Tier 3 full rescans every few hours instead of 15-minute
-   incremental ticks. This is the big one.
-2. **Journal records that carry file names.** The unprivileged read redacts them, forcing a path
-   resolution per changed file — measured at 0.06 ms each, so this is a modest saving rather than a
-   transformation.
-3. **A baseline that can read ACL'd directories.** Unelevated, 557 directories on C: were unreadable
-   and the volume total came out 29.6 GB short of what Windows reports.
+Two things are given up, both acceptable:
 
-The cost is the scheduled task above, and the fact that a permanently-resident elevated process is a
-larger thing to trust. Strata is read-only by design and never opens a handle with write access to
-anything outside its own data directory, which is the mitigation that matters.
+1. **Journal records arrive with names redacted**, so a path is resolved from the file ID per changed
+   file. Measured at 0.06 ms per call against the 0.09 ms size read it accompanies, which is a
+   rounding error rather than a cost.
+2. **A baseline cannot read ACL'd directories.** Unelevated, 557 directories on C: were unreadable
+   and the volume total came out 29.6 GB short of what Windows reports. The scan counts and reports
+   those directories, so the shortfall is visible rather than silent.
+
+Against that: a permanently-resident elevated process is a much larger thing to ask someone to trust,
+and staying unelevated means no UAC prompt at login and no scheduled task with special privileges.
+For a read-only tool that watches disks, that trade is clearly worth making.
 
 ## Where things live
 
