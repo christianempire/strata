@@ -1,4 +1,4 @@
-# Phase 1 measurements
+# Measurements
 
 All figures from the target machine, 19 Aug 2026.
 
@@ -292,3 +292,124 @@ strata scan C: D: E:                           # full run with storage
 strata scan C: --no-store --threads 16         # worker sweep
 strata scan C: --no-store --no-background-io   # I/O priority comparison
 ```
+
+
+---
+
+# Phase 2 measurements
+
+19 Aug 2026, same machine, **unelevated**.
+
+## The elevation question, settled
+
+The brief assumed Tier 2 would require running as administrator permanently. `strata usn-probe`
+tries every combination of handle style against query, privileged read and unprivileged read:
+
+| Volume | Handle | Open | Query | Read | Unprivileged read |
+|---|---|---|---|---|---|
+| C: | `\.\C:` no access | yes | - | - | - |
+| C: | `\.\C:` FILE_READ_ATTRIBUTES | yes | - | - | - |
+| C: | `\.\C:` GENERIC_READ | **no (error 5)** | - | - | - |
+| C: | `C:\` root directory | yes | **yes** | no | **yes** |
+| D:, E: | any | yes | no (1179) | - | - |
+
+**The core Tier 2 loop needs no elevation at all**: a directory handle on the volume root plus
+`FSCTL_READ_UNPRIVILEGED_USN_JOURNAL`. The classic `\.\C:` + GENERIC_READ form does need admin,
+which is what the brief was describing.
+
+What *does* need elevation is `FSCTL_CREATE_USN_JOURNAL`, one time per volume. D: and E: report
+1179 (`ERROR_JOURNAL_NOT_ACTIVE`): Windows keeps a journal on the system volume for Search and
+maintenance, and does not on the others. `strata enable-journal`, run elevated, fixes that once.
+
+### The catch: the unprivileged read redacts file names
+
+Every record returned by the unprivileged FSCTL has `FileNameLength` of zero. Confirmed against both
+V2 and V3 records, so it is a property of the FSCTL rather than of a record version.
+
+Names are therefore recovered by resolving the file ID through `OpenFileById` +
+`FileNameInfo`, which costs one extra call on a handle already being opened to read the size, and
+returns the whole path below the volume root rather than just the leaf. Measured at **0.06 ms per
+call**, against 0.09 ms for the size read it accompanies.
+
+Two consequences worth knowing:
+
+- Resolution returns the file's **current** path. A rename's old path has to come from our own
+  recorded rows and only the new one from the filesystem.
+- Deleted files cannot be resolved at all, so their paths come from the database. This is why
+  `files` stores current state rather than being append-only.
+
+Running elevated would return names inline and remove the extra call. Given the measured cost, that
+is an optimisation rather than a requirement.
+
+## Tier 2 tick cost
+
+Against the 2 s budget from the brief:
+
+| Tick | Records | Metadata reads | Duration |
+|---|---:|---:|---:|
+| Steady state, quiet | 23 - 200 | 9 - 62 | **~250 ms** |
+| Catch-up, capped bite | 50,000 | 7,000 | **~1.0 s** |
+| Catch-up, heaviest observed | 50,000 | 16,117 | **1.7 s** |
+
+Phase breakdown of a 50,000-record tick: journal read 24 ms, apply 256 ms (metadata 97 ms, store
+139 ms), rollup 18 ms, commit 2 ms. The remainder is loading the directory tree, which a
+long-running `watch` does once rather than per tick.
+
+**The budget holds**, including on the largest bite the scanner will ever take in one go.
+
+### One measurement that mattered more than the rest
+
+Before it was found, a 2,000-record tick took **124 seconds**. The whole of it was one query:
+
+```
+GetEntriesByFileId: 442 ms per call
+DirectoryExists:      0.003 ms
+TryGetEntry:          0.004 ms
+Upsert:               0.009 ms
+```
+
+SQLite planned the lookup as `SEARCH files USING PRIMARY KEY (volume_id=?)` - a range scan over
+every row on the volume, 3.67M of them - because `ix_files_file_id` does not cover the size columns
+and, with no statistics, a seek plus a row lookup per match did not look better than a scan.
+
+Forcing it with `INDEXED BY` took it to **0.010 ms, a factor of 44,000**. `ANALYZE` now runs
+alongside the post-baseline `VACUUM` as well.
+
+What makes this worth recording is that nothing pointed at it. The same predicate with a narrower
+projection plans as a covering index scan and looks perfectly healthy, so checking the query in
+isolation confirmed the wrong thing. Only timing each store operation separately found it.
+
+## Storage: the hardlink keying fix
+
+`files` was keyed `(volume_id, file_id)`. Hardlinks share a file ID, so entries collided and all but
+one path per file was lost - **135,520 of 3.67M entries** on this machine, nearly all in WinSxS.
+
+Re-keyed on `(volume_id, parent_id, name)`, the identity the filesystem itself uses:
+
+| | Rows | Database |
+|---|---:|---:|
+| Before | 3,532,313 | 396 MB |
+| After | 3,668,066 | 447 MB |
+
+3,668,066 is exactly the number of entries the scanner counts, so every path is now stored. The
+extra 51 MB is the fan-out index on `(volume_id, file_id)`, which in a `WITHOUT ROWID` table carries
+the full primary key. Measured directly by dropping it: **272 MB without, 447 MB with**, so the
+index is 175 MB and the re-key itself actually *reduced* the base table.
+
+The index earns that cost twice over: it is what lets a size change fan out across a file's links,
+and it is the only way to find an entry whose name the journal redacted.
+
+A partial index over only multi-link files would cut it to roughly 14 MB. Not done, because
+correctness of the incremental path matters more than 160 MB and the uniform lookup is much harder
+to get wrong.
+
+## Still not measured
+
+- **Scan cost with a game running.** The constraint the whole design exists to satisfy, and it has
+  still not been tested under real contention. The gate defers correctly when Windows reports a busy
+  or fullscreen state - observed during these runs - but the cost of a tick that does proceed
+  alongside a game is unknown.
+- **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
+- **Whether elevation closes the 29.6 GB gap on C:.**
+- **A journal that wraps or is reset while running.** The code path exists and is unit-tested
+  against a fake, but has not been provoked for real.
