@@ -278,6 +278,17 @@ button {
   background: transparent;
 }
 
+/*
+ * Two kinds of button row, and the mockups use both.
+ *
+ * `.btn-group` is a segmented control: buttons share a border, so the set reads as one control
+ * answering one question — which volume, which interval, which range. Use it when the options are
+ * mutually exclusive and the set is fixed.
+ *
+ * Filters and sort selectors are NOT this. In the mockups they sit as loose children of the panel
+ * head and take its own gap, so each reads as a separate switch rather than as one segmented
+ * dimension. Do not wrap those in a `.btn-group` — put the buttons straight into the head.
+ */
 .btn-group {
   display: flex;
 }

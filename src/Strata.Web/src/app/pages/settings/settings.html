@@ -266,11 +266,14 @@
 
         <div class="spacer"></div>
 
-        <div class="btn-group">
-          @for (f of logFilters; track f) {
-            <button class="btn" [class.on]="filter() === f" (click)="setFilter(f)">{{ f }}</button>
-          }
-        </div>
+        <!--
+          Loose in the panel head rather than wrapped in a .btn-group, so they take its gap and read
+          as four separate switches. The interval picker above is a segmented control because it
+          answers one question; these do not.
+        -->
+        @for (f of logFilters; track f) {
+          <button class="btn" [class.on]="filter() === f" (click)="setFilter(f)">{{ f }}</button>
+        }
       </div>
 
       <div class="log-head grid-head">

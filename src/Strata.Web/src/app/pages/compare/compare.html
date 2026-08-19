@@ -113,13 +113,13 @@
           <div class="spacer"></div>
 
           <span class="t-micro">Rank by</span>
-          <div class="btn-group">
-            @for (s of sorts; track s.key) {
-              <button class="btn" [class.on]="sort() === s.key" (click)="setSort(s.key)">
-                {{ s.label }}
-              </button>
-            }
-          </div>
+
+          <!-- Loose, like the mockup's: a sort selector is not a segmented dimension. -->
+          @for (s of sorts; track s.key) {
+            <button class="btn" [class.on]="sort() === s.key" (click)="setSort(s.key)">
+              {{ s.label }}
+            </button>
+          }
         </div>
 
         <div class="row-head grid-head">
