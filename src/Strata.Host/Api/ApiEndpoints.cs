@@ -30,6 +30,7 @@ internal static class ApiEndpoints
         api.MapGet("/volumes", GetVolumes);
         api.MapGet("/snapshots", GetSnapshots);
         api.MapGet("/events", GetEvents);
+        api.MapGet("/scan-log", GetScanLog);
         api.MapPost("/scan", PostScan);
         api.MapGet("/settings", GetSettings);
         api.MapPut("/settings", PutSettings);
@@ -151,6 +152,64 @@ internal static class ApiEndpoints
 
         return Results.Ok(EventQueries.List(
             connection, volumeId, fromUtc, toUtc, Math.Max(0, minBytes ?? 0), Clamp(limit)));
+    }
+
+    /// <summary>
+    /// Every tick the scheduler attempted, with what it decided and why.
+    /// </summary>
+    /// <remarks>
+    /// The one endpoint whose reason for existing is scepticism. It answers "is this thing staying
+    /// out of my way", and it answers it with the deferrals included rather than only the runs — a
+    /// log that recorded successes alone would be evidence of nothing.
+    /// <para>
+    /// The summary rides along rather than being a second endpoint. The Settings screen wants both
+    /// and always at the same time, and the totals have to be over the whole window rather than over
+    /// the page of rows that came back.
+    /// </para>
+    /// </remarks>
+    private static IResult GetScanLog(
+        StrataDatabase database,
+        string? volume,
+        string? from,
+        string? to,
+        string? result,
+        int? limit)
+    {
+        using var connection = database.OpenRead();
+
+        if (!TryResolveVolume(connection, volume, out var volumeId, out var failure))
+        {
+            return failure;
+        }
+
+        if (!TryParseTime(from, out var fromUtc) || !TryParseTime(to, out var toUtc))
+        {
+            return BadTime();
+        }
+
+        var wanted = (result ?? "all").ToLowerInvariant();
+
+        if (wanted is not ("all" or "ran" or "deferred" or "failed"))
+        {
+            return Results.BadRequest(new ApiError("result must be 'ran', 'deferred', 'failed' or 'all'."));
+        }
+
+        ScanOutcome? outcome = wanted switch
+        {
+            "ran" => ScanOutcome.Ran,
+            "deferred" => ScanOutcome.Deferred,
+            "failed" => ScanOutcome.Failed,
+            _ => null,
+        };
+
+        return Results.Ok(new ScanLogResponse
+        {
+            // Summarised over the window rather than over the returned page, and unfiltered by
+            // result: "50 ran, 6 deferred" is the sentence, and it cannot be built from rows that
+            // were already filtered down to one of those two.
+            Summary = ScanLogQueries.Summarise(connection, volumeId, fromUtc, toUtc),
+            Ticks = ScanLogQueries.List(connection, volumeId, fromUtc, toUtc, outcome, Clamp(limit)),
+        });
     }
 
     /// <summary>

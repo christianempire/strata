@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Strata.Core.Formatting;
 using Strata.Core.Model;
 using Strata.Core.Scanning;
 using Strata.Platform;
@@ -38,6 +39,12 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     private WindowsScanGate _gate = new();
     private ScanGateOptions _gateOptions = new();
     private long _nextRequestId;
+
+    /// <summary>
+    /// When the cycle currently running began. Every log row of one tick carries it, so the rows
+    /// belonging to a single tick group exactly rather than by timestamp proximity.
+    /// </summary>
+    private DateTime _cycleUtc = DateTime.UtcNow;
 
     internal ScanScheduler(StrataDatabase database, ILogger<ScanScheduler> logger)
     {
@@ -94,6 +101,8 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     {
         while (!_stopping.IsCancellationRequested)
         {
+            _cycleUtc = DateTime.UtcNow;
+
             StrataSettings settings;
 
             try
@@ -112,7 +121,14 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             RefreshGate(settings);
             DrainRequests(settings);
 
-            if (!settings.Paused)
+            if (settings.Paused)
+            {
+                // One row for the cycle rather than one per volume: pausing is a decision about the
+                // scanner, not about a disk, and a row per volume would treble the log for a state
+                // that can last days.
+                Record(null, "—", ScanTier.Incremental, ScanOutcome.Deferred, "paused from the UI");
+            }
+            else
             {
                 RunScheduledTicks(settings);
             }
@@ -160,6 +176,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                                        or Microsoft.Data.Sqlite.SqliteException)
             {
                 RequestedScanFailed(ex, request.Volume.Display);
+                Record(request.Volume, request.Tier, ScanOutcome.Failed, ex.Message);
             }
         }
     }
@@ -183,6 +200,16 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             outcome.WriteTime.TotalSeconds,
             outcome.SnapshotId);
 
+        // Scan plus write, because what the log is asked to justify is how long the machine was busy
+        // on Strata's behalf, and the write is not free at three million rows.
+        Record(
+            request.Volume,
+            ScanTier.Full,
+            ScanOutcome.Ran,
+            $"full baseline, {outcome.Result.FileCount:N0} files in {outcome.Result.DirectoryCount:N0} directories",
+            durationMs: (long)(outcome.Result.Duration + outcome.WriteTime).TotalMilliseconds,
+            records: outcome.RowsWritten);
+
         // A baseline rewrote every row for the volume, so the directory tree the watcher was holding
         // describes the previous scan.
         Forget(request.Volume);
@@ -205,6 +232,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                                        or Microsoft.Data.Sqlite.SqliteException)
             {
                 TickFailed(ex, volume.Display);
+                Record(volume, ScanTier.Incremental, ScanOutcome.Failed, ex.Message);
             }
         }
     }
@@ -216,6 +244,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         if (!outcome.Ran)
         {
             TickSkipped(watcher.Volume.Display, outcome.Deferral);
+            Record(watcher.Volume, outcome.Tier, ScanOutcome.Deferred, outcome.Deferral);
             return;
         }
 
@@ -231,6 +260,102 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             outcome.Changes.Count,
             outcome.Duration.TotalMilliseconds,
             outcome.CatchingUp ? " (catching up)" : "");
+
+        Record(
+            watcher.Volume,
+            outcome.Tier,
+            ScanOutcome.Ran,
+            Describe(outcome),
+            durationMs: (long)outcome.Duration.TotalMilliseconds,
+            records: outcome.RecordsRead,
+            events: outcome.Changes.Count);
+    }
+
+    /// <summary>
+    /// What a tick did, in one line, for someone auditing the log rather than debugging it.
+    /// </summary>
+    /// <remarks>
+    /// Names the largest change when there was one. "incremental, 1,204 records" says the scanner
+    /// worked; "16.78 GB deleted under C:\Users" says what it found, and that is the line that makes
+    /// a tick in the log line up with a row in the events feed.
+    /// </remarks>
+    private static string Describe(TickOutcome outcome)
+    {
+        var note = outcome.CatchingUp ? ", catching up" : "";
+
+        if (outcome.Changes.Count == 0)
+        {
+            return $"incremental, {outcome.RecordsRead:N0} journal records{note}";
+        }
+
+        var largest = outcome.Changes[0];
+
+        foreach (var change in outcome.Changes)
+        {
+            if (change.AbsoluteDelta > largest.AbsoluteDelta)
+            {
+                largest = change;
+            }
+        }
+
+        return $"incremental, {outcome.RecordsRead:N0} journal records{note} · " +
+               $"{ByteSize.FormatDelta(largest.DeltaBytes)} {largest.Path}";
+    }
+
+    /// <summary>Records one attempt against a live volume.</summary>
+    private void Record(
+        VolumeIdentity volume,
+        ScanTier tier,
+        ScanOutcome result,
+        string reason,
+        long durationMs = 0,
+        long records = 0,
+        long events = 0)
+        => Record(volume.GuidPath, volume.Display, tier, result, reason, durationMs, records, events);
+
+    /// <summary>
+    /// Writes one row of the audit log, and never lets failing to do so break the scan.
+    /// </summary>
+    /// <remarks>
+    /// Its own connection rather than the tick's, because the tick has already committed and closed
+    /// by the time this runs. A row costs one insert into a table of a few hundred rows a day, which
+    /// is not a cost worth batching against the risk of losing the log on a crash — the log's whole
+    /// purpose is to survive one.
+    /// </remarks>
+    private void Record(
+        string? volumeKey,
+        string display,
+        ScanTier tier,
+        ScanOutcome result,
+        string reason,
+        long durationMs = 0,
+        long records = 0,
+        long events = 0)
+    {
+        var now = DateTime.UtcNow;
+
+        try
+        {
+            using var connection = _database.Open();
+
+            ScanLogRepository.Append(connection, new ScanLogRow
+            {
+                CycleUtc = _cycleUtc.ToString("O"),
+                WhenUtc = now.ToString("O"),
+                VolumeId = volumeKey is null ? null : VolumeQueries.Resolve(connection, volumeKey),
+                Volume = display,
+                Tier = tier,
+                Result = result,
+                Reason = reason,
+                DurationMs = durationMs,
+                Records = records,
+                Events = events,
+            });
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            ScanLogUnwritable(ex);
+        }
     }
 
     private static List<VolumeIdentity> Watchable()
@@ -283,6 +408,9 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         Level = LogLevel.Warning,
         Message = "Could not read settings; using defaults for this cycle.")]
     private partial void SettingsUnreadable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not write the scan log for this tick.")]
+    private partial void ScanLogUnwritable(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Baseline scan of {volume} starting.")]
     private partial void BaselineStarting(string volume);

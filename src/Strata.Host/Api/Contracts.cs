@@ -65,6 +65,22 @@ internal sealed record VolumeResponse
     public long SnapshotCount { get; init; }
 }
 
+/// <summary>
+/// The audit log, with the totals for the same window.
+/// </summary>
+/// <remarks>
+/// The one endpoint that wraps its list, against the rule the rest of the API follows. The totals
+/// cannot be derived from the rows — they cover the whole window, not the returned page, and they
+/// count outcomes the caller may have filtered out — so returning them separately would mean two
+/// requests that can disagree with each other about the same moment.
+/// </remarks>
+internal sealed record ScanLogResponse
+{
+    public required ScanLogSummary Summary { get; init; }
+
+    public required IReadOnlyList<ScanLogRow> Ticks { get; init; }
+}
+
 /// <summary>A scan asked for through the API.</summary>
 internal sealed record ScanRequestBody
 {

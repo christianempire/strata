@@ -96,6 +96,21 @@ GET {{host}}/api/diff?from=1&to=46&path=C:\Users&minBytes=1073741824
 ### Diff — refused, with the reason, when a snapshot has no rollup to compare.
 GET {{host}}/api/diff?from=1&to=2
 
+### Scan log — every tick the scheduler attempted, with the summary for the same window.
+# The one endpoint that exists to be sceptical of the scanner. Deferred rows are the point:
+# a log of successes alone would be evidence of nothing.
+GET {{host}}/api/scan-log?limit=50
+
+### Scan log — only the ticks that did not run, and why.
+# The summary still counts everything in the window, so "6 of 56" survives the filter.
+GET {{host}}/api/scan-log?result=deferred
+
+### Scan log — one volume, today.
+GET {{host}}/api/scan-log?volume=C:&from=2026-08-19T00:00:00Z
+
+### Scan log — rejected.
+GET {{host}}/api/scan-log?result=maybe
+
 ### Scan — queue an incremental tick. Answers 202; the tick has not run yet.
 POST {{host}}/api/scan
 Content-Type: application/json
