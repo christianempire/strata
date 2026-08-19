@@ -30,6 +30,7 @@ internal static class ApiEndpoints
         api.MapGet("/volumes", GetVolumes);
         api.MapGet("/snapshots", GetSnapshots);
         api.MapGet("/events", GetEvents);
+        api.MapGet("/series", GetSeries);
         api.MapGet("/scan-log", GetScanLog);
         api.MapPost("/scan", PostScan);
         api.MapGet("/scan/status", GetScanStatus);
@@ -153,6 +154,66 @@ internal static class ApiEndpoints
 
         return Results.Ok(EventQueries.List(
             connection, volumeId, fromUtc, toUtc, Math.Max(0, minBytes ?? 0), Clamp(limit)));
+    }
+
+    /// <summary>
+    /// Used space over time, split by top-level directory. The Timeline's stacked area.
+    /// </summary>
+    /// <remarks>
+    /// Its own endpoint because the alternative is a tree walk per snapshot, and a week at a
+    /// fifteen-minute cadence is 672 of them. This is one clustered range read per top-level
+    /// directory over the whole window — which is the query <c>dir_history</c> was keyed for, and
+    /// the reason migration 005 left it without a secondary index on time.
+    /// <para>
+    /// A volume is required. A stacked area of every disk at once is a chart of nothing.
+    /// </para>
+    /// </remarks>
+    private static IResult GetSeries(
+        StrataDatabase database,
+        string? volume,
+        string? from,
+        string? to,
+        int? buckets,
+        int? top)
+    {
+        if (string.IsNullOrWhiteSpace(volume))
+        {
+            return Results.BadRequest(new ApiError("A volume is required, for example volume=C:."));
+        }
+
+        using var connection = database.OpenRead();
+
+        if (!TryResolveVolume(connection, volume, out var volumeId, out var failure))
+        {
+            return failure;
+        }
+
+        if (!TryParseTime(from, out var fromUtc) || !TryParseTime(to, out var toUtc))
+        {
+            return BadTime();
+        }
+
+        var end = toUtc ?? DateTime.UtcNow;
+        var start = fromUtc ?? end.AddDays(-7);
+
+        if (start >= end)
+        {
+            return Results.BadRequest(new ApiError("from must be before to."));
+        }
+
+        // Capacity comes from the stored row rather than the live volume, so a detached disk still
+        // has one — its history is browsable and the used band needs a denominator.
+        var capacity = VolumeQueries.List(connection)
+            .FirstOrDefault(v => v.Id == volumeId.GetValueOrDefault())?.TotalBytes ?? 0;
+
+        return Results.Ok(SeriesQueries.Load(
+            connection,
+            volumeId!.Value,
+            capacity,
+            start,
+            end,
+            buckets ?? 120,
+            top ?? SeriesQueries.DefaultTopCount));
     }
 
     /// <summary>

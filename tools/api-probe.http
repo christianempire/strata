@@ -96,6 +96,24 @@ GET {{host}}/api/diff?from=1&to=46&path=C:\Users&minBytes=1073741824
 ### Diff — refused, with the reason, when a snapshot has no rollup to compare.
 GET {{host}}/api/diff?from=1&to=2
 
+### Series — used space over time, split by top-level directory. The Timeline's stacked area.
+# One clustered range read per top-level directory rather than a tree walk per snapshot; a
+# week at a fifteen-minute cadence would otherwise be 672 of them.
+#
+# Every array in the response is indexed by `buckets`. `used` is what the OS reported at each
+# edge, so the difference between it and the sum of the bands is what Strata could not account
+# for — which is what the chart draws as its hatched top band.
+GET {{host}}/api/series?volume=C:&buckets=48
+
+### Series — a named window, sampled hourly.
+GET {{host}}/api/series?volume=C:&from=2026-08-12T00:00:00Z&to=2026-08-19T00:00:00Z&buckets=168
+
+### Series — fewer named bands, the rest folded into "other".
+GET {{host}}/api/series?volume=C:&top=4&buckets=24
+
+### Series — refused. A stacked area of every disk at once is a chart of nothing.
+GET {{host}}/api/series?buckets=24
+
 ### Scan status — what the scanner is doing right now.
 # Reads process memory, not the database, so it stays cheap to poll at 1 Hz while a baseline
 # is saturating the disk. Poll this immediately after queueing a full scan below.
