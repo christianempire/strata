@@ -365,6 +365,7 @@ public sealed class Tier1Scanner : IVolumeScanner
         private long _hardLinkBytesSaved;
         private int _reparsePointCount;
         private long _nextProgressAt;
+        private long _lastProgressTicks = Environment.TickCount64;
 
         internal ScanState(ScanOptions options, IScanSink sink, CancellationToken cancellationToken)
         {
@@ -489,12 +490,27 @@ public sealed class Tier1Scanner : IVolumeScanner
 
             var callback = _options.OnProgress;
 
-            if (callback is null || completed < Interlocked.Read(ref _nextProgressAt))
+            if (callback is null)
+            {
+                return;
+            }
+
+            // Either enough directories or enough time. Whichever comes first, because at the top of
+            // a volume the count arrives slowly and at the bottom it arrives in floods, and a
+            // display that goes quiet for twenty seconds reads as a hang rather than as a wide
+            // directory.
+            var now = Environment.TickCount64;
+            var byCount = completed >= Interlocked.Read(ref _nextProgressAt);
+            var byTime = now - Interlocked.Read(ref _lastProgressTicks) >= _options.ProgressIntervalMilliseconds;
+
+            if (!byCount && !byTime)
             {
                 return;
             }
 
             Interlocked.Exchange(ref _nextProgressAt, completed + _options.ProgressIntervalDirectories);
+            Interlocked.Exchange(ref _lastProgressTicks, now);
+
             callback(new ScanProgress(completed, Interlocked.Read(ref _filesSeen), totalBytes, path));
         }
 

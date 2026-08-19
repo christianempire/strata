@@ -93,6 +93,13 @@ internal static class BaselineScan
         // applied to nothing is meaningless. This is what unblocks it.
         IncrementalRepository.MarkBaseline(connection, volumeId, result.StartedUtc);
 
+        // And this is what keeps it unblocked. The state a baseline exists to recover from is a
+        // journal that was reset or wrapped past the stored cursor — and leaving that cursor behind
+        // meant the next tick failed exactly as before and asked for another baseline. Observed on
+        // C: after a successful 125 s rescan: still "journal reset or cursor trimmed; a full
+        // baseline is needed", with no sequence of user actions that could clear it.
+        IncrementalRepository.ResetCursor(connection, volumeId);
+
         writeClock.Stop();
 
         return new BaselineOutcome(result, writeClock.Elapsed, sink.RowsWritten, snapshotId);

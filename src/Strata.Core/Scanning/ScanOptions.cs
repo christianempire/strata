@@ -40,6 +40,23 @@ public sealed record ScanOptions
 
     /// <summary>How often progress is reported, counted in directories completed.</summary>
     public int ProgressIntervalDirectories { get; init; } = 2000;
+
+    /// <summary>
+    /// Report progress at least this often, however few directories have finished.
+    /// </summary>
+    /// <remarks>
+    /// Measured on the real C:: the first 2,000 directories took twenty seconds, because the top of
+    /// a volume is wide and cold while the deep branches that make up the bulk of the count come
+    /// later and fast. A count-only trigger therefore reported nothing at all for the first twenty
+    /// seconds of a 125-second scan — no percentage, no rate, no path — which is exactly the
+    /// "working or frozen?" impression the first-run screen exists to prevent, at the moment it is
+    /// most likely to be watched.
+    /// <para>
+    /// Cheap enough for the caller it runs on: this is per directory completed, not per entry, and
+    /// a tick count read is a few nanoseconds against the thousands the directory itself cost.
+    /// </para>
+    /// </remarks>
+    public int ProgressIntervalMilliseconds { get; init; } = 500;
 }
 
 /// <summary>A progress sample taken during a scan.</summary>

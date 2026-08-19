@@ -400,6 +400,34 @@ public static class IncrementalRepository
         return changes.Count;
     }
 
+    /// <summary>
+    /// Forgets where the journal had been read up to, so the next tick starts from wherever it is now.
+    /// </summary>
+    /// <remarks>
+    /// Belongs with every baseline, and its absence was a trap with no way out. A journal that has
+    /// been reset or has wrapped past the stored cursor makes the tick report
+    /// <c>JournalInvalidated</c>, whose remedy is "a full baseline is needed" — but a baseline only
+    /// set <c>baseline_utc</c> and left the dead cursor in place, so the next tick failed the same
+    /// way and asked for the same baseline again. A volume in that state could never resume
+    /// incremental scanning, however many times it was rescanned.
+    /// <para>
+    /// Deleting the row rather than writing a new one is deliberate: an absent cursor is already the
+    /// documented "start fresh" signal, and <c>Win32UsnJournal.Read</c> begins at the journal's
+    /// current position when it sees one. The cost is that changes made between the baseline and the
+    /// first tick are not in the change feed — they are in the baseline's own totals, and the
+    /// alternative is a hole in history, which this project treats as the worse failure.
+    /// </para>
+    /// </remarks>
+    public static void ResetCursor(SqliteConnection connection, long volumeId)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM usn_cursors WHERE volume_id = $v;";
+        command.Parameters.AddWithValue("$v", volumeId);
+        command.ExecuteNonQuery();
+    }
+
     /// <summary>Marks a volume as having a usable baseline, which Tier 2 requires before it can run.</summary>
     public static void MarkBaseline(SqliteConnection connection, long volumeId, DateTime whenUtc)
     {

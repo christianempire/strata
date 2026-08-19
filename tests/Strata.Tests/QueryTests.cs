@@ -52,6 +52,45 @@ public sealed class QueryTests : IDisposable
         }
     }
 
+    // --- the incremental cursor -----------------------------------------------------------------
+
+    /// <summary>
+    /// A baseline forgets the journal cursor, so a wrapped journal can actually recover.
+    /// </summary>
+    /// <remarks>
+    /// The bug this pins was a trap with no way out. A journal that has been reset or has wrapped
+    /// past the stored cursor makes the tick report JournalInvalidated, whose stated remedy is "a
+    /// full baseline is needed" — but the baseline only set baseline_utc and left the dead cursor in
+    /// place, so the next tick failed identically and asked for the same baseline again. Observed on
+    /// the real C: after a successful 125 s rescan.
+    /// </remarks>
+    [Fact]
+    public void ResettingTheCursorLetsTheNextTickStartFromWhereverTheJournalIsNow()
+    {
+        using (var transaction = _connection.BeginTransaction())
+        {
+            IncrementalRepository.SaveCursor(
+                _connection, transaction, _volumeId, new UsnCursor(0xDEAD, 9_000_000));
+            transaction.Commit();
+        }
+
+        Assert.True(IncrementalRepository.GetCursor(_connection, _volumeId).IsSet);
+
+        IncrementalRepository.ResetCursor(_connection, _volumeId);
+
+        // UsnCursor.None is what Win32UsnJournal.Read treats as "begin at the current position".
+        Assert.False(IncrementalRepository.GetCursor(_connection, _volumeId).IsSet);
+        Assert.Equal(UsnCursor.None, IncrementalRepository.GetCursor(_connection, _volumeId));
+    }
+
+    [Fact]
+    public void ResettingACursorThatWasNeverWrittenIsHarmless()
+    {
+        IncrementalRepository.ResetCursor(_connection, _volumeId);
+
+        Assert.Equal(UsnCursor.None, IncrementalRepository.GetCursor(_connection, _volumeId));
+    }
+
     // --- settings -----------------------------------------------------------------------------
 
     [Fact]
