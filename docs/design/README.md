@@ -80,5 +80,12 @@ is what the label means — but a volume whose history is hours old has one buck
 stretched across the cell reads as a solid block rather than as a chart with one reading in it. Under
 two buckets the cell says "under a day of history" instead.
 
+**EFI and recovery partitions are kept out of the pickers.** The mockups show three volumes because
+the brief supplied three; this machine enumerates five, the extra two being an EFI system partition
+and a WinRE recovery partition. They are identified by having no drive letter — Windows leaves them
+unmounted on purpose, and a volume with no path is not one anyone browses to. Overview counts them in
+a footnote and Settings lists them in full with a `system` chip, so they are out of the way rather
+than hidden.
+
 **Treemap tiles cap at 40 before the tail merges.** The mockup's own figure. Stated here because it
 is a number rather than a shape: the sibling list beside the map still lists every child.

@@ -43,10 +43,21 @@ export class Shell {
     return this.volumes().find((v) => volumeKey(v) === key) ?? null;
   });
 
-  /** Volumes worth offering in the picker: attached and scannable, or detached with history. */
+  /**
+   * Volumes worth offering in a picker: attached and scannable, or detached with history.
+   *
+   * System partitions are left out. They have no path to browse and nothing a person is looking for,
+   * and on this machine they were two thirds as many buttons as there are real disks. Settings still
+   * lists them, because that is the screen for checking what the scanner is touching.
+   */
   readonly listed = computed(() =>
-    this.volumes().filter((v) => (v.attached && v.scannable) || v.snapshotCount > 0),
+    this.volumes().filter(
+      (v) => !isSystemPartition(v) && ((v.attached && v.scannable) || v.snapshotCount > 0),
+    ),
   );
+
+  /** The ones left out of the pickers, so a screen can say they exist rather than vanish them. */
+  readonly systemPartitions = computed(() => this.volumes().filter(isSystemPartition));
 
   readonly scanning = computed(() => this.status()?.state === 'scanning');
 
@@ -123,6 +134,23 @@ export class Shell {
 /** What the API's `volume` parameter should be for this volume. */
 export function volumeKey(volume: Volume): string {
   return volume.driveLetter ?? volume.guidPath;
+}
+
+/**
+ * A volume Windows keeps unmounted: the EFI system partition, WinRE recovery, and their like.
+ *
+ * Identified by having no drive letter, which is the property that actually matters rather than a
+ * proxy for it. Windows leaves these without a mount point on purpose so they cannot casually be
+ * written to, and File Explorer does not show them either — a volume with no path is not one anyone
+ * browses to, and a treemap of it has nowhere to start.
+ *
+ * Not identified by size or filesystem: on this machine one is a 790 MB NTFS recovery partition and
+ * the other a 96 MB FAT32 ESP, and neither of those facts generalises. A future data volume mounted
+ * only at a folder path would be caught by this too, which is the one false positive it can produce
+ * — and it is still listed in Settings, so it is out of the way rather than hidden.
+ */
+export function isSystemPartition(volume: Volume): boolean {
+  return volume.driveLetter === null;
 }
 
 /**

@@ -125,7 +125,9 @@ input[type='range']::-moz-range-thumb {
 .vol-head,
 .vol-row {
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) 130px 70px auto;
+  /* The first column sizes to its content: a system partition has no drive letter and falls back
+     to a braced GUID, which is wider than any letter and would otherwise spill into the label. */
+  grid-template-columns: minmax(60px, auto) minmax(0, 1fr) 130px 70px auto;
   align-items: center;
   gap: 10px;
   padding: 0 var(--pad);

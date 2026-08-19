@@ -130,7 +130,16 @@
               <span class="dim">{{ v.label || 'unlabelled' }}</span>
 
               <span>
-                @if (!v.attached) {
+                @if (isSystem(v)) {
+                  <!--
+                    Listed here and nowhere else. This is the screen for checking what the scanner is
+                    touching, so the complete list belongs on it — but an EFI or recovery partition
+                    has no path to browse, so it is not offered in any picker.
+                  -->
+                  <span class="chip" title="Windows keeps this unmounted; it has no drive letter.">
+                    ⚙ system
+                  </span>
+                } @else if (!v.attached) {
                   <span class="chip">◌ detached</span>
                 } @else if (!v.baselineUtc) {
                   <span class="chip">○ no baseline</span>
@@ -155,7 +164,7 @@
               </span>
             </div>
 
-            @if (v.attached && !v.supportsUsnJournal) {
+            @if (v.attached && !isSystem(v) && !v.supportsUsnJournal) {
               <!-- State 04's fix, offered where the fidelity is stated. -->
               <div class="vol-note">
                 {{ nameOf(v) }} has no NTFS change journal, so history comes from a periodic walk
@@ -165,7 +174,7 @@
               </div>
             }
 
-            @if (v.attached && v.baselineUtc && v.usedBytes - v.accountedBytes > 1073741824) {
+            @if (v.attached && !isSystem(v) && v.baselineUtc && v.usedBytes - v.accountedBytes > 1073741824) {
               <!-- State 05, with the arithmetic rather than a bare number. -->
               <div class="vol-note alert-note">
                 Strata accounts for {{ v.accountedBytes | bytes }} of the

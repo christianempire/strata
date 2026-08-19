@@ -7,6 +7,21 @@
       {{ totals().files | grouped }} files tracked in {{ totals().directories | grouped }}
       directories
     </span>
+
+    @if (systemPartitions().length; as hidden) {
+      <!--
+        Counted rather than drawn. They are real and they hold real bytes, so they are named here and
+        listed in full on Settings — just not given a card each on the screen that answers "which
+        disk is the problem".
+      -->
+      <span
+        class="t-meta faint"
+        [title]="'Windows keeps these unmounted, so they have no path to browse.'"
+      >
+        · {{ hidden }} system partition{{ hidden === 1 ? '' : 's' }} not shown
+        (<span class="mono">{{ systemBytes() | bytes }}</span>, no drive letter)
+      </span>
+    }
   </div>
 
   @for (disk of disks(); track disk.label) {

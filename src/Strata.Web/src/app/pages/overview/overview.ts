@@ -7,7 +7,7 @@ import { Api } from '../../core/api';
 import { bytes, toIso } from '../../core/format';
 import { ChangeEvent, Snapshot, Volume } from '../../core/models';
 import { seriesColour } from '../../core/series';
-import { Shell, volumeKey, volumeName } from '../../core/state';
+import { Shell, isSystemPartition, volumeKey, volumeName } from '../../core/state';
 import { KindChip } from '../../ui/kind-chip';
 import { PathCell } from '../../ui/path-cell';
 import { SparkPoint, Sparkline } from '../../ui/sparkline';
@@ -100,7 +100,22 @@ export class Overview {
   protected readonly loading = signal(true);
 
   protected readonly attached = computed(() =>
-    this.shell.volumes().filter((v) => v.attached && (v.scannable || v.snapshotCount > 0)),
+    this.shell
+      .volumes()
+      .filter((v) => !isSystemPartition(v) && v.attached && (v.scannable || v.snapshotCount > 0)),
+  );
+
+  /**
+   * EFI and recovery partitions, counted rather than drawn.
+   *
+   * A card each would be two thirds of this screen given to 886 MB that never changes. They are
+   * named in a footnote and listed in full on Settings, which keeps them out of the way without
+   * pretending the machine does not have them.
+   */
+  protected readonly systemPartitions = this.shell.systemPartitions;
+
+  protected readonly systemBytes = computed(() =>
+    this.systemPartitions().reduce((sum, v) => sum + v.usedBytes, 0),
   );
 
   /** History for hardware that is not plugged in. Reported rather than dropped: it is not stale. */
