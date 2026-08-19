@@ -161,6 +161,10 @@ internal static class Cli
                     options.IncludeStrataDatabase = true;
                     break;
 
+                case "--rollup-log":
+                    options.RollupLogPath = RequireValue(args, ref i);
+                    break;
+
                 case "--verbose":
                     options.Verbose = true;
                     break;
@@ -244,6 +248,7 @@ internal static class Cli
               --ignore-gate        run even when the resource guards would defer (diagnostic)
               --verbose            print a per-phase timing breakdown for each tick
               --no-fullscreen-detection   disable the borderless-fullscreen check
+              --rollup-log <path>  append every directory whose total moved, per tick, as CSV
 
             SERVE OPTIONS
               --port <n>           API port on localhost (default: 5177)
@@ -306,6 +311,9 @@ internal sealed class CliOptions
     internal bool NoFullscreenDetection { get; set; }
 
     internal bool Verbose { get; set; }
+
+    /// <summary>Where to append the per-tick rollup fan-out. Diagnostic; off unless asked for.</summary>
+    internal string? RollupLogPath { get; set; }
 
     internal List<string> ExtraEventExclusions { get; } = [];
 

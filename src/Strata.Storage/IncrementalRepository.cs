@@ -5,6 +5,23 @@ using Strata.Core.Scanning;
 
 namespace Strata.Storage;
 
+/// <summary>
+/// What one tick's deltas did to the directory rollup.
+/// </summary>
+/// <remarks>
+/// <see cref="Touched"/> is the accumulated per-ancestor delta, which is exactly the set a sparse
+/// history model would have to consider writing a row for. It is computed anyway to do the update,
+/// so returning it costs nothing and is the only way to size that model against real activity rather
+/// than against an estimate.
+/// </remarks>
+public readonly record struct RollupFanOut(
+    int RowsUpdated,
+    IReadOnlyDictionary<long, DirectoryDelta> Touched)
+{
+    public static readonly RollupFanOut Empty =
+        new(0, new Dictionary<long, DirectoryDelta>());
+}
+
 /// <summary>Persistence for the incremental path: cursors, rollup maintenance, and the events feed.</summary>
 public static class IncrementalRepository
 {
@@ -69,7 +86,7 @@ public static class IncrementalRepository
     /// rather than one per level, and the whole update lands in a single statement batch.
     /// </para>
     /// </remarks>
-    public static int ApplyDeltas(
+    public static RollupFanOut ApplyDeltas(
         SqliteConnection connection,
         SqliteTransaction transaction,
         long volumeId,
@@ -80,7 +97,7 @@ public static class IncrementalRepository
 
         if (deltas.Count == 0)
         {
-            return 0;
+            return RollupFanOut.Empty;
         }
 
         var parents = LoadParentChain(connection, transaction, volumeId, deltas.Keys);
@@ -133,7 +150,7 @@ public static class IncrementalRepository
             updated += command.ExecuteNonQuery();
         }
 
-        return updated;
+        return new RollupFanOut(updated, totals);
     }
 
     /// <summary>Loads the directory tree above a set of changed directories.</summary>
@@ -179,6 +196,88 @@ public static class IncrementalRepository
         }
 
         return parents;
+    }
+
+    /// <summary>
+    /// Brings a cached directory tree up to date with directories created since it was loaded.
+    /// </summary>
+    /// <remarks>
+    /// The tree is loaded once and kept because it is half a million rows on a system volume, and
+    /// re-reading it every tick would cost more than the journal read the tick exists to perform.
+    /// The flaw in that is directories the tick has just discovered: the rollup handles them, because
+    /// it resolves ancestors from <c>dir_totals</c> on every tick, but attribution works off the
+    /// cached tree and silently drops a delta whose directory it has never heard of.
+    /// <para>
+    /// That is not a small gap. A game installing into a new folder is the product's headline
+    /// example, and a new folder is exactly the case the cache did not have. Its bytes landed in the
+    /// totals and never appeared in the change feed.
+    /// </para>
+    /// <para>
+    /// Walks up from each unknown directory until it reaches one already cached, so a tree created
+    /// twenty levels deep in a single tick is stitched on in one pass.
+    /// </para>
+    /// </remarks>
+    public static int AddMissingNodes(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        long volumeId,
+        Dictionary<long, DirectoryNode> tree,
+        IEnumerable<long> directoryIds)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(directoryIds);
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT parent_id, name, depth FROM dir_totals
+            WHERE volume_id = $v AND dir_id = $d;
+            """;
+
+        command.Parameters.AddWithValue("$v", volumeId);
+        command.Parameters.Add("$d", SqliteType.Integer);
+
+        var added = 0;
+        var pending = new Queue<long>(directoryIds);
+
+        while (pending.Count > 0)
+        {
+            var dirId = pending.Dequeue();
+
+            if (tree.ContainsKey(dirId))
+            {
+                continue;
+            }
+
+            command.Parameters["$d"].Value = dirId;
+
+            using (var reader = command.ExecuteReader())
+            {
+                if (!reader.Read())
+                {
+                    // Created and removed inside the same tick, or otherwise gone. Nothing to
+                    // attribute it to and nothing to fix.
+                    continue;
+                }
+
+                var parentId = reader.GetInt64(0);
+
+                tree[dirId] = new DirectoryNode(dirId, parentId, reader.GetString(1))
+                {
+                    Depth = reader.GetInt32(2),
+                };
+
+                added++;
+
+                if (parentId != dirId)
+                {
+                    pending.Enqueue(parentId);
+                }
+            }
+        }
+
+        return added;
     }
 
     /// <summary>Loads the directory tree for a volume, for path building and attribution.</summary>

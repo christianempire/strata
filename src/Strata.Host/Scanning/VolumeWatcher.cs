@@ -45,6 +45,20 @@ internal sealed record TickOutcome
 
     internal long RollupMs { get; init; }
 
+    /// <summary>
+    /// Every directory whose subtree total moved this tick, ancestors included.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the outcome only so <c>--rollup-log</c> can record it. It is the set a sparse
+    /// history model would consider writing a row for, and it is computed to do the update anyway.
+    /// </remarks>
+    internal IReadOnlyDictionary<long, DirectoryDelta> RollupFanOut { get; init; }
+        = new Dictionary<long, DirectoryDelta>();
+
+    /// <summary>The subset that changed directly rather than by inheriting a descendant's change.</summary>
+    internal IReadOnlyDictionary<long, DirectoryDelta> Seeds { get; init; }
+        = new Dictionary<long, DirectoryDelta>();
+
     /// <summary>Cost of materialising the historical directory rollup for this tick.</summary>
     internal long SnapshotDirsMs { get; init; }
 
@@ -152,7 +166,7 @@ internal sealed class VolumeWatcher : IDisposable
         }
 
         var phase = Stopwatch.StartNew();
-        IncrementalRepository.ApplyDeltas(connection, transaction, volumeId, result.Deltas);
+        var fanOut = IncrementalRepository.ApplyDeltas(connection, transaction, volumeId, result.Deltas);
         var rollupMs = phase.ElapsedMilliseconds;
         phase.Restart();
 
@@ -181,7 +195,7 @@ internal sealed class VolumeWatcher : IDisposable
         var snapshotDirsMs = phase.ElapsedMilliseconds;
 
         phase.Restart();
-        var changes = Attribute(connection, volumeId, result, settings);
+        var changes = Attribute(connection, transaction, volumeId, result, settings);
 
         if (changes.Count > 0)
         {
@@ -216,6 +230,8 @@ internal sealed class VolumeWatcher : IDisposable
             Metadata = result.MetadataDuration,
             Store = result.StoreDuration,
             RollupMs = rollupMs,
+            RollupFanOut = fanOut.Touched,
+            Seeds = result.Deltas,
             SnapshotDirsMs = snapshotDirsMs,
             SnapshotDirCount = rolledUp,
             EventMs = eventMs,
@@ -227,6 +243,7 @@ internal sealed class VolumeWatcher : IDisposable
     /// <summary>Turns this tick's deltas into the rows the events feed shows.</summary>
     private IReadOnlyList<AttributedChange> Attribute(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         long volumeId,
         Tier2Result result,
         StrataSettings settings)
@@ -242,6 +259,11 @@ internal sealed class VolumeWatcher : IDisposable
         {
             return [];
         }
+
+        // Directories this tick has just discovered are not in the cached tree, and the attribution
+        // engine drops a delta whose directory it cannot find. Stitching them on first is what makes
+        // a fresh game install visible in the feed instead of only in the totals.
+        IncrementalRepository.AddMissingNodes(connection, transaction, volumeId, tree, result.Deltas.Keys);
 
         var rootId = tree.Values.FirstOrDefault(n => n.Depth == 0)?.Id ?? 5;
         var prefix = Volume.DriveLetter ?? Volume.GuidPath;

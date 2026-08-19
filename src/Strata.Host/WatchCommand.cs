@@ -61,6 +61,14 @@ internal static class WatchCommand
 
         var watchers = volumes.Select(v => new VolumeWatcher(v, database)).ToList();
 
+        using var rollupLog = options.RollupLogPath is null ? null : new RollupLog(options.RollupLogPath);
+
+        if (rollupLog is not null)
+        {
+            Console.WriteLine($"Rollup fan-out log: {Path.GetFullPath(options.RollupLogPath!)}");
+            Console.WriteLine();
+        }
+
         try
         {
             while (!stopping.IsCancellationRequested)
@@ -72,7 +80,15 @@ internal static class WatchCommand
                         break;
                     }
 
-                    Report(watcher.Volume, watcher.Tick(gate, settings, options.IgnoreGate), options.Verbose);
+                    var outcome = watcher.Tick(gate, settings, options.IgnoreGate);
+
+                    rollupLog?.Write(
+                        DateTime.UtcNow,
+                        watcher.Volume.DriveLetter ?? watcher.Volume.GuidPath,
+                        outcome.RollupFanOut,
+                        outcome.Seeds);
+
+                    Report(watcher.Volume, outcome, options.Verbose);
                 }
 
                 if (options.RunOnce)

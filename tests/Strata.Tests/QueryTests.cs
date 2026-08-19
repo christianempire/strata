@@ -350,6 +350,77 @@ public sealed class QueryTests : IDisposable
         Assert.DoesNotContain(nodes, n => n.Name.Contains("Backup", StringComparison.Ordinal));
     }
 
+    // --- the cached directory tree --------------------------------------------------------------
+
+    /// <summary>
+    /// A directory created since the tree was cached must be stitched on, ancestors and all.
+    /// </summary>
+    /// <remarks>
+    /// This is the bug the product's own headline example would have hit. A game installing into a
+    /// new folder puts every one of its bytes into a directory the cached tree has never heard of,
+    /// and the attribution engine drops a delta it cannot place — so the bytes landed in the totals
+    /// and never reached the change feed. Reproduced on the real machine with a 1.44 GB tree: the
+    /// rollup was exactly right and the feed said nothing at all.
+    /// </remarks>
+    [Fact]
+    public void DirectoriesCreatedSinceTheTreeWasCachedAreStitchedOn()
+    {
+        WriteBaseline();
+
+        var tree = IncrementalRepository.LoadDirectoryTree(_connection, _volumeId);
+        var before = tree.Count;
+
+        // A tick discovers three new levels at once, which is what unpacking an installer looks
+        // like. Only the deepest is named, so the walk has to find its ancestors on its own.
+        using (var store = new SqliteFileStateStore(_connection, _volumeId))
+        {
+            store.AddDirectory(90, RootDirId, "Games");
+            store.AddDirectory(91, 90, "Foo");
+            store.AddDirectory(92, 91, "Content");
+        }
+
+        var added = IncrementalRepository.AddMissingNodes(
+            _connection, null, _volumeId, tree, [92]);
+
+        Assert.Equal(3, added);
+        Assert.Equal(before + 3, tree.Count);
+        Assert.Equal("Content", tree[92].Name);
+        Assert.Equal(91, tree[92].ParentId);
+
+        // And the path it now builds is the one a person would recognise.
+        Assert.Equal(@"T:\Games\Foo\Content", PathBuilder.BuildPath(tree, 92, "T:"));
+    }
+
+    /// <summary>Nothing to do is not an error, and costs no queries worth caring about.</summary>
+    [Fact]
+    public void StitchingOnAKnownDirectoryChangesNothing()
+    {
+        WriteBaseline();
+
+        var tree = IncrementalRepository.LoadDirectoryTree(_connection, _volumeId);
+        var before = tree.Count;
+
+        Assert.Equal(0, IncrementalRepository.AddMissingNodes(
+            _connection, null, _volumeId, tree, [RootDirId, 20, 21]));
+
+        Assert.Equal(before, tree.Count);
+    }
+
+    /// <summary>
+    /// A directory created and removed inside one tick has no row to find. That is an ordinary
+    /// outcome on a live filesystem, not a failure.
+    /// </summary>
+    [Fact]
+    public void AVanishedDirectoryIsSkippedRatherThanThrowing()
+    {
+        WriteBaseline();
+
+        var tree = IncrementalRepository.LoadDirectoryTree(_connection, _volumeId);
+
+        Assert.Equal(0, IncrementalRepository.AddMissingNodes(
+            _connection, null, _volumeId, tree, [123_456_789]));
+    }
+
     // --- events -------------------------------------------------------------------------------
 
     [Fact]
