@@ -151,8 +151,8 @@ internal static class Cli
 
             SCAN OPTIONS
               --db <path>          database file (default: %LOCALAPPDATA%\Strata\strata.db)
-              --threads <n>        enumeration workers (default: min(4, cores/2))
-              --depth <n>          snapshot_dirs depth cap (default: 6)
+              --threads <n>        enumeration workers (default: min(8, cores/4))
+              --depth <n>          snapshot_dirs depth cap (default: 8)
               --floor-mb <n>       snapshot_dirs size floor in MB (default: 10)
               --exclude <name>     skip directories with this name, repeatable
               --no-dedup           do not deduplicate hardlinks, to measure what it costs
@@ -181,7 +181,7 @@ internal sealed class CliOptions
 
     internal int? Threads { get; set; }
 
-    internal int MaxDepth { get; set; } = 6;
+    internal int MaxDepth { get; set; } = 8;
 
     internal long SizeFloorBytes { get; set; } = 10L * 1024 * 1024;
 

@@ -94,8 +94,10 @@ Outside that loop, write ordinary readable C#.
   per row, inside one transaction. No Dapper on bulk paths (see `docs/DESIGN-REVIEW.md` C2).
 - Schema changes go in a new numbered migration in `Strata.Storage/Migrations/`. Never edit an
   applied migration.
-- All timestamps are UTC, stored as ISO-8601 strings (`O` format) for legibility in a SQLite browser.
-  Sizes are `INTEGER` bytes, never pre-formatted.
+- All timestamps are UTC. Stored as ISO-8601 strings (`O` format) for legibility in a SQLite browser
+  **except in tables with millions of rows**, where they are Unix seconds: measured on the target
+  machine, that convention was costing 95 MB in `files` alone, which is not a price worth paying for
+  browsability. Sizes are `INTEGER` bytes, never pre-formatted.
 - The database lives at `%LOCALAPPDATA%\Strata\strata.db`, WAL mode.
 
 ## Testing

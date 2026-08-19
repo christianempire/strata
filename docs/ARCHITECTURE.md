@@ -54,7 +54,10 @@ on an ntdll contract Microsoft reserves the right to change. The brief's stated 
 file IDs are the join key for the entire storage model. Reasoning in `DESIGN-REVIEW.md` A1/A2.
 
 **Parallelism.** A bounded work queue of pending directories, drained by N dedicated worker threads
-(default 4, configurable). Each worker takes a directory, enumerates it, streams file records to the
+(default `min(8, cores / 4)`, configurable). The brief specified `min(4, cores / 2)`; measurement
+showed four workers well short of the knee, so the default was raised. See docs/MEASUREMENTS.md.
+
+Each worker takes a directory, enumerates it, streams file records to the
 writer, and pushes discovered subdirectories back onto the queue. Completion is detected with an
 outstanding-directory counter rather than by queue emptiness, since an empty queue mid-scan does not
 mean the scan is done.
@@ -74,13 +77,22 @@ handed back to the pool would silently throttle unrelated work.
   detection is "have I seen this file ID before". The **first path encountered owns the bytes**;
   later links are recorded with their reported logical size but contribute zero to rollups and carry
   an `IsHardLink` flag. This keeps directory rollups summing exactly to the volume total, which
-  matters mainly for `C:\Windows\WinSxS`, which is largely hardlinks into `System32`.
+  matters mainly for `C:\Windows\WinSxS`, which is largely hardlinks into `System32`. Measured on
+  the target machine: 135,505 links sharing 18.2 GB on C:, effectively none on the other volumes.
+  *Known limitation:* `files` is keyed `(volume_id, file_id)`, so only the byte-owning path is
+  persisted. Totals are unaffected; listing every path a file is reachable by is not yet possible.
 - *Access denied.* Expected, not exceptional. Counted and reported, never thrown. Unelevated, parts
   of `C:` are genuinely unreadable, and we would rather show "1,204 directories not readable" than
   quietly under-report.
 
-**Cost.** Expected tens of seconds per volume. Acceptable because it is rare, and because it runs at
-very low I/O priority.
+**Cost, measured.** Warm, 7.7 s for a 3M-file volume. **Cold, 211 s for the same volume** - and cold
+is the case Tier 1 actually runs in, since it runs on first sight of a volume. Scan cost tracks
+*directory count*, not capacity: a 853 GB volume with 10k directories scans in under a second, while
+a 875 GB volume with 570k directories takes a hundred times longer.
+
+That is acceptable because it is rare and runs at very low I/O priority, but it means first-run has
+to be presented as a minutes-long background task rather than something that finishes while you
+watch.
 
 ### Tier 2 — incremental delta from the USN journal
 
@@ -168,11 +180,12 @@ affordable. Per snapshot, aggregated bytes and file count per directory, limited
 (default 6) and a size floor (default 10 MB). Stores the **path as text**, denormalised on purpose:
 file IDs churn, and history has to stay readable after the underlying directory is gone.
 
-> This is the open sizing question. Whether the depth-6 / 10 MB parameters keep the database
-> affordable depends entirely on how many directories on a real volume clear the floor, and that
-> number is what Phase 1 measures. If it is large, the fix is to write only *changed* directory rows
-> per snapshot against a daily full anchor, and to materialise rollups on a slower cadence than
-> snapshots. See `DESIGN-REVIEW.md` A5.
+> **Measured and settled.** 2,984 qualifying directories on the worst volume, not the tens of
+> thousands feared, which works out at ~260 MB per week of full-resolution history across all three
+> volumes. The design is affordable as specified, and the proposed mitigations (changed-rows-only
+> against a daily anchor, decoupled rollup cadence) were **not** built. The depth cap was raised from
+> 6 to 8 on the strength of the numbers, since the extra two levels make growth inside deep AppData
+> paths attributable and cost about 80 MB a week. See `MEASUREMENTS.md`.
 
 **`snapshot_top_files`** — the ~500 largest files per snapshot, so "what single file ate 8 GB" stays
 answerable after that file is deleted. Schema exists from Phase 1; populated from Phase 2.
@@ -214,7 +227,9 @@ A single .NET 9 process, one executable:
 - a Windows tray icon with Open UI / Scan now / Pause / Exit.
 
 Data in `%LOCALAPPDATA%\Strata\`. SQLite via `Microsoft.Data.Sqlite`, WAL mode, raw ADO on the write
-path.
+path. Measured footprint: **396 MB for 3.67M files across three volumes**, roughly 108 bytes a row.
+That is a one-time cost rather than a growth rate, because `files` holds current state and is updated
+in place.
 
 **Phase 1 is none of that.** It is the same solution with a console entry point exposing
 `strata volumes` and `strata scan`, so that real numbers — scan duration, file counts, resulting

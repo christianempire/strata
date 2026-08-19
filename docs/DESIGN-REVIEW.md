@@ -81,7 +81,12 @@ rect of the monitor it is on, and treat "covers the whole monitor, is not the sh
 presentation-like. Combined with the notification-state check, that covers both modes. Costs two
 syscalls per 60 s poll.
 
-### A5. The storage model still grows too fast as specified. (important, needs your decision)
+### A5. The storage model still grows too fast as specified. (RESOLVED - I was wrong)
+
+> **Settled by measurement.** The qualifying directory count on the worst volume is 2,984, not the
+> 40,000 I feared - off by more than an order of magnitude. Full-resolution history costs ~260 MB
+> per week across all three volumes at the brief's own defaults. The design works as written and
+> none of the mitigations below were built. See docs/MEASUREMENTS.md.
 
 This is the one that worries me most, because it is the failure mode the brief was explicitly
 written to avoid, and I do not think the stated parameters get there.
@@ -261,3 +266,46 @@ Flagged and deferred to Phase 2, with a probe rather than a guess: B1, B2, B3, A
 
 **Needs your decision, informed by Phase 1's numbers:** A5. The Phase 1 CLI prints the directory
 histogram specifically so this can be decided on data.
+
+
+---
+
+## E. What Phase 1 settled
+
+Written after the first real scans. Numbers in docs/MEASUREMENTS.md.
+
+| Item | Status |
+|---|---|
+| A1 ID-bearing enumeration is mandatory | Confirmed. Built that way; file IDs cross-checked against a second API. |
+| A2 `GetFileInformationByHandleEx` over ntdll | Built. The record offsets are validated by tests against a known directory. |
+| A3 Per-thread rather than per-process background mode | Built. Costs nothing measurable on an idle NVMe, so it stays on permanently. |
+| A5 Storage growth | **I was wrong.** Off by an order of magnitude in the pessimistic direction. No mitigation needed. |
+| A6 `dir_totals` | Built, populated wholesale by Tier 1. Incremental maintenance is Phase 2. |
+| A7 Hardlink attribution | Rule built and tested. Confirmed material: 135,505 links sharing 18.2 GB on C:. A related limitation surfaced - see below. |
+| C3 Worker count | Confirmed too low. Default raised. |
+
+### New, found only by running it
+
+1. **Cold cache dominates everything.** C: takes 211 s cold and 7.7 s warm. The brief's 30-90 s
+   estimate describes the warm case; the cold case is the one Tier 1 actually runs in. First-run UX
+   has to assume minutes.
+2. **Scan cost tracks directory count, not capacity.** D: holds 853 GB and scans in 0.7 s because it
+   is only 10k directories. C: holds a similar 875 GB across 570k directories and takes a hundred
+   times longer.
+3. **Hardlink paths are not all representable.** `files` is keyed `(volume_id, file_id)` and
+   hardlinks share a file ID, so only one path per file is stored. Totals are unaffected, since they
+   come from the in-memory rollup. Fix is to widen the key; deferred until the UI shows whether those
+   paths matter.
+4. **A schema convention was costing 95 MB.** Storing `files.modified_utc` as ISO-8601 text, per this
+   project's own convention, cost 20 bytes a row across 3.5M rows. Now an integer. The convention now
+   applies only to tables small enough for legibility to be worth the bytes.
+
+### Still open for Phase 2
+
+- **B1**, whether `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` removes the elevation requirement. Untouched;
+  still the first thing Phase 2 should probe.
+- **B6** grew teeth: unelevated, Strata undercounts C: by 29.6 GB, partly from 557 unreadable
+  directories. Worth testing whether elevation closes it, which settles whether Tier 1 wants
+  elevation independently of Tier 2.
+- **A4**, borderless-fullscreen detection, and the whole question of scan cost under load. The
+  constraint the design exists to satisfy has not been tested at all yet.
