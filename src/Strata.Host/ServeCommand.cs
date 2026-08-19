@@ -40,6 +40,7 @@ internal static class ServeCommand
         Console.WriteLine("  GET  /api/diff?from=&to=&path=&minBytes=&limit=");
         Console.WriteLine("  GET  /api/events?volume=&from=&to=&minBytes=&limit=");
         Console.WriteLine("  GET  /api/scan-log?volume=&from=&to=&result=&limit=");
+        Console.WriteLine("  GET  /api/scan/status");
         Console.WriteLine("  POST /api/scan            { \"volume\": \"C:\", \"tier\": \"incremental\" }");
         Console.WriteLine("  GET  /api/settings");
         Console.WriteLine("  PUT  /api/settings        any subset of the fields GET returns");

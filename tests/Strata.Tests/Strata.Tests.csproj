@@ -9,6 +9,14 @@
     <ProjectReference Include="..\..\src\Strata.Core\Strata.Core.csproj" />
     <ProjectReference Include="..\..\src\Strata.Platform\Strata.Platform.csproj" />
     <ProjectReference Include="..\..\src\Strata.Storage\Strata.Storage.csproj" />
+
+    <!--
+      The executable, for the orchestration types that only make sense in it: the scan scheduler's
+      progress arithmetic and the API's parameter handling. A test project referencing an Exe is
+      ordinary in .NET, and the alternative — moving Host-shaped logic into Core so it can be
+      reached — would put process state in the project whose whole rule is that it has none.
+    -->
+    <ProjectReference Include="..\..\src\Strata.Host\Strata.Host.csproj" />
   </ItemGroup>
 
   <ItemGroup>

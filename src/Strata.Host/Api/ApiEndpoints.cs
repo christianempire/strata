@@ -32,6 +32,7 @@ internal static class ApiEndpoints
         api.MapGet("/events", GetEvents);
         api.MapGet("/scan-log", GetScanLog);
         api.MapPost("/scan", PostScan);
+        api.MapGet("/scan/status", GetScanStatus);
         api.MapGet("/settings", GetSettings);
         api.MapPut("/settings", PutSettings);
 
@@ -267,6 +268,22 @@ internal static class ApiEndpoints
             Expect = tier == ScanTier.Full ? "minutes" : "under two seconds",
         });
     }
+
+    /// <summary>
+    /// What the scanner is doing right now.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to <c>POST /api/scan</c> answering 202 and nothing observing the job. Polling
+    /// <c>/api/snapshots</c> shows the result of a baseline but not its progress, and a baseline is
+    /// 211 s cold — long enough that "working" and "frozen" have to be distinguishable, which is the
+    /// whole of the first-run state.
+    /// <para>
+    /// Reads process memory rather than the database, so it costs nothing to poll at 1 Hz while a
+    /// scan is saturating the disk. That matters: the one moment this endpoint is wanted is the one
+    /// moment the database is busiest.
+    /// </para>
+    /// </remarks>
+    private static IResult GetScanStatus(ScanScheduler scheduler) => Results.Ok(scheduler.Status());
 
     private static IResult GetSettings(StrataDatabase database)
     {

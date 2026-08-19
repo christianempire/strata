@@ -12,6 +12,43 @@ namespace Strata.Host.Scanning;
 /// <summary>A scan asked for by hand rather than by the clock.</summary>
 internal sealed record ScanRequest(long Id, VolumeIdentity Volume, ScanTier Tier);
 
+/// <summary>What the resident scanner is doing.</summary>
+public enum ScannerState
+{
+    /// <summary>Waiting for the next tick. The normal state, and the one the product aims for.</summary>
+    Idle = 0,
+
+    Scanning = 1,
+
+    /// <summary>The gate said no on the last attempt, and will keep saying it until the cause goes.</summary>
+    Deferred = 2,
+
+    /// <summary>Suspended from the UI or the tray. A decision, not a condition.</summary>
+    Paused = 3,
+}
+
+/// <summary>A scan waiting its turn.</summary>
+public sealed record QueuedScan(string Volume, ScanTier Tier);
+
+/// <summary>The scanner's state, as a caller polling it sees it.</summary>
+public sealed record SchedulerStatus
+{
+    public required ScannerState State { get; init; }
+
+    /// <summary>Null unless something is scanning right now.</summary>
+    public ScanActivitySnapshot? Activity { get; init; }
+
+    public IReadOnlyList<QueuedScan> Queued { get; init; } = [];
+
+    public string? LastTickUtc { get; init; }
+
+    /// <summary>Null while a scan is running or the scanner is paused, when there is no such time.</summary>
+    public string? NextTickUtc { get; init; }
+
+    /// <summary>Why the last attempt did not run. Empty when it did.</summary>
+    public string Deferral { get; init; } = "";
+}
+
 /// <summary>
 /// The resident scanner: incremental ticks on a timer, plus whatever the API asks for.
 /// </summary>
@@ -45,6 +82,14 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     /// belonging to a single tick group exactly rather than by timestamp proximity.
     /// </summary>
     private DateTime _cycleUtc = DateTime.UtcNow;
+
+    /// <summary>The scan happening right now, or null. Written by the scheduler thread, read by the API.</summary>
+    private ScanActivity? _current;
+
+    private string _lastDeferral = "";
+    private DateTime? _lastTickUtc;
+    private DateTime _nextTickUtc = DateTime.UtcNow;
+    private bool _paused;
 
     internal ScanScheduler(StrataDatabase database, ILogger<ScanScheduler> logger)
     {
@@ -97,6 +142,40 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     /// <summary>Wakes the loop, so a settings change takes effect without waiting out the interval.</summary>
     internal void Poke() => _wake.Set();
 
+    /// <summary>
+    /// What the scanner is doing, for a caller that has just asked for a scan and wants to watch it.
+    /// </summary>
+    /// <remarks>
+    /// Read from an HTTP thread while the scheduler thread writes. Nothing is locked: every field is
+    /// either a reference or a value small enough to be written atomically, and a status that mixes
+    /// a fresh activity with a stale next-tick time is describing a process that moved between the
+    /// two reads. That is what polling a running scan looks like, and pretending otherwise would
+    /// mean taking a lock on the scan's own thread to serve a poll.
+    /// </remarks>
+    internal SchedulerStatus Status()
+    {
+        var activity = Volatile.Read(ref _current);
+        var queued = _requests.Select(r => new QueuedScan(r.Volume.Display, r.Tier)).ToList();
+
+        var state = activity is not null ? ScannerState.Scanning
+            : _paused ? ScannerState.Paused
+            : _lastDeferral.Length > 0 ? ScannerState.Deferred
+            : ScannerState.Idle;
+
+        return new SchedulerStatus
+        {
+            State = state,
+            Activity = activity?.Snapshot(),
+            Queued = queued,
+            LastTickUtc = _lastTickUtc?.ToString("O"),
+
+            // Meaningless while a scan is running — the next tick is whenever this one finishes —
+            // and worse than meaningless if reported as a time that has already passed.
+            NextTickUtc = activity is null && !_paused ? _nextTickUtc.ToString("O") : null,
+            Deferral = _lastDeferral,
+        };
+    }
+
     private void Loop()
     {
         while (!_stopping.IsCancellationRequested)
@@ -118,6 +197,8 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                 settings = new StrataSettings();
             }
 
+            _paused = settings.Paused;
+
             RefreshGate(settings);
             DrainRequests(settings);
 
@@ -133,7 +214,10 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                 RunScheduledTicks(settings);
             }
 
-            _wake.WaitOne(TimeSpan.FromSeconds(Math.Max(30, settings.IntervalSeconds)));
+            var interval = TimeSpan.FromSeconds(Math.Max(30, settings.IntervalSeconds));
+
+            _nextTickUtc = DateTime.UtcNow + interval;
+            _wake.WaitOne(interval);
         }
     }
 
@@ -185,12 +269,31 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     {
         BaselineStarting(request.Volume.Display);
 
-        var outcome = BaselineScan.Run(
-            request.Volume,
-            _database,
-            BaselineScan.OptionsFrom(settings),
-            BaselineScan.SnapshotOptionsFrom(settings),
-            _stopping.Token);
+        var activity = new ScanActivity(
+            request.Volume.Display,
+            ScanTier.Full,
+            LastEntryCount(request.Volume),
+            request.Volume.UsedBytes);
+
+        Volatile.Write(ref _current, activity);
+
+        BaselineOutcome outcome;
+
+        try
+        {
+            outcome = BaselineScan.Run(
+                request.Volume,
+                _database,
+                BaselineScan.OptionsFrom(settings, activity.Record),
+                BaselineScan.SnapshotOptionsFrom(settings),
+                _stopping.Token);
+        }
+        finally
+        {
+            // In a finally because a scan that threw is a scan that is no longer running, and
+            // leaving the activity in place would report a frozen 62% for the life of the process.
+            Volatile.Write(ref _current, null);
+        }
 
         BaselineFinished(
             request.Volume.Display,
@@ -239,14 +342,37 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
     private void Tick(VolumeWatcher watcher, StrataSettings settings, bool ignoreGate = false)
     {
-        var outcome = watcher.Tick(_gate, settings, ignoreGate);
+        var activity = new ScanActivity(
+            watcher.Volume.Display, ScanTier.Incremental, null, watcher.Volume.UsedBytes);
+
+        Volatile.Write(ref _current, activity);
+
+        TickOutcome outcome;
+
+        try
+        {
+            outcome = watcher.Tick(_gate, settings, ignoreGate);
+        }
+        finally
+        {
+            Volatile.Write(ref _current, null);
+        }
+
+        _lastTickUtc = DateTime.UtcNow;
 
         if (!outcome.Ran)
         {
             TickSkipped(watcher.Volume.Display, outcome.Deferral);
             Record(watcher.Volume, outcome.Tier, ScanOutcome.Deferred, outcome.Deferral);
+
+            // Held rather than cleared on the next tick's start, because the state the UI has to
+            // render is "paused because a game is running" and that outlives the tick that decided
+            // it — the next tick will decide the same thing for the same reason.
+            _lastDeferral = outcome.Deferral;
             return;
         }
+
+        _lastDeferral = "";
 
         // Over-budget ticks are logged rather than absorbed. The 2 s budget is the whole reason the
         // incremental path exists in the shape it does.
@@ -355,6 +481,38 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         catch (Microsoft.Data.Sqlite.SqliteException ex)
         {
             ScanLogUnwritable(ex);
+        }
+    }
+
+    /// <summary>
+    /// How many entries the last scan of this volume found, or null if there has not been one.
+    /// </summary>
+    /// <remarks>
+    /// The denominator that turns a running baseline into a percentage worth showing. Its absence is
+    /// exactly the first-run case, which is why <see cref="ScanActivity"/> falls back to bytes
+    /// rather than to no progress at all.
+    /// </remarks>
+    private long? LastEntryCount(VolumeIdentity volume)
+    {
+        try
+        {
+            using var connection = _database.OpenRead();
+
+            var volumeId = VolumeQueries.Resolve(connection, volume.GuidPath);
+
+            if (volumeId is null)
+            {
+                return null;
+            }
+
+            var recent = SnapshotQueries.List(connection, volumeId, null, null, limit: 1);
+
+            return recent.Count == 0 ? null : recent[0].FileCount + recent[0].DirCount;
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            // A missing denominator costs a percentage. It is not worth failing a scan over.
+            return null;
         }
     }
 

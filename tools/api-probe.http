@@ -96,6 +96,14 @@ GET {{host}}/api/diff?from=1&to=46&path=C:\Users&minBytes=1073741824
 ### Diff — refused, with the reason, when a snapshot has no rollup to compare.
 GET {{host}}/api/diff?from=1&to=2
 
+### Scan status — what the scanner is doing right now.
+# Reads process memory, not the database, so it stays cheap to poll at 1 Hz while a baseline
+# is saturating the disk. Poll this immediately after queueing a full scan below.
+#
+# On a first run `basis` is "bytes" — there is no previous scan to count entries against, so
+# the percentage is bytes seen against what Windows reports used. On a rescan it is "entries".
+GET {{host}}/api/scan/status
+
 ### Scan log — every tick the scheduler attempted, with the summary for the same window.
 # The one endpoint that exists to be sceptical of the scanner. Deferred rows are the point:
 # a log of successes alone would be evidence of nothing.
