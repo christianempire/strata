@@ -24,9 +24,9 @@ Work proceeds one phase at a time, and each stops for review.
 
 | Phase | Contents | State |
 |---|---|---|
-| 1 | Volume enumeration, Tier 1 scanner, SQLite schema, snapshot writing, `strata scan` CLI | current |
-| 2 | USN incremental (Tier 2), scheduler, resource guards, diff engine + `events` | not started |
-| 3 | Minimal API, then Angular UI (gated on mockups in `docs/design/`) | not started |
+| 1 | Volume enumeration, Tier 1 scanner, SQLite schema, snapshot writing, `strata scan` CLI | done |
+| 2 | USN incremental (Tier 2), scheduler, resource guards, diff engine + `events` | done |
+| 3 | Minimal API, then Angular UI (gated on mockups in `docs/design/`) | current |
 | 4 | Tray icon, retention/downsampling, polish | not started |
 
 Do not build ahead of the current phase. Phase 3's UI is gated on design mockups landing in
@@ -92,6 +92,10 @@ Outside that loop, write ordinary readable C#.
 
 - Raw `Microsoft.Data.Sqlite` for writes. Commands are prepared once and parameter values reassigned
   per row, inside one transaction. No Dapper on bulk paths (see `docs/DESIGN-REVIEW.md` C2).
+- **Time hot queries, do not trust the plan.** SQLite chooses between a seek and a scan without
+  statistics, and gets it catastrophically wrong on large tables: one lookup measured 442 ms against
+  0.010 ms with `INDEXED BY`, while the same predicate with a narrower projection planned as a
+  covering index scan and looked healthy. Any query on the Tier 2 path gets timed, not inspected.
 - Schema changes go in a new numbered migration in `Strata.Storage/Migrations/`. Never edit an
   applied migration.
 - All timestamps are UTC. Stored as ISO-8601 strings (`O` format) for legibility in a SQLite browser

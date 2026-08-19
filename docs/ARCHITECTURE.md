@@ -96,8 +96,10 @@ watch.
 
 ### Tier 2 — incremental delta from the USN journal
 
-The one that runs every 15 to 30 minutes and makes the product viable. **Not yet built (Phase 2);**
-described here because Phase 1's schema is shaped to receive it.
+The one that runs every 15 to 30 minutes and makes the product viable. **Built and verified end to
+end, unelevated**: creating 65 MB of files reports as `+62 MB  2 files  ...\usn-test\game\data`,
+deleting them reports the inverse, and moving a file transfers the bytes between directories rather
+than reading as an unrelated delete and create.
 
 Open the volume, `FSCTL_QUERY_USN_JOURNAL` for the journal ID and USN bounds, then
 `FSCTL_READ_USN_JOURNAL` from the persisted cursor. Every create, delete, rename and data-extend
@@ -117,11 +119,25 @@ which is why `files` holds current state rather than being append-only.
 `FirstUsn`, the journal was reset or wrapped, and we fall back to Tier 1. If no journal exists on a
 volume, create one (elevated, one-time) or fall back to Tier 3.
 
-**Open question, deliberately not settled yet.** The brief assumes Tier 2 requires running as
-administrator permanently. `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` may remove that requirement, which
-would be a significantly better posture for a permanently-resident tray app. Phase 2 opens with a
-probe to establish what actually works unelevated before the manifest is decided. See
-`DESIGN-REVIEW.md` B1.
+**Elevation: settled, and better than the brief assumed.** Reading the journal needs no elevation at
+all. A directory handle on the volume root plus `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` is sufficient;
+the `\\.\C:` + GENERIC_READ form the brief describes is what needs administrator. Only
+`FSCTL_CREATE_USN_JOURNAL` genuinely requires it, one time per volume, which is why
+`strata enable-journal` is a separate verb rather than something the scanner does silently.
+
+The catch is that the unprivileged read **redacts file names** — every record returns a name length
+of zero, in both V2 and V3. Paths are therefore resolved from the file ID via `OpenFileById` plus
+`FileNameInfo`, on a handle already being opened to read the size. That returns the file's *current*
+path, so a rename's old path comes from our own rows and only the new one from the filesystem, and
+deletions resolve entirely from the database. Running elevated would return names inline; the
+measured cost says that is an optimisation rather than a requirement.
+
+**Budget, measured.** A steady-state tick is about 250 ms; the largest bite the scanner takes in one
+go, 50,000 records with 7,000 metadata reads, is about 1 s. The brief's 2 s budget holds.
+
+**Backlogs** are taken in bounded bites with the cursor persisted where they stop. The journal is a
+durable queue, so falling behind is safe and self-healing, while draining a several-hundred-thousand
+record backlog synchronously is precisely the stall the design exists to prevent.
 
 ### Tier 3 — throttled fallback
 
@@ -161,10 +177,21 @@ as aggregates.
 drive letters get reassigned and letter-keyed history would silently corrupt if `D:` and `E:` ever
 swapped. The letter is a mutable display attribute.
 
-**`files`** — **current state only**, one row per file, updated in place by Tier 2. Keyed
-`(volume_id, file_id)`. Stores `parent_id` + `name` rather than a path string: paths are
-reconstructed by walking parent links, which avoids storing the same directory prefix a hundred
-thousand times and makes a directory rename an O(1) update instead of a subtree rewrite.
+**`files`** — **current state only**, one row per *directory entry*, updated in place by Tier 2.
+Keyed `(volume_id, parent_id, name)`, which is the identity the filesystem itself uses: a file ID is
+an attribute of an entry, not its identity, and hardlinks share one. Keying on the file ID instead
+collapsed 135,520 of 3.67M entries on the target machine, losing every path but one per file.
+
+Stores `parent_id` + `name` rather than a path string: paths are reconstructed by walking parent
+links, which avoids storing the same directory prefix a hundred thousand times and makes a directory
+rename an O(1) update instead of a subtree rewrite. Clustering on that key also turns "list the
+children of this directory" into a contiguous range scan, which is the query the Explorer screen
+will run constantly.
+
+A secondary index on `(volume_id, file_id)` fans a size change out across a file's links and finds
+entries whose name the journal redacted. It costs 175 MB of the 447 MB database and earns it. It has
+to be referenced with `INDEXED BY`: without statistics SQLite plans the lookup as a range scan over
+the whole volume, measured at 442 ms against 0.010 ms.
 
 **`dir_totals`** — rolled-up subtree bytes and file counts per directory. Populated wholesale by
 Tier 1, and from Phase 2 maintained **incrementally**: when a file's size changes by some delta,
@@ -210,8 +237,14 @@ from a naive subtraction:
 2. **Shallowest sufficient attribution.** If 200 files appeared under
    `D:\Steam\steamapps\common\Foo`, the answer is one row — `...\common\Foo (+32 GB, 200 new files)`
    — not 200 rows. The rule: descend from the root while a single child accounts for most of the
-   node's net delta (threshold configurable, ~90%); stop and report as soon as the change is
-   genuinely spread across siblings. This is the core intelligence of the product.
+   node's net delta (configurable, 90%); stop and summarise as soon as the change is spread across a
+   few siblings. This is the core intelligence of the product.
+
+   Two exceptions, both found by testing rather than by reasoning. Summarising is wrong when the node
+   is a corridor with many independent movers — thirty directories under the volume root each growing
+   reported as the single useless row "D: +465 GB" — and wrong when growth in one branch cancels
+   deletion in another, where the net is a misleading zero that hides both halves. In either case the
+   report expands into the children instead.
 3. **Net versus churn.** A directory that wrote and deleted 50 GB has a net delta near zero but is
    very interesting for SSD wear, so both are tracked and surfaced separately.
 4. **Moves are moves.** Renames and moves are detected by file ID and reported as a move, not as a
