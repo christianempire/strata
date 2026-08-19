@@ -79,12 +79,17 @@ internal static partial class Kernel32
 
     // --- File information classes, from FILE_INFO_BY_HANDLE_CLASS -----------------------------
 
+    internal const int FileStandardInfo = 1;
+    internal const int FileNameInfo = 2;
     internal const int FileIdBothDirectoryInfo = 10;
     internal const int FileIdBothDirectoryRestartInfo = 11;
     internal const int FileIoPriorityHintInfo = 12;
 
     /// <summary>Values for FILE_IO_PRIORITY_HINT_INFO.</summary>
     internal const int IoPriorityHintVeryLow = 0;
+
+    /// <summary>FILE_ID_TYPE.FileIdType: the 64-bit NTFS file reference number.</summary>
+    internal const uint FileIdType = 0;
 
     // --- Device control -----------------------------------------------------------------------
 
@@ -115,6 +120,15 @@ internal static partial class Kernel32
         int FileInformationClass,
         void* lpFileInformation,
         uint dwBufferSize);
+
+    [LibraryImport(Library, SetLastError = true)]
+    internal static partial SafeFileHandle OpenFileById(
+        SafeFileHandle hVolumeHint,
+        ref FILE_ID_DESCRIPTOR lpFileId,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        nint lpSecurityAttributes,
+        uint dwFlagsAndAttributes);
 
     [LibraryImport(Library, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -217,6 +231,34 @@ internal struct BY_HANDLE_FILE_INFORMATION
 
     /// <summary>The 64-bit NTFS file reference number, which is what the whole storage model keys on.</summary>
     internal readonly long FileId => ((long)nFileIndexHigh << 32) | nFileIndexLow;
+}
+
+/// <summary>
+/// FILE_ID_DESCRIPTOR, as taken by OpenFileById.
+/// </summary>
+/// <remarks>
+/// The real structure ends in a union of a LARGE_INTEGER, a GUID and a FILE_ID_128, so it is 16
+/// bytes wide from offset 8. Only the 64-bit form is used here, but the padding has to be present
+/// or dwSize will not match what the API expects.
+/// </remarks>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FILE_ID_DESCRIPTOR
+{
+    internal uint dwSize;
+    internal uint Type;
+    internal long FileId;
+    private readonly long _unionPadding;
+}
+
+/// <summary>FILE_STANDARD_INFO. AllocationSize is the size on disk.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FILE_STANDARD_INFO
+{
+    internal long AllocationSize;
+    internal long EndOfFile;
+    internal uint NumberOfLinks;
+    [MarshalAs(UnmanagedType.U1)] internal bool DeletePending;
+    [MarshalAs(UnmanagedType.U1)] internal bool Directory;
 }
 
 [StructLayout(LayoutKind.Sequential)]

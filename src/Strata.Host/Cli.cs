@@ -28,6 +28,7 @@ internal static class Cli
                 "volumes" => VolumesCommand.Run(ParseOptions(args)),
                 "scan" => ScanCommand.Run(ParseOptions(args)),
                 "usn-probe" => UsnProbeCommand.Run(ParseOptions(args)),
+                "usn-tail" => UsnTailCommand.Run(ParseOptions(args)),
                 _ => UnknownVerb(args[0]),
             };
         }
@@ -113,6 +114,18 @@ internal static class Cli
                     options.SkipCompact = true;
                     break;
 
+                case "--seconds":
+                    options.TailSeconds = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
+                case "--from-start":
+                    options.FromStart = true;
+                    break;
+
+                case "--limit":
+                    options.TailLimit = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
                 case "--quiet":
                     options.Quiet = true;
                     break;
@@ -154,6 +167,7 @@ internal static class Cli
               strata scan [<volume>...]          run a full baseline scan
               strata scan --all                  scan every eligible fixed volume
               strata usn-probe [<volume>...]     report what the change journal permits here
+              strata usn-tail [<volume>]         print live change-journal records
 
             SCAN OPTIONS
               --db <path>          database file (default: %LOCALAPPDATA%\Strata\strata.db)
@@ -203,6 +217,12 @@ internal sealed class CliOptions
     internal bool ShowHistogram { get; set; }
 
     internal int TopDirectories { get; set; } = 15;
+
+    internal int TailSeconds { get; set; } = 10;
+
+    internal int TailLimit { get; set; } = 40;
+
+    internal bool FromStart { get; set; }
 
     internal bool SkipCompact { get; set; }
 
