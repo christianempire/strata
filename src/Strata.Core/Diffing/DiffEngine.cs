@@ -145,6 +145,14 @@ public static class DiffEngine
     /// then this node is just a corridor and the child is the real answer. Stops as soon as the
     /// change is genuinely spread across siblings, because that is the point at which naming this
     /// directory tells the whole story and naming its children tells it worse.
+    /// <para>
+    /// A node's own bytes are the fourth thing that can happen here, and the one that used to be
+    /// invisible. They are not a child, so they could dilute a child's share below the dominance
+    /// threshold without ever being nameable themselves — measured on the real database, C:\Users
+    /// accounted for 86% of a 17.5 GB change against a threshold of 90%, and the answer came back as
+    /// the row the engine exists to avoid: "C: -17.5 GB". The remainder is now reported alongside
+    /// the children instead of silently deciding for them.
+    /// </para>
     /// </remarks>
     private static void Descend(
         IReadOnlyDictionary<long, DirectoryNode> nodes,
@@ -178,15 +186,41 @@ public static class DiffEngine
                     return;
                 }
 
+                // Whatever the reported children do not account for: this directory's own files,
+                // plus every child too small to have earned a row.
+                var remainder = Remainder(delta, children, subtree);
+                var strayBytes = IsNotable(remainder, options);
+
                 // No single child explains it. Summarising here is the right answer for a few
                 // siblings that moved together, and the wrong answer for a corridor with many
-                // independent movers, or for growth in one place cancelling deletion in another -
-                // where the net is a misleading zero and the parts are the real story.
-                if (children.Count > options.MaxSiblingsToSummarise || HasOpposingBranches(children, subtree, options))
+                // independent movers, for growth in one place cancelling deletion in another —
+                // where the net is a misleading zero and the parts are the real story — or when
+                // bytes moved here as well as beneath here, because one row cannot say both.
+                //
+                // Unless the remainder is the whole story, in which case this directory is
+                // genuinely where it happened and its children are a footnote.
+                if (!Dominates(remainder.OwnBytesDelta, delta.OwnBytesDelta, options) &&
+                    (children.Count > options.MaxSiblingsToSummarise ||
+                     HasOpposingBranches(children, subtree, options) ||
+                     strayBytes))
                 {
                     foreach (var child in children)
                     {
                         Descend(nodes, child, subtree, childrenByParent, rootPrefix, options, results);
+                    }
+
+                    if (strayBytes)
+                    {
+                        results.Add(new AttributedChange
+                        {
+                            DirectoryId = dirId,
+                            Path = PathBuilder.BuildPath(nodes, dirId, rootPrefix),
+                            Kind = ChangeKind.Remainder,
+                            DeltaBytes = remainder.OwnBytesDelta,
+                            ChurnBytes = remainder.OwnChurnBytes,
+                            FileCountDelta = remainder.FileCountDelta,
+                            Depth = node.Depth,
+                        });
                     }
 
                     return;
@@ -205,6 +239,49 @@ public static class DiffEngine
             Depth = node.Depth,
         });
     }
+
+    /// <summary>
+    /// What is left of a directory's change once its reported children are taken out of it.
+    /// </summary>
+    /// <remarks>
+    /// Two things end up here and both belong: bytes held directly in this directory, and children
+    /// whose own change never cleared the reporting floor. Neither is nameable at this level, and
+    /// neither should vanish — without this row the list either understates its own total or
+    /// collapses back into a single root row.
+    /// <para>
+    /// Churn and the file counts are floored at zero. They are lower bounds rather than
+    /// measurements when the diff came from two snapshots, so subtracting one estimate from another
+    /// can go slightly negative without anything being wrong.
+    /// </para>
+    /// </remarks>
+    private static DirectoryDelta Remainder(
+        DirectoryDelta parent,
+        List<long> children,
+        Dictionary<long, DirectoryDelta> subtree)
+    {
+        var bytes = parent.OwnBytesDelta;
+        var churn = parent.OwnChurnBytes;
+        var added = parent.FilesAdded;
+        var removed = parent.FilesRemoved;
+
+        foreach (var child in children)
+        {
+            var childDelta = subtree[child];
+
+            bytes -= childDelta.OwnBytesDelta;
+            churn -= childDelta.OwnChurnBytes;
+            added -= childDelta.FilesAdded;
+            removed -= childDelta.FilesRemoved;
+        }
+
+        return new DirectoryDelta(bytes, Math.Max(0, churn), Math.Max(0, added), Math.Max(0, removed));
+    }
+
+    /// <summary>Whether one part accounts for essentially all of a whole, in the same direction.</summary>
+    private static bool Dominates(long part, long whole, DiffOptions options)
+        => whole != 0 &&
+           Math.Sign(part) == Math.Sign(whole) &&
+           Math.Abs(part) >= Math.Abs(whole) * options.DominanceThreshold;
 
     /// <summary>
     /// True when this node's children move in both directions by amounts that both matter, so the

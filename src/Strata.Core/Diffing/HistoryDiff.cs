@@ -183,6 +183,16 @@ public static class HistoryDiff
 
         foreach (var change in changes)
         {
+            // A remainder is not a directory's own change, so presence says nothing about it: the
+            // directory it hangs off exists at both moments by construction, and reclassifying would
+            // turn "2.2 GB elsewhere in C:\" into "C:\ grew" — the exact row the remainder exists to
+            // replace.
+            if (change.Kind == ChangeKind.Remainder)
+            {
+                result.Add(change);
+                continue;
+            }
+
             // Zero bytes and zero files is a directory that has been emptied or has not arrived,
             // which for this purpose is the same as not being there.
             var existedBefore = before.TryGetValue(change.DirectoryId, out var was)

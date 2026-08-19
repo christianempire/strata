@@ -563,6 +563,27 @@ because it is a design question the Compare screen will run into: a node's own d
 as a child, so it dilutes dominance without ever being nameable. Reporting the remainder alongside
 the children — "C:\Users −15.0 GB, and 2.2 GB elsewhere in C:\" — would be the honest shape.
 
+#### Fixed in Phase 3b
+
+That is now what it does. A directory whose reported children do not account for its change emits a
+`remainder` row for the difference, at the level where the change stops being attributable:
+
+```
+C:\Users              -15.045 GB   grew/shrank as before
+elsewhere in C:\       -2.150 GB   remainder
+```
+
+Two things had to be true for it to be an improvement rather than a second useless row. The presence
+of a remainder above the reporting floor now forces the node to expand rather than summarise, which
+is what stops `C: -17.5 GB` being produced at all. And a remainder that accounts for 90% or more of
+the node's change does **not** force expansion — bytes written straight into a directory mean that
+directory is the answer, and "elsewhere in D:\ +9 GB" beside "D:\Downloads +1 GB" would be coy about
+a change with a perfectly good name.
+
+The rows now reconcile: attributed changes plus remainders sum to the change they describe, which is
+what lets the Compare screen state an attribution percentage instead of hoping nobody adds the column
+up.
+
 ## Still not measured
 
 Unchanged from Phase 2, plus one:

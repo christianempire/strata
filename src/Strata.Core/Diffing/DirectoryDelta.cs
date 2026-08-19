@@ -38,6 +38,17 @@ public enum ChangeKind
 
     /// <summary>Content moved between directories, detected by file ID rather than inferred.</summary>
     Moved = 5,
+
+    /// <summary>
+    /// The part of a directory's change that its reported children do not account for.
+    /// </summary>
+    /// <remarks>
+    /// Its own kind rather than a grew or a shrank, because it is a different sort of statement: not
+    /// "this directory changed" but "this much changed in here and nothing in it is big enough to
+    /// name". It is drawn hatched, in the same ink as the unreadable-directory band, for the same
+    /// reason — an estimate is never rendered like a measurement.
+    /// </remarks>
+    Remainder = 6,
 }
 
 /// <summary>One attributed change, ready to become a row in the events feed.</summary>
@@ -45,6 +56,15 @@ public sealed record AttributedChange
 {
     public required long DirectoryId { get; init; }
 
+    /// <summary>
+    /// The directory this change is attributed to.
+    /// </summary>
+    /// <remarks>
+    /// On a <see cref="ChangeKind.Remainder"/> row this is the directory the remainder is left over
+    /// inside, not a directory that changed by this amount — it is displayed as "elsewhere in
+    /// {path}". A real path rather than a synthesised label, so the row is still something a caller
+    /// can scope a further diff to.
+    /// </remarks>
     public required string Path { get; init; }
 
     public required ChangeKind Kind { get; init; }
