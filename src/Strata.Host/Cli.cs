@@ -31,6 +31,7 @@ internal static class Cli
                 "usn-tail" => UsnTailCommand.Run(ParseOptions(args)),
                 "watch" => WatchCommand.Run(ParseOptions(args)),
                 "serve" => ServeCommand.Run(ParseOptions(args)),
+                "tray" => TrayCommand.Run(ParseOptions(args)),
                 "enable-journal" => EnableJournalCommand.Run(ParseOptions(args)),
                 _ => UnknownVerb(args[0]),
             };
@@ -221,6 +222,7 @@ internal static class Cli
               strata usn-tail [<volume>]         print live change-journal records
               strata watch [<volume>...]         run the incremental scanner on a schedule
               strata serve                       run the scanner and the localhost API together
+              strata tray                        the same, from the notification area, no console
               strata enable-journal [<volume>]   create a change journal (needs elevation)
 
             SCAN OPTIONS

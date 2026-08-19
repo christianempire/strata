@@ -70,6 +70,17 @@
     the project is evaluated — a build that produces them in the same pass would otherwise copy the
     previous build's output, or nothing at all on the first one.
   -->
+  <!--
+    The tray's state icons. Placeholders until the real artwork lands from Claude Design against
+    docs/design/ICON-BRIEF.md; the tray reads whatever is here and draws nothing if it is missing.
+  -->
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)..\..\docs\design\icon\*.ico"
+             Link="icons\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target Name="CollectWebAssets" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
       <_WebAsset Include="$(WebProjectDir)dist\**\*" />

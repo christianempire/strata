@@ -58,6 +58,7 @@ strata usn-probe               report what the change journal permits here
 strata enable-journal          create a journal on volumes lacking one (elevated)
 strata watch                   run the incremental scanner on a schedule
 strata serve                   run the scanner, the API and the UI together
+strata tray                    the same, from the notification area, with no console
 ```
 
-Then open <http://localhost:5177/>.
+Then open <http://localhost:5177/>, or click the tray icon.

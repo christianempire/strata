@@ -19,7 +19,7 @@ It contains, in a single Windows process:
 | Background scanner | `IHostedService` running the Tier 2 tick on a timer |
 | Minimal API | ASP.NET Core listening on `http://localhost:5177`, loopback only |
 | Static file server | Serves the **pre-built** Angular app from the same host |
-| Tray icon | Open UI / Scan now / Pause / Exit |
+| Tray icon | Open Strata / Scan now / Pause / Settings / Exit |
 
 The Angular app is compiled to plain HTML, CSS and JavaScript at *build* time by `ng build`, and
 those files are copied into the executable's output and served as static content. At runtime there is
@@ -48,8 +48,17 @@ or a shortcut in the Startup folder. No UAC prompt, ever, at login or otherwise.
 ```
 Task:     Strata
 Trigger:  At log on (current user)
-Action:   C:\...\strata.exe serve
+Action:   C:\...\strata.exe tray
 ```
+
+`tray` rather than `serve`: same process, same port, same UI, but it puts an icon in the
+notification area and runs without a console. `serve` stays as the developer's shape — a console
+attached, `--verbose` printing a line per request. Neither elevates.
+
+**Windows 11 hides new notification icons.** The first time it runs, the icon goes into the overflow
+flyout rather than onto the taskbar; click the `^` and drag Strata out to keep it visible. The
+process says so on startup rather than leaving you to wonder, because a hidden icon and a failed one
+look identical.
 
 Whenever an installer exists it will register that. Until then, starting it by hand is just running
 the executable, with no prompt.
