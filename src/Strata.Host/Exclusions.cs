@@ -1,3 +1,5 @@
+using Strata.Storage;
+
 namespace Strata.Host;
 
 /// <summary>Paths kept out of the change log by default.</summary>
@@ -10,5 +12,13 @@ namespace Strata.Host;
 /// </remarks>
 internal static class Exclusions
 {
-    internal static IReadOnlyList<string> Defaults { get; } = [Strata.Storage.StrataDatabase.DefaultDirectory];
+    internal static IReadOnlyList<string> Defaults { get; } = [StrataDatabase.DefaultDirectory];
+
+    /// <summary>The full exclusion list implied by a configuration.</summary>
+    internal static IReadOnlyList<string> ForEvents(StrataSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        return [.. settings.IncludeStrataDatabase ? [] : Defaults, .. settings.ExcludedEventPaths];
+    }
 }

@@ -4,6 +4,7 @@ using Strata.Core.Formatting;
 using Strata.Core.Model;
 using Strata.Core.Rollup;
 using Strata.Core.Scanning;
+using Strata.Host.Scanning;
 using Strata.Platform;
 using Strata.Storage;
 
@@ -20,23 +21,6 @@ namespace Strata.Host;
 /// </remarks>
 internal static class ScanCommand
 {
-    /// <summary>
-    /// Workers used when none is specified.
-    /// </summary>
-    /// <remarks>
-    /// The brief specified min(4, cores / 2). Measured on this machine, four workers is well short
-    /// of the knee: a warm scan of C: takes 19.3 s at two workers, 11.7 s at four, 8.9 s at eight,
-    /// and 7.7 s at sixteen, with nothing gained past that. Directory enumeration is latency-bound
-    /// rather than bandwidth-bound, so it hides latency with concurrency.
-    /// <para>
-    /// Eight is the default rather than sixteen because the last 15% costs double the concurrent
-    /// I/O, and staying invisible matters more here than finishing a rare scan a second sooner.
-    /// Capped at cores / 4 so this stays sane on a smaller machine.
-    /// </para>
-    /// </remarks>
-    internal static int DefaultWorkerCount { get; } =
-        Math.Max(2, Math.Min(8, Environment.ProcessorCount / 4));
-
     internal static int Run(CliOptions options)
     {
         var volumes = SelectVolumes(options);
@@ -100,7 +84,7 @@ internal static class ScanCommand
 
         var scanOptions = new ScanOptions
         {
-            DegreeOfParallelism = options.Threads ?? DefaultWorkerCount,
+            DegreeOfParallelism = options.Threads ?? BaselineScan.DefaultWorkerCount,
             DeduplicateHardLinks = options.DeduplicateHardLinks,
             UseBackgroundIoPriority = options.BackgroundIo,
             ExcludedDirectoryNames = options.Excluded,
@@ -113,61 +97,27 @@ internal static class ScanCommand
             $"Hardlink dedup: {(scanOptions.DeduplicateHardLinks ? "on" : "off")}");
         Console.WriteLine();
 
-        var enumerator = new Win32DirectoryEnumerator();
-        var scanner = new Tier1Scanner(enumerator, scanOptions);
-
-        ScanResult result;
-        var writeTime = TimeSpan.Zero;
-        long snapshotId = 0;
-        long rowsWritten = 0;
-
-        if (database is null)
-        {
-            result = scanner.Scan(volume, NullScanSink.Instance, CancellationToken.None);
-        }
-        else
-        {
-            using var connection = database.Open();
-            var volumeId = VolumeRepository.Upsert(connection, volume);
-
-            using var sink = new SqliteFileSink(connection, volumeId);
-
-            result = scanner.Scan(volume, sink, CancellationToken.None);
-
-            // Enumeration is finished but the writer may still be draining its queue. The time that
-            // takes is reported separately, because it is storage cost rather than scan cost and
-            // conflating them would make the scan look slower than it is.
-            var writeClock = Stopwatch.StartNew();
-            sink.Complete();
-            rowsWritten = sink.RowsWritten;
-
-            snapshotId = SnapshotWriter.Write(connection, volumeId, result, new SnapshotOptions
+        var outcome = BaselineScan.Run(
+            volume,
+            database,
+            scanOptions,
+            new SnapshotOptions
             {
                 MaxDepth = options.MaxDepth,
                 SizeFloorBytes = options.SizeFloorBytes,
-            });
-
-            // Tier 2 refuses to run against a volume with no baseline, because an incremental
-            // delta applied to nothing is meaningless. This is what unblocks it.
-            IncrementalRepository.MarkBaseline(connection, volumeId, result.StartedUtc);
-
-            writeClock.Stop();
-            writeTime = writeClock.Elapsed;
-        }
+            },
+            CancellationToken.None);
 
         ClearProgressLine();
-        PrintResult(result, writeTime, rowsWritten, snapshotId, options);
+        PrintResult(outcome, options);
 
-        return new ScanReport(result, writeTime);
+        return new ScanReport(outcome.Result, outcome.WriteTime);
     }
 
-    private static void PrintResult(
-        ScanResult result,
-        TimeSpan writeTime,
-        long rowsWritten,
-        long snapshotId,
-        CliOptions options)
+    private static void PrintResult(BaselineOutcome outcome, CliOptions options)
     {
+        var result = outcome.Result;
+        var writeTime = outcome.WriteTime;
         var seconds = result.Duration.TotalSeconds;
 
         Console.WriteLine($"  Scan duration      {seconds,10:F2} s");
@@ -202,10 +152,11 @@ internal static class ScanCommand
                               $"({DescribeInaccessible(result)})");
         }
 
-        if (rowsWritten > 0)
+        if (outcome.RowsWritten > 0)
         {
             Console.WriteLine();
-            Console.WriteLine($"  Rows written     {rowsWritten,12:N0}   snapshot #{snapshotId}");
+            Console.WriteLine(
+                $"  Rows written     {outcome.RowsWritten,12:N0}   snapshot #{outcome.SnapshotId}");
         }
 
         Console.WriteLine();

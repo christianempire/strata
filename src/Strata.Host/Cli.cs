@@ -298,9 +298,29 @@ internal sealed class CliOptions
 
     internal bool IncludeStrataDatabase { get; set; }
 
-    /// <summary>Paths whose changes are kept out of the event feed, but not out of the totals.</summary>
-    internal IReadOnlyList<string> ExcludedEventPaths =>
-        [.. IncludeStrataDatabase ? [] : Exclusions.Defaults, .. ExtraEventExclusions];
+    /// <summary>
+    /// The command line as a settings record, for the code paths that are shared with the API host.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not merged with what is stored in the database. The console verbs exist to
+    /// produce measurements, and a measurement that silently picked up whatever the UI last saved
+    /// would not be reproducible.
+    /// </remarks>
+    internal StrataSettings ToSettings() => new()
+    {
+        IntervalSeconds = IntervalSeconds,
+        CpuThresholdPercent = CpuThreshold,
+        MaxRecordsPerTick = MaxRecordsPerTick,
+        EventFloorBytes = EventFloorBytes,
+        SnapshotMaxDepth = MaxDepth,
+        SnapshotSizeFloorBytes = SizeFloorBytes,
+        ScanWorkers = Threads,
+        BackgroundIo = BackgroundIo,
+        DetectBorderlessFullscreen = !NoFullscreenDetection,
+        IncludeStrataDatabase = IncludeStrataDatabase,
+        ExcludedEventPaths = ExtraEventExclusions,
+        ExcludedDirectoryNames = Excluded,
+    };
 
     internal bool IgnoreGate { get; set; }
 
