@@ -10,6 +10,13 @@
       both of which matter on a machine with npm and NuGet caches.
     -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      The executable's own icon: what a desktop or Start Menu shortcut shows, what Alt-Tab shows,
+      and what File Explorer draws next to strata.exe. The idle state, because that is what the
+      application is when nobody is looking at it.
+    -->
+    <ApplicationIcon>..\..\docs\design\icon\strata.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

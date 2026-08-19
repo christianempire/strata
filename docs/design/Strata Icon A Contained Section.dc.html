@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute;">
+  <symbol id="a-idle" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#f8ac3d"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#f8ac3d"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#f8ac3d"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="a-scanning" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#f8ac3d"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#f1eeea"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#f8ac3d"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="a-deferred" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#f8ac3d"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#5cd0ea"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#f8ac3d"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="a-paused" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#f8ac3d"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#78746f"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#78746f"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#78746f"></rect>
+  </symbol>
+</svg>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;padding-bottom:48px;">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <span style="font-size:11px;color:#78746f;letter-spacing:0.06em;text-transform:uppercase;">Tray icon · direction A</span>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8ac3d;">contained ground</span>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto;padding:24px 16px 0 16px;display:flex;flex-direction:column;gap:24px;">
+
+    <div>
+      <div style="font-size:22px;font-weight:500;letter-spacing:-0.01em;">A · Contained section</div>
+      <div style="font-size:13px;color:#aeaaa5;max-width:74ch;text-wrap:pretty;">A full-bleed block: 1px amber rim, near-black ground, three amber bands of differing thickness. The block is the sample; the rim is the cut edge. Four shapes plus the rim.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Idle</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">almost always</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#a-idle"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Three amber bands. Nothing moving.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Scanning</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">seconds</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#a-scanning"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Top band goes near-white — a new layer being laid down.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Deferred</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">a normal evening</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#a-deferred"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Top band cyan. The app's own colour for "not accumulating".</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Paused</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">rare</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#a-paused"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">All bands grey, rim still amber. A decision, not a fault.</div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Actual size · 16px on both taskbars</div>
+      <div style="display:flex;align-items:center;gap:24px;padding:0 12px;height:40px;background:#0f0d0b;border-bottom:1px solid #23201d;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;width:96px;">dark #0f0d0b</span>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-idle"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-scanning"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-deferred"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-paused"></use></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:24px;padding:0 12px;height:40px;background:#f3f3f3;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6a6a6a;width:96px;">light #f3f3f3</span>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-idle"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-scanning"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-deferred"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#a-paused"></use></svg>
+      </div>
+      <div style="padding:9px 12px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">Contained ground. The near-black block is the icon's own background, so the mark never depends on the taskbar behind it, and near-white becomes usable as a state colour. The 1px amber rim is what keeps the silhouette from dissolving into a dark taskbar.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#a-idle"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#a-scanning"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#a-deferred"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#a-paused"></use></svg></div>
+    </div>
+
+    <div style="border:1px dashed #393632;background:#131110;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:11px;color:#aeaaa5;">
+      <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Risk.</span> A filled square is the most generic silhouette in the tray. The rim and band rhythm carry it, but at 16px among other filled-square icons it competes on colour alone.</div>
+      <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Strength.</span> The only direction where near-white works as the scanning state, and the only one whose contrast is completely independent of the taskbar. Bands sit on whole pixels at 2/1/3 thickness, so nothing greys out at 100% DPI.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1220,&quot;height&quot;:900}}"></script>
+</body>
+</html>

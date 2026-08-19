@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute;">
+  <symbol id="c-idle" viewBox="0 0 16 16">
+    <rect x="1" y="3" width="10" height="3" fill="#f8ac3d"></rect>
+    <rect x="1" y="8" width="14" height="2" fill="#f8ac3d"></rect>
+    <rect x="1" y="12" width="7" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="c-scanning" viewBox="0 0 16 16">
+    <rect x="1" y="0" width="5" height="2" fill="#f8ac3d"></rect>
+    <rect x="1" y="3" width="10" height="3" fill="#f8ac3d"></rect>
+    <rect x="1" y="8" width="14" height="2" fill="#f8ac3d"></rect>
+    <rect x="1" y="12" width="7" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="c-deferred" viewBox="0 0 16 16">
+    <rect x="1" y="3" width="10" height="3" fill="#5cd0ea"></rect>
+    <rect x="1" y="8" width="14" height="2" fill="#f8ac3d"></rect>
+    <rect x="1" y="12" width="7" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="c-paused" viewBox="0 0 16 16">
+    <rect x="1" y="3" width="10" height="3" fill="#78746f"></rect>
+    <rect x="1" y="8" width="14" height="2" fill="#78746f"></rect>
+    <rect x="1" y="12" width="7" height="3" fill="#78746f"></rect>
+  </symbol>
+</svg>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;padding-bottom:48px;">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <span style="font-size:11px;color:#78746f;letter-spacing:0.06em;text-transform:uppercase;">Tray icon · direction C</span>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8ac3d;">no ground · mid-tone chroma</span>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto;padding:24px 16px 0 16px;display:flex;flex-direction:column;gap:24px;">
+
+    <div>
+      <div style="font-size:22px;font-weight:500;letter-spacing:-0.01em;">C · Open section</div>
+      <div style="font-size:13px;color:#aeaaa5;max-width:74ch;text-wrap:pretty;">No ground at all — three amber bars of unequal length and thickness, left-aligned on a ragged right edge. It is the app's stacked-area profile reduced to three strokes, and it relies entirely on amber having enough chroma to hold against both a black and a white taskbar.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Idle</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">almost always</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#c-idle"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Three bars, 10/14/7 long. A section profile, not a barcode.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Scanning</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">seconds</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#c-scanning"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">A fourth bar appears on top — a layer mid-deposition. Count change, readable in isolation.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Deferred</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">a normal evening</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#c-deferred"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Top bar cyan. Held, deliberately.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Paused</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">rare</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#c-paused"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">All three grey. Nothing is being recorded.</div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Actual size · 16px on both taskbars</div>
+      <div style="display:flex;align-items:center;gap:24px;padding:0 12px;height:40px;background:#0f0d0b;border-bottom:1px solid #23201d;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;width:96px;">dark #0f0d0b</span>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-idle"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-scanning"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-deferred"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-paused"></use></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:24px;padding:0 12px;height:40px;background:#f3f3f3;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6a6a6a;width:96px;">light #f3f3f3</span>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-idle"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-scanning"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-deferred"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#c-paused"></use></svg>
+      </div>
+      <div style="padding:9px 12px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">Mid-tone chroma, no contained ground. Amber holds 10.1:1 against the dark strip but 1.7:1 against the light one — below the 3:1 minimum for non-text contrast. The bars are 2–3px thick so there are no hairlines, but on a light taskbar this mark is a pale shape rather than a legible one. Compare the two strips before choosing it.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#c-idle"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#c-scanning"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#c-deferred"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#c-paused"></use></svg></div>
+    </div>
+
+    <div style="border:1px dashed #393632;background:#131110;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:11px;color:#aeaaa5;">
+      <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Risk.</span> The one direction that can fail on a light taskbar, and near-white is unavailable as a state colour, so scanning has to be carried by bar count instead. Three floating bars are also the easiest of the three to mistake for a generic list or menu glyph.</div>
+      <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Strength.</span> Lightest, least utility-looking, and the closest to the app's own visual signature — the bars are the same ragged profile the Timeline draws. Fewest shapes of the three, and it is the only one that reads as a mark rather than a badge.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1220,&quot;height&quot;:900}}"></script>
+</body>
+</html>

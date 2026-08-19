@@ -11,8 +11,11 @@ Delivered 19 Aug 2026 from Claude Design, built to `BRIEF.md`. Seven files, dark
 | `Strata Compare` | Ranked aggregated tree, growth and shrinkage together, "elsewhere in …" remainder rows, churn drawer |
 | `Strata Settings` | Intervals, thresholds, defer conditions, retention, exclusions, per-volume fidelity, auditable scan log |
 | `Strata States` | All eight states with the rule behind each |
+| `Strata Tray Icon` | The chosen icon: geometry table, contrast figures, the light-taskbar approach |
+| `Strata Icon A/B/C` | The three directions it was chosen from — contained section, core sample, open section |
 
-`shots/` holds reference screenshots. `support.js` is the mockups' own runtime, not something to port.
+`shots/` holds reference screenshots. `icon/` holds the shipped artwork and its own README.
+`support.js` is the mockups' own runtime, not something to port.
 
 ## Notes carried over from the designer
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <title>Strata — scanning</title>
+  <desc>A scan is running. Whole mark near-white — brightest state, briefest state.</desc>
+  <rect x="0" y="0" width="16" height="16" fill="#f1eeea"></rect>
+  <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+  <rect x="3" y="3" width="10" height="2" fill="#f1eeea"></rect>
+  <rect x="3" y="7" width="6" height="1" fill="#f1eeea"></rect>
+  <rect x="3" y="10" width="10" height="3" fill="#f1eeea"></rect>
+</svg>

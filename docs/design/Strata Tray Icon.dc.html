@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+img{image-rendering:pixelated;display:block;}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute;">
+  <symbol id="s-idle" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#f8ac3d"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#f8ac3d"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#f8ac3d"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="s-scanning" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#f1eeea"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#f1eeea"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#f1eeea"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#f1eeea"></rect>
+  </symbol>
+  <symbol id="s-deferred" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#ff9868"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="1" fill="#ff9868"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#ff9868"></rect>
+    <rect x="3" y="10" width="10" height="1" fill="#ff9868"></rect>
+  </symbol>
+  <symbol id="s-paused" viewBox="0 0 16 16">
+    <rect x="0" y="0" width="16" height="16" fill="#78746f"></rect>
+    <rect x="1" y="1" width="14" height="14" fill="#0f0d0b"></rect>
+    <rect x="3" y="3" width="10" height="2" fill="#78746f"></rect>
+    <rect x="3" y="7" width="6" height="1" fill="#78746f"></rect>
+    <rect x="3" y="10" width="10" height="3" fill="#78746f"></rect>
+  </symbol>
+</svg>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;padding-bottom:56px;">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <span style="font-size:11px;color:#78746f;letter-spacing:0.06em;text-transform:uppercase;">Tray icon · specification</span>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:14px;font-size:11px;">
+      <a href="Strata Palette and Type.dc.html">Palette</a>
+      <a href="Strata Overview.dc.html">Overview</a>
+      <a href="Strata Timeline.dc.html">Timeline</a>
+      <a href="Strata States.dc.html">States</a>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:24px 16px 0 16px;display:flex;flex-direction:column;gap:24px;">
+
+    <div>
+      <div style="font-size:22px;font-weight:500;letter-spacing:-0.01em;margin-bottom:4px;">Contained section</div>
+      <div style="font-size:13px;color:#aeaaa5;max-width:76ch;text-wrap:pretty;">A full-bleed 16×16 block: 1px rim, near-black ground, three bands of differing thickness. Five rects, every edge on a whole pixel, designed at 16 and scaled up. The whole mark shifts colour to carry state, and deferred also changes form.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:15px;font-weight:500;">Idle</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">almost always</span></div>
+        <div style="padding:18px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="128" height="128" shape-rendering="crispEdges"><use href="#s-idle"></use></svg></div>
+        <div style="padding:8px 10px;border-top:1px solid #23201d;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8ac3d;">--pos #f8ac3d</div>
+          <div style="font-size:11px;color:#aeaaa5;margin-top:3px;">Solid bands, 2 / 1 / 3 px. Resident, nothing running.</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:15px;font-weight:500;">Scanning</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">seconds</span></div>
+        <div style="padding:18px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="128" height="128" shape-rendering="crispEdges"><use href="#s-scanning"></use></svg></div>
+        <div style="padding:8px 10px;border-top:1px solid #23201d;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;">--fg-1 #f1eeea</div>
+          <div style="font-size:11px;color:#aeaaa5;margin-top:3px;">Same form, near-white. Reads active because it is the brightest thing in the tray — no animation.</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #ff9868;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:15px;font-weight:500;">Deferred</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">a normal evening</span></div>
+        <div style="padding:18px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="128" height="128" shape-rendering="crispEdges"><use href="#s-deferred"></use></svg></div>
+        <div style="padding:8px 10px;border-top:1px solid #23201d;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#ff9868;">--warn #ff9868 · form change</div>
+          <div style="font-size:11px;color:#aeaaa5;margin-top:3px;">Bands collapse to 1px rules. No new layer is being laid down. Never red.</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:15px;font-weight:500;">Paused</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">rare, deliberate</span></div>
+        <div style="padding:18px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="128" height="128" shape-rendering="crispEdges"><use href="#s-paused"></use></svg></div>
+        <div style="padding:8px 10px;border-top:1px solid #23201d;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">--fg-3 #78746f · rim included</div>
+          <div style="font-size:11px;color:#aeaaa5;margin-top:3px;">Solid bands, whole mark grey. Recording is off by choice.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #2e2b27;">
+        <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Actual size · 16px, both taskbars, PNG as shipped</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">idle · scanning · deferred · paused</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:32px;padding:0 14px;height:44px;background:#0f0d0b;border-bottom:1px solid #23201d;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;width:110px;">dark #0f0d0b</span>
+        <img src="icon/strata-idle-16.png" width="16" height="16" alt="idle">
+        <img src="icon/strata-scanning-16.png" width="16" height="16" alt="scanning">
+        <img src="icon/strata-deferred-16.png" width="16" height="16" alt="deferred">
+        <img src="icon/strata-paused-16.png" width="16" height="16" alt="paused">
+        <div style="flex:1"></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">rim reads · bands read · four states separate</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:32px;padding:0 14px;height:44px;background:#f3f3f3;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6a6a6a;width:110px;">light #f3f3f3</span>
+        <img src="icon/strata-idle-16.png" width="16" height="16" alt="idle">
+        <img src="icon/strata-scanning-16.png" width="16" height="16" alt="scanning">
+        <img src="icon/strata-deferred-16.png" width="16" height="16" alt="deferred">
+        <img src="icon/strata-paused-16.png" width="16" height="16" alt="paused">
+        <div style="flex:1"></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6a6a6a;">dark ground carries the silhouette</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:32px;padding:0 14px;height:44px;background:#1f1f1f;border-top:1px solid #23201d;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a8a8a;width:110px;">Windows dark #1f1f1f</span>
+        <img src="icon/strata-idle-16.png" width="16" height="16" alt="idle">
+        <img src="icon/strata-scanning-16.png" width="16" height="16" alt="scanning">
+        <img src="icon/strata-deferred-16.png" width="16" height="16" alt="deferred">
+        <img src="icon/strata-paused-16.png" width="16" height="16" alt="paused">
+        <div style="flex:1"></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8a8a8a;">the real default taskbar, not pure black</span>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Every shipped size · 16 20 24 32 48 64 256</div>
+      <div style="display:flex;align-items:flex-end;gap:22px;padding:14px;border-bottom:1px solid #23201d;flex-wrap:wrap;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;width:74px;color:#f8ac3d;">idle</span>
+        <img src="icon/strata-idle-16.png" width="16" height="16" alt="16"><img src="icon/strata-idle-20.png" width="20" height="20" alt="20"><img src="icon/strata-idle-24.png" width="24" height="24" alt="24"><img src="icon/strata-idle-32.png" width="32" height="32" alt="32"><img src="icon/strata-idle-48.png" width="48" height="48" alt="48"><img src="icon/strata-idle-64.png" width="64" height="64" alt="64"><img src="icon/strata-idle-256.png" width="96" height="96" alt="256 shown at 96">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:22px;padding:14px;border-bottom:1px solid #23201d;flex-wrap:wrap;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;width:74px;color:#f1eeea;">scanning</span>
+        <img src="icon/strata-scanning-16.png" width="16" height="16" alt="16"><img src="icon/strata-scanning-20.png" width="20" height="20" alt="20"><img src="icon/strata-scanning-24.png" width="24" height="24" alt="24"><img src="icon/strata-scanning-32.png" width="32" height="32" alt="32"><img src="icon/strata-scanning-48.png" width="48" height="48" alt="48"><img src="icon/strata-scanning-64.png" width="64" height="64" alt="64"><img src="icon/strata-scanning-256.png" width="96" height="96" alt="256 shown at 96">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:22px;padding:14px;border-bottom:1px solid #23201d;flex-wrap:wrap;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;width:74px;color:#ff9868;">deferred</span>
+        <img src="icon/strata-deferred-16.png" width="16" height="16" alt="16"><img src="icon/strata-deferred-20.png" width="20" height="20" alt="20"><img src="icon/strata-deferred-24.png" width="24" height="24" alt="24"><img src="icon/strata-deferred-32.png" width="32" height="32" alt="32"><img src="icon/strata-deferred-48.png" width="48" height="48" alt="48"><img src="icon/strata-deferred-64.png" width="64" height="64" alt="64"><img src="icon/strata-deferred-256.png" width="96" height="96" alt="256 shown at 96">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:22px;padding:14px;flex-wrap:wrap;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;width:74px;color:#78746f;">paused</span>
+        <img src="icon/strata-paused-16.png" width="16" height="16" alt="16"><img src="icon/strata-paused-20.png" width="20" height="20" alt="20"><img src="icon/strata-paused-24.png" width="24" height="24" alt="24"><img src="icon/strata-paused-32.png" width="32" height="32" alt="32"><img src="icon/strata-paused-48.png" width="48" height="48" alt="48"><img src="icon/strata-paused-64.png" width="64" height="64" alt="64"><img src="icon/strata-paused-256.png" width="96" height="96" alt="256 shown at 96">
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Light-taskbar approach · contained ground</div>
+        <div style="padding:12px;display:flex;flex-direction:column;gap:10px;font-size:11px;color:#aeaaa5;">
+          <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">The icon brings its own background.</span> A near-black <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">#0f0d0b</code> ground fills 14 of the 16 pixels, so the bands are always amber-on-near-black regardless of what is behind them. Contrast is a property of the artwork, not of the taskbar. The alternative — a single mid-tone with enough chroma to survive both ends — was drawn as direction C and rejected: amber holds 10.1:1 on a dark taskbar but 1.7:1 on a light one, which fails the 3:1 minimum for non-text contrast, and it rules out near-white as a state colour.</div>
+          <div style="border-top:1px solid #23201d;padding-top:10px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">The rim is what earns the ground.</span> A dark block alone would dissolve into a dark taskbar, so the outer 1px ring is drawn in the state colour. On light backgrounds the rim adds nothing — for the scanning state it is invisible against white — but the dark ground provides the silhouette, so the mark simply reads 1px smaller. Neither background ever loses both the rim and the ground.</div>
+          <div style="border-top:1px solid #23201d;padding-top:10px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">One artwork, no variants.</span> Windows does not swap tray icons on theme change and this design does not need it to. The third strip above is <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">#1f1f1f</code>, the actual default Windows taskbar, because pure black flatters a dark-ground icon in a way the real thing does not.</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Which element carries state</div>
+        <div style="padding:12px;display:flex;flex-direction:column;gap:10px;font-size:11px;color:#aeaaa5;">
+          <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Colour of the whole mark — rim and bands together.</span> One value changes and every pixel of ink follows it, so the state is legible from the corner of the eye at 16px without the shape having to be re-read. Amber idle, near-white scanning, warm orange deferred, grey paused.</div>
+          <div style="border-top:1px solid #23201d;padding-top:10px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Deferred also changes form, because colour is not enough.</span> <code style="font-family:'JetBrains Mono',monospace;color:#ff9868;">#ff9868</code> and <code style="font-family:'JetBrains Mono',monospace;color:#f8ac3d;">#f8ac3d</code> are 40° apart in hue at nearly the same lightness — side by side they separate, but idle-versus-deferred is the most consequential distinction the icon makes and it has to survive being seen alone. So the bands collapse from 2/1/3 px to three 1px rules: solid block versus sparse block, obvious at a glance and still obvious in greyscale. The semantics come out right as well — the layers are outlined where they would be, but nothing is being deposited.</div>
+          <div style="border-top:1px solid #23201d;padding-top:10px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Cyan was rejected deliberately.</span> <code style="font-family:'JetBrains Mono',monospace;color:#5cd0ea;">--neg</code> means shrinkage in every chart in the app; spending it on deferral would break that. Red was never a candidate — deferring is the software working correctly.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Geometry · 16×16 grid, whole pixels</div>
+      <div style="display:grid;grid-template-columns:180px 1fr;gap:0;">
+        <div style="padding:14px;border-right:1px solid #23201d;display:flex;justify-content:center;align-items:flex-start;">
+          <div style="position:relative;width:144px;height:144px;background:repeating-linear-gradient(0deg,#23201d 0 1px,transparent 1px 9px),repeating-linear-gradient(90deg,#23201d 0 1px,transparent 1px 9px),#0f0d0b;">
+            <svg width="144" height="144" shape-rendering="crispEdges" style="position:absolute;top:0;left:0;opacity:0.9;"><use href="#s-idle"></use></svg>
+          </div>
+        </div>
+        <div style="padding:0;">
+          <div style="display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;padding:6px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;"><div>Shape</div><div>x · y · w · h</div><div>Fill</div></div>
+          <div style="display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;padding:0 12px;height:26px;align-items:center;border-bottom:1px solid #23201d;font-family:'JetBrains Mono',monospace;font-size:11px;"><span style="color:#aeaaa5;">rim</span><span>0 · 0 · 16 · 16</span><span style="color:#f8ac3d;">state colour</span></div>
+          <div style="display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;padding:0 12px;height:26px;align-items:center;border-bottom:1px solid #23201d;font-family:'JetBrains Mono',monospace;font-size:11px;"><span style="color:#aeaaa5;">ground</span><span>1 · 1 · 14 · 14</span><span>#0f0d0b</span></div>
+          <div style="display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;padding:0 12px;height:26px;align-items:center;border-bottom:1px solid #23201d;font-family:'JetBrains Mono',monospace;font-size:11px;"><span style="color:#aeaaa5;">band 1</span><span>3 · 3 · 10 · 2 <span style="color:#78746f;">(1 deferred)</span></span><span style="color:#f8ac3d;">state colour</span></div>
+          <div style="display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;padding:0 12px;height:26px;align-items:center;border-bottom:1px solid #23201d;font-family:'JetBrains Mono',monospace;font-size:11px;"><span style="color:#aeaaa5;">band 2</span><span>3 · 7 · 6 · 1</span><span style="color:#f8ac3d;">state colour</span></div>
+          <div style="display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;padding:0 12px;height:26px;align-items:center;border-bottom:1px solid #23201d;font-family:'JetBrains Mono',monospace;font-size:11px;"><span style="color:#aeaaa5;">band 3</span><span>3 · 10 · 10 · 3 <span style="color:#78746f;">(1 deferred)</span></span><span style="color:#f8ac3d;">state colour</span></div>
+          <div style="padding:10px 12px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">Five rects, no strokes, no gradients, no curves, nothing thinner than 1px. Band widths 10 / 6 / 10 and thicknesses 2 / 1 / 3 give an uneven rhythm, so the stack reads as a section rather than a barcode. The 1px rim is a rect pair rather than a stroke, so it cannot land on a half-pixel.</div>
+          <div style="padding:0 12px 12px 12px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">PNGs at 20 and 24 are not integer multiples of 16, so every rect edge is rounded to the nearest device pixel at export rather than resampled — the bands stay crisp and no band ever rounds away to nothing. The 1px rim becomes 1px at 16 and 20, 2px at 32, and scales with the grid above that, which keeps its weight consistent at 200% DPI.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Files · icon/</div>
+      <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">
+        <span>strata-idle.svg</span><span style="color:#78746f;">strata-idle-{16,20,24,32,48,64,256}.png</span>
+        <span>strata-scanning.svg</span><span style="color:#78746f;">strata-scanning-{16,20,24,32,48,64,256}.png</span>
+        <span>strata-deferred.svg</span><span style="color:#78746f;">strata-deferred-{16,20,24,32,48,64,256}.png</span>
+        <span>strata-paused.svg</span><span style="color:#78746f;">strata-paused-{16,20,24,32,48,64,256}.png</span>
+      </div>
+      <div style="padding:0 12px 12px 12px;font-size:11px;color:#78746f;text-wrap:pretty;">Four SVGs and 28 PNGs, transparent outside the block. Assemble each state's seven PNGs into one <code style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">.ico</code> in that order; no resampling required at any step.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:1600}}"></script>
+</body>
+</html>

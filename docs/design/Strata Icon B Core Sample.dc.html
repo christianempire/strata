@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute;">
+  <symbol id="b-idle" viewBox="0 0 16 16">
+    <rect x="3" y="0" width="10" height="16" fill="#f8ac3d"></rect>
+    <rect x="4" y="1" width="8" height="14" fill="#0f0d0b"></rect>
+    <rect x="4" y="2" width="8" height="3" fill="#f8ac3d"></rect>
+    <rect x="4" y="7" width="8" height="2" fill="#f8ac3d"></rect>
+    <rect x="4" y="11" width="8" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="b-scanning" viewBox="0 0 16 16">
+    <rect x="3" y="0" width="10" height="16" fill="#f8ac3d"></rect>
+    <rect x="4" y="1" width="8" height="14" fill="#0f0d0b"></rect>
+    <rect x="4" y="2" width="8" height="3" fill="#f1eeea"></rect>
+    <rect x="4" y="7" width="8" height="2" fill="#f8ac3d"></rect>
+    <rect x="4" y="11" width="8" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="b-deferred" viewBox="0 0 16 16">
+    <rect x="3" y="0" width="10" height="16" fill="#f8ac3d"></rect>
+    <rect x="4" y="1" width="8" height="14" fill="#0f0d0b"></rect>
+    <rect x="4" y="2" width="8" height="3" fill="#5cd0ea"></rect>
+    <rect x="4" y="7" width="8" height="2" fill="#f8ac3d"></rect>
+    <rect x="4" y="11" width="8" height="3" fill="#f8ac3d"></rect>
+  </symbol>
+  <symbol id="b-paused" viewBox="0 0 16 16">
+    <rect x="3" y="0" width="10" height="16" fill="#f8ac3d"></rect>
+    <rect x="4" y="1" width="8" height="14" fill="#0f0d0b"></rect>
+    <rect x="4" y="2" width="8" height="3" fill="#78746f"></rect>
+    <rect x="4" y="7" width="8" height="2" fill="#78746f"></rect>
+    <rect x="4" y="11" width="8" height="3" fill="#78746f"></rect>
+  </symbol>
+</svg>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;padding-bottom:48px;">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <span style="font-size:11px;color:#78746f;letter-spacing:0.06em;text-transform:uppercase;">Tray icon · direction B</span>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8ac3d;">contained ground · tall silhouette</span>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto;padding:24px 16px 0 16px;display:flex;flex-direction:column;gap:24px;">
+
+    <div>
+      <div style="font-size:22px;font-weight:500;letter-spacing:-0.01em;">B · Core sample</div>
+      <div style="font-size:13px;color:#aeaaa5;max-width:74ch;text-wrap:pretty;">The same contained ground narrowed to a 10px column — a drill core stood on end, banded across its full width. The silhouette is the point: a tall block is rarer in the notification area than a square, so the icon is identifiable before any colour is read.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Idle</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">almost always</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#b-idle"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Three bands, 3/2/3 thick, spanning the core.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Scanning</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">seconds</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#b-scanning"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Top band near-white. Brightest state, briefest state.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Deferred</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">a normal evening</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#b-deferred"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Top band cyan. Reads as held, not broken.</div>
+      </div>
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:7px 10px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;"><span style="font-size:12px;">Paused</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">rare</span></div>
+        <div style="padding:16px;display:flex;justify-content:center;background:#0f0d0b;"><svg width="112" height="112" shape-rendering="crispEdges"><use href="#b-paused"></use></svg></div>
+        <div style="padding:8px 10px;font-size:11px;color:#aeaaa5;">Bands grey, amber shell intact.</div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #2e2b27;background:#181613;">
+      <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Actual size · 16px on both taskbars</div>
+      <div style="display:flex;align-items:center;gap:24px;padding:0 12px;height:40px;background:#0f0d0b;border-bottom:1px solid #23201d;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;width:96px;">dark #0f0d0b</span>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-idle"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-scanning"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-deferred"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-paused"></use></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:24px;padding:0 12px;height:40px;background:#f3f3f3;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#6a6a6a;width:96px;">light #f3f3f3</span>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-idle"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-scanning"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-deferred"></use></svg>
+        <svg width="16" height="16" shape-rendering="crispEdges"><use href="#b-paused"></use></svg>
+      </div>
+      <div style="padding:9px 12px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">Contained ground, same as A, so contrast is taskbar-independent — but with 3px of empty margin either side, the mark occupies 10 of 16 columns and reads as an object rather than a tile.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#b-idle"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#b-scanning"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#b-deferred"></use></svg></div>
+      <div style="border:1px solid #2e2b27;background:#f3f3f3;padding:16px;display:flex;justify-content:center;"><svg width="64" height="64" shape-rendering="crispEdges"><use href="#b-paused"></use></svg></div>
+    </div>
+
+    <div style="border:1px dashed #393632;background:#131110;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:11px;color:#aeaaa5;">
+      <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Risk.</span> Narrow marks lose optical weight next to full-bleed neighbours; it will look slightly smaller than the icons around it. Bands span the full core width, so the barcode reading is a live risk here more than in A.</div>
+      <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Strength.</span> Distinctive silhouette, taskbar-independent contrast, and a literal reading of the name — a core sample is exactly what the product takes. Bands at 3/2/3 with 2px gaps survive 100% DPI without hinting.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1220,&quot;height&quot;:900}}"></script>
+</body>
+</html>
