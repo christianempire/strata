@@ -29,6 +29,8 @@ Work proceeds one phase at a time, and each stops for review.
 | 3 | Minimal API, then Angular UI (gated on mockups in `docs/design/`) | current |
 | 4 | Tray icon, retention/downsampling, polish | not started |
 
+Phase 3 has a handoff brief at `docs/PHASE3-HANDOFF.md`.
+
 Do not build ahead of the current phase. Phase 3's UI is gated on design mockups landing in
 `docs/design/`; if they are absent, stop and ask rather than inventing a visual language.
 
