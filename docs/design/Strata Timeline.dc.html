@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:#0f0d0b;}
+::-webkit-scrollbar-thumb{background:#393632;}
+::-webkit-scrollbar-thumb:hover{background:#4b4743;}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;">
+
+  <div style="display:flex;align-items:center;gap:20px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <div style="display:flex;gap:2px;align-self:stretch;">
+      <a href="Strata Overview.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;border-bottom:2px solid transparent;">Overview</a>
+      <span style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#f1eeea;background:#23201d;border-bottom:2px solid #f8ac3d;">Timeline</span>
+      <a href="Strata Explorer.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;border-bottom:2px solid transparent;">Explorer</a>
+      <a href="Strata Compare.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;border-bottom:2px solid transparent;">Compare</a>
+      <a href="Strata Settings.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;border-bottom:2px solid transparent;">Settings</a>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">
+      <span style="width:6px;height:6px;background:#7cb05e;"></span>idle · last scan 14:02
+    </div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">UTC+01:00 · local</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-bottom:1px solid #2e2b27;background:#0f0d0b;">
+    <span style="font-size:18px;font-weight:500;letter-spacing:-0.01em;">Timeline</span>
+    <div style="width:1px;height:20px;background:#2e2b27;"></div>
+    <div style="display:flex;">
+      <button onClick="{{ selC }}" style="{{ volBtnC }}">C:</button>
+      <button onClick="{{ selD }}" style="{{ volBtnD }}">D:</button>
+      <button onClick="{{ selE }}" style="{{ volBtnE }}">E:</button>
+    </div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">{{ volLabel }}</span>
+    <div style="flex:1"></div>
+    <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Range</span>
+    <div style="display:flex;">
+      <button onClick="{{ r1h }}" style="{{ rangeBtn1h }}">1H</button>
+      <button onClick="{{ r24h }}" style="{{ rangeBtn24h }}">24H</button>
+      <button onClick="{{ r7d }}" style="{{ rangeBtn7d }}">7D</button>
+      <button onClick="{{ r30d }}" style="{{ rangeBtn30d }}">30D</button>
+      <button onClick="{{ r1y }}" style="{{ rangeBtn1y }}">1Y</button>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:14px;padding:12px 16px;border-bottom:1px solid #2e2b27;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:500;letter-spacing:-0.02em;line-height:1.05;white-space:nowrap;color:{{ headlineColor }};">{{ headlineDelta }}</span>
+    <div style="font-size:13px;color:#aeaaa5;text-wrap:pretty;max-width:78ch;">Your <strong style="color:#f1eeea;font-weight:500;">{{ vol }}</strong> drive {{ headlineVerb }} <strong style="color:#f1eeea;font-weight:500;">{{ headlineAbs }}</strong> {{ headlineSince }}, and <strong style="color:#f1eeea;font-weight:500;">{{ topShare }}</strong> of it landed in <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;background:#23201d;padding:1px 4px;">{{ topPath }}</code>.</div>
+    <div style="flex:1"></div>
+    <div style="text-align:right;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;white-space:nowrap;">Used now · free</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:15px;white-space:nowrap;">{{ usedNow }} <span style="color:#78746f;">/ {{ capacity }}</span> <span style="color:#aeaaa5;">· {{ freeNow }} free</span></div>
+    </div>
+  </div>
+
+  <div style="padding:0 16px 16px 16px;">
+
+    <div style="background:#181613;border:1px solid #2e2b27;border-top:none;">
+      <div style="display:flex;align-items:center;gap:16px;padding:8px 12px;border-bottom:1px solid #23201d;flex-wrap:wrap;">
+        <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Used space by top-level directory</span>
+        <div style="flex:1"></div>
+        <sc-for list="{{ legend }}" as="s" hint-placeholder-count="7">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#aeaaa5;">
+            <span style="width:9px;height:9px;flex:none;background:{{ s.color }};"></span>
+            <span style="color:#f1eeea;">{{ s.name }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;color:#78746f;">{{ s.size }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div id="strata-timeline-chart" style="height:344px;width:100%;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid #23201d;font-size:11px;color:#78746f;flex-wrap:wrap;">
+        <span style="font-family:'JetBrains Mono',monospace;color:#f8ac3d;">▭</span>
+        <span style="flex:1 1 240px;min-width:0;">Drag across the plot to brush a sub-range — the feed below filters to it. Click a feed row to mark it on the chart.</span>
+        <span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;white-space:nowrap;">{{ brushReadout }}</span>
+        <button onClick="{{ clearBrush }}" style="{{ clearBrushStyle }}">Clear brush</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 330px;gap:16px;margin-top:16px;align-items:start;">
+
+      <div style="background:#181613;border:1px solid #2e2b27;min-width:0;">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #2e2b27;">
+          <span style="font-size:15px;font-weight:500;white-space:nowrap;">Events</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;white-space:nowrap;">{{ feedCount }}</span>
+          <div style="flex:1"></div>
+          <sc-for list="{{ kindFilters }}" as="k" hint-placeholder-count="5">
+            <button onClick="{{ k.toggle }}" style="{{ k.style }}">{{ k.glyph }} {{ k.name }} {{ k.count }}</button>
+          </sc-for>
+        </div>
+
+        <div style="display:grid;grid-template-columns:106px 92px minmax(0,1fr) 108px 92px;gap:12px;padding:6px 12px;border-bottom:1px solid #2e2b27;background:#181613;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">
+          <div>Local time</div><div>Kind</div><div>Path</div><div style="text-align:right;">Δ bytes</div><div style="text-align:right;">Δ files</div>
+        </div>
+
+        <div style="max-height:436px;overflow-y:auto;overflow-x:hidden;">
+          <sc-for list="{{ feed }}" as="e" hint-placeholder-count="12">
+            <div onClick="{{ e.pick }}" style="{{ e.rowStyle }}" style-hover="background:#23201d;">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">{{ e.time }}</div>
+              <div><span style="{{ e.kindStyle }}">{{ e.kindGlyph }} {{ e.kind }}</span></div>
+              <div style="display:flex;min-width:0;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap;" title="{{ e.path }}">
+                <span style="flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#78746f;">{{ e.head }}</span>
+                <span style="flex:none;color:#f1eeea;">{{ e.tail }}</span>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;text-align:right;color:{{ e.color }};" title="{{ e.exact }}">{{ e.delta }}</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;color:{{ e.color }};">{{ e.files }}</div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ feedEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:34px 12px;text-align:center;">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#aeaaa5;">Nothing happened in this range.</div>
+              <div style="font-size:11px;color:#78746f;margin-top:4px;">{{ emptyHint }}</div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="background:#181613;border:1px solid #2e2b27;">
+          <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Selected event</div>
+          <div style="padding:12px;">
+            <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:baseline;gap:8px;">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:{{ selColor }};">{{ selDelta }}</span>
+                  <span style="{{ selKindStyle }}">{{ selKindGlyph }} {{ selKind }}</span>
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">{{ selExact }} · {{ selFiles }}</div>
+                <div style="border-top:1px solid #23201d;padding-top:10px;">
+                  <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;margin-bottom:4px;">Full path</div>
+                  <code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;word-break:break-all;line-height:1.6;">{{ selPath }}</code>
+                </div>
+                <div style="border-top:1px solid #23201d;padding-top:10px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:11px;">
+                  <span style="color:#78746f;">Detected</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selDetected }}</span>
+                  <span style="color:#78746f;">Source</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selSource }}</span>
+                  <span style="color:#78746f;">Series</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selSeries }}</span>
+                </div>
+                <div style="display:flex;gap:6px;border-top:1px solid #23201d;padding-top:10px;">
+                  <a href="Strata Explorer.dc.html" style="flex:1;text-align:center;padding:5px 8px;background:#23201d;border:1px solid #393632;color:#f1eeea;font-size:11px;">Open in Explorer</a>
+                  <a href="Strata Compare.dc.html" style="flex:1;text-align:center;padding:5px 8px;background:#23201d;border:1px solid #393632;color:#f1eeea;font-size:11px;">Compare around it</a>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noSel }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:11px;color:#78746f;text-wrap:pretty;">No event selected. Click a row in the feed — Strata drops a marker on the chart at that timestamp and keeps it there while you change range.</div>
+            </sc-if>
+          </div>
+        </div>
+
+        <div style="background:#181613;border:1px solid #2e2b27;">
+          <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Range totals</div>
+          <div style="padding:0 12px;">
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #23201d;"><span style="color:#aeaaa5;">Written</span><span style="font-family:'JetBrains Mono',monospace;color:#f8ac3d;">{{ totalWritten }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #23201d;"><span style="color:#aeaaa5;">Deleted</span><span style="font-family:'JetBrains Mono',monospace;color:#5cd0ea;">{{ totalDeleted }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #23201d;"><span style="color:#f1eeea;">Net</span><span style="font-family:'JetBrains Mono',monospace;font-weight:500;color:{{ headlineColor }};">{{ totalNet }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#aeaaa5;">Churn</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ totalChurn }}</span></div>
+          </div>
+          <div style="padding:0 12px 12px 12px;font-size:11px;color:#78746f;text-wrap:pretty;">Churn is the smaller of written and deleted — bytes that came and went. It costs SSD endurance and shows up nowhere in the net figure.</div>
+        </div>
+
+        <div style="background:#181613;border:1px solid #2e2b27;">
+          <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Fidelity</div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:8px;font-size:11px;">
+            <div style="display:flex;gap:8px;"><span style="font-family:'JetBrains Mono',monospace;color:{{ journalColor }};">●</span><span style="color:#aeaaa5;">{{ journalNote }}</span></div>
+            <div style="display:flex;gap:8px;border-top:1px solid #23201d;padding-top:8px;"><span style="font-family:'JetBrains Mono',monospace;color:{{ fidelityColor }};">{{ fidelityGlyph }}</span><span style="color:#aeaaa5;">{{ fidelityNote }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;border:1px dashed #393632;background:#131110;">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px dashed #393632;">
+        <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Interaction note — not part of the UI</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">brush → feed</span>
+      </div>
+      <div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:24px;font-size:11px;color:#aeaaa5;">
+        <div style="display:flex;flex-direction:column;gap:8px;text-wrap:pretty;">
+          <div><span style="color:#f1eeea;font-size:12px;">Brush is the default cursor, not a mode you enter.</span> No toolbox button. Mouse-down anywhere in the plot starts an <code style="font-family:'JetBrains Mono',monospace;">lineX</code> brush; the app re-dispatches <code style="font-family:'JetBrains Mono',monospace;">takeGlobalCursor</code> after every <code style="font-family:'JetBrains Mono',monospace;">setOption</code> so it survives range and volume changes. A single click with no drag clears it.</div>
+          <div><span style="color:#f1eeea;font-size:12px;">Debounced, not throttled.</span> <code style="font-family:'JetBrains Mono',monospace;">throttleType: 'debounce'</code> at 80 ms. The feed does not reflow mid-drag — the drag reads as a smooth selection with one settle at the end. The readout in the chart footer updates live during the drag, because it is cheap.</div>
+          <div><span style="color:#f1eeea;font-size:12px;">The brush filters, it does not zoom.</span> The chart keeps the full range so you never lose your place; the selection is amber wash with 1px amber edges. Range totals and churn in the right rail recompute against the brushed window, which is how the brush earns its keep: drag over one spike and read exactly what it cost.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;text-wrap:pretty;">
+          <div><span style="color:#f1eeea;font-size:12px;">Feed → chart is the same link run backwards.</span> Clicking a row sets a <code style="font-family:'JetBrains Mono',monospace;">markLine</code> at that timestamp in <code style="font-family:'JetBrains Mono',monospace;">--fg-1</code> with the delta as its label, plus a marker on the band that owns the change. The row takes <code style="font-family:'JetBrains Mono',monospace;">--bg-3</code> and a 2px amber left edge. The marker survives range changes; if the event falls outside the new range the chart footer says so rather than dropping it silently.</div>
+          <div><span style="color:#f1eeea;font-size:12px;">Path truncation.</span> Two spans in a flex row: the head shrinks and ellipsizes, the tail — last three segments — has <code style="font-family:'JetBrains Mono',monospace;">flex: none</code> and is never cut. The tail is <code style="font-family:'JetBrains Mono',monospace;">--fg-1</code>, the head <code style="font-family:'JetBrains Mono',monospace;">--fg-3</code>, so the eye lands on the part that identifies the folder. Full path in the rail and in the native tooltip. No RTL trick, so bidi never mangles a drive letter.</div>
+          <div><span style="color:#f1eeea;font-size:12px;">Empty range is a first-class answer.</span> "Nothing happened in this range" with the nearest range that did — not a spinner, not a shrug.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:1180}}">
+const GB = 1073741824;
+const NOW = new Date(2026, 7, 19, 14, 7).getTime();
+const HOUR = 3600e3, DAY = 24 * HOUR;
+
+const VOLS = {
+  'C:': { label: 'OS-M2-1TB', cap: 930, free: 51, used: 879,
+    series: [
+      { name: 'Users', size: 550, color: '#e17e72' },
+      { name: 'Program Files (x86)', size: 134, color: '#d9884d' },
+      { name: 'Program Files', size: 92.5, color: '#c59634' },
+      { name: 'src', size: 42, color: '#a6a43c' },
+      { name: 'ProgramData', size: 19.4, color: '#7cb05e' },
+      { name: 'WINDOWS', size: 11.1, color: '#46b686' },
+      { name: 'unreadable', size: 30, color: '#4b4743', hatch: true }
+    ],
+    fidelity: '557 directories unreadable without elevation. 30 GB of the 879 GB Windows reports is estimated, drawn hatched on top of the stack. WINDOWS shows 11.1 GB unique — 36.4 GB of C:\\Windows\\WinSxS is hardlinked to bytes counted under Program Files.' },
+  'D:': { label: 'Storage-M2-1TB', cap: 931, free: 78, used: 853,
+    series: [
+      { name: 'Steam', size: 512, color: '#e17e72' },
+      { name: 'VMs', size: 118, color: '#d9884d' },
+      { name: 'Backups', size: 96, color: '#c59634' },
+      { name: 'Media', size: 74, color: '#a6a43c' },
+      { name: 'Datasets', size: 31, color: '#7cb05e' },
+      { name: 'Downloads', size: 12, color: '#46b686' },
+      { name: 'other', size: 10, color: '#4b4743' }
+    ],
+    fidelity: 'Fully accounted. Strata\u2019s total matches what Windows reports to within 0.1 GB.' },
+  'E:': { label: 'Loadstar-M2-1TB', cap: 931, free: 412, used: 519,
+    series: [
+      { name: 'Games', size: 300, color: '#e17e72' },
+      { name: 'Archive', size: 140, color: '#d9884d' },
+      { name: 'ISO', size: 52, color: '#c59634' },
+      { name: 'other', size: 27, color: '#4b4743' }
+    ],
+    fidelity: 'No change journal on this volume. History is a 6-hour periodic walk, so events are attributed to the walk, not the minute.' }
+};
+
+const D = (m, d, hh, mm) => new Date(2026, m - 1, d, hh, mm).getTime();
+
+const EVENTS = [
+  { v: 'D:', s: 'Downloads', t: D(8, 19, 13, 58), p: 'D:\\Downloads\\sdk\\android-ndk-r27', g: 1.62, f: 812, k: 'appeared', src: 'journal' },
+  { v: 'D:', s: 'Steam', t: D(8, 19, 13, 41), p: 'D:\\Steam\\steamapps\\shadercache\\1091500\\DXVK_state_cache', g: 0.209, f: 38, k: 'grew', src: 'journal' },
+  { v: 'D:', s: 'Steam', t: D(8, 19, 13, 22), p: 'D:\\Steam\\steamapps\\downloading\\1091500', g: -2.10, f: -64, k: 'vanished', src: 'journal' },
+  { v: 'C:', s: 'Users', t: D(8, 19, 14, 2), p: 'C:\\pagefile.sys', g: 2.00, f: 0, k: 'grew', src: 'journal' },
+  { v: 'C:', s: 'Users', t: D(8, 19, 11, 2), p: 'C:\\Users\\chris\\Documents\\My Programming Projects\\aerisetta\\warrior-of-lust\\unity\\Library\\PlayerDataCache\\Win642\\Data', g: -16.78, f: -15, k: 'vanished', src: 'journal' },
+  { v: 'C:', s: 'WINDOWS', t: D(8, 19, 6, 15), p: 'C:\\WINDOWS\\SoftwareDistribution\\Download', g: 3.42, f: 1882, k: 'grew', src: 'journal' },
+  { v: 'C:', s: 'src', t: D(8, 19, 4, 30), p: 'C:\\src\\aerisetta\\unity\\Library\\Bee\\artifacts', g: 0.784, f: 24106, k: 'grew', src: 'journal' },
+  { v: 'D:', s: 'VMs', t: D(8, 18, 3, 12), p: 'D:\\VMs\\win11-dev\\Virtual Hard Disks\\win11-dev.vhdx', g: 6.40, f: 2, k: 'grew', src: 'journal' },
+  { v: 'C:', s: 'Users', t: D(8, 18, 21, 40), p: 'C:\\Users\\chris\\AppData\\Local\\Temp\\unity-build-cache', g: 1.10, f: 8842, k: 'grew', src: 'journal' },
+  { v: 'D:', s: 'Backups', t: D(8, 17, 9, 4), p: 'D:\\Backups\\chris\\2026-08-17T09-04', g: 4.80, f: 18922, k: 'appeared', src: 'journal' },
+  { v: 'C:', s: 'src', t: D(8, 16, 14, 22), p: 'C:\\src\\aerisetta\\.venv', g: -2.90, f: -41207, k: 'moved', src: 'journal', to: 'D:\\src-archive\\aerisetta\\.venv' },
+  { v: 'E:', s: 'Games', t: D(8, 16, 6, 0), p: 'E:\\Games\\Epic\\Fortnite', g: 11.20, f: 1104, k: 'grew', src: 'walk' },
+  { v: 'D:', s: 'Steam', t: D(8, 14, 22, 41), p: 'D:\\Steam\\steamapps\\common\\Cyberpunk 2077', g: 32.0, f: 1204, k: 'appeared', src: 'journal' },
+  { v: 'D:', s: 'Media', t: D(8, 12, 19, 20), p: 'D:\\Media\\raw\\2026-08-12_shoot', g: 2.31, f: 148, k: 'appeared', src: 'journal' },
+  { v: 'C:', s: 'Program Files (x86)', t: D(8, 11, 8, 12), p: 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2026\\Community', g: 8.90, f: 122841, k: 'grew', src: 'journal' },
+  { v: 'D:', s: 'Backups', t: D(7, 28, 2, 0), p: 'D:\\Backups\\chris\\2026-06-28T02-00', g: -9.60, f: -37904, k: 'vanished', src: 'journal' },
+  { v: 'C:', s: 'ProgramData', t: D(7, 22, 3, 15), p: 'C:\\ProgramData\\Docker\\windowsfilter', g: 5.40, f: 88214, k: 'grew', src: 'journal' },
+  { v: 'D:', s: 'Datasets', t: D(5, 2, 11, 15), p: 'D:\\Datasets\\imagenet-1k\\train', g: -14.2, f: -1281167, k: 'vanished', src: 'walk' },
+  { v: 'C:', s: 'Program Files (x86)', t: D(6, 11, 19, 40), p: 'C:\\Program Files (x86)\\Steam\\steamapps\\common', g: -41.0, f: -18402, k: 'moved', src: 'journal', to: 'D:\\Steam\\steamapps\\common' },
+  { v: 'E:', s: 'Archive', t: D(3, 14, 12, 0), p: 'E:\\Archive\\photos-2019-2024', g: 62.0, f: 214882, k: 'appeared', src: 'walk' },
+  { v: 'D:', s: 'Steam', t: D(2, 8, 20, 10), p: 'D:\\Steam\\steamapps\\common\\Baldurs Gate 3', g: 121.0, f: 41220, k: 'appeared', src: 'journal' }
+];
+
+const RANGES = {
+  '1h': { label: '1 hour', span: HOUR, step: 60e3, since: 'in the last hour' },
+  '24h': { label: '24 hours', span: DAY, step: 15 * 60e3, since: 'in the last 24 hours' },
+  '7d': { label: '7 days', span: 7 * DAY, step: HOUR, since: 'since Tue 11 Aug' },
+  '30d': { label: '30 days', span: 30 * DAY, step: 6 * HOUR, since: 'in the last 30 days' },
+  '1y': { label: '1 year', span: 365 * DAY, step: 5 * DAY, since: 'in the last year' }
+};
+
+const KINDS = {
+  grew: { glyph: '\u25B2', color: '#f8ac3d', bg: '#452d0a' },
+  shrank: { glyph: '\u25BC', color: '#5cd0ea', bg: '#0b3943' },
+  appeared: { glyph: '\u25C6', color: '#f8ac3d', bg: '#452d0a' },
+  vanished: { glyph: '\u25C7', color: '#5cd0ea', bg: '#0b3943' },
+  moved: { glyph: '\u2192', color: '#aeaaa5', bg: '#2e2b27' }
+};
+
+function fmtSize(gb) {
+  const a = Math.abs(gb);
+  const trim = s => s.indexOf('.') < 0 ? s : s.replace(/0$/, '');
+  if (a >= 1024) return trim((gb / 1024).toFixed(2)) + ' TB';
+  if (a >= 100) return gb.toFixed(0) + ' GB';
+  if (a >= 1) return trim(gb.toFixed(2)) + ' GB';
+  const mb = gb * 1024;
+  if (Math.abs(mb) >= 1) return (Math.abs(mb) >= 100 ? mb.toFixed(0) : trim(mb.toFixed(2))) + ' MB';
+  return (mb * 1024).toFixed(0) + ' KB';
+}
+function signed(gb) { return (gb >= 0 ? '+' : '\u2212') + fmtSize(Math.abs(gb)); }
+function exactBytes(gb) { return Math.round(Math.abs(gb) * GB).toLocaleString('en-US') + ' bytes'; }
+function grp(n) { return (n < 0 ? '\u2212' : '+') + Math.abs(n).toLocaleString('en-US'); }
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function pad(n) { return String(n).padStart(2, '0'); }
+function fmtTime(ts, range) {
+  const d = new Date(ts);
+  const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (range === '1h' || range === '24h') return hm;
+  if (range === '1y') return DOW[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()];
+  return DOW[d.getDay()] + ' ' + pad(d.getDate()) + ' ' + hm;
+}
+function splitPath(p) {
+  const parts = p.split('\\');
+  if (parts.length <= 3) return [p, ''];
+  const tail = '\\' + parts.slice(-3).join('\\');
+  return [parts.slice(0, -3).join('\\'), tail];
+}
+function seed(n) { let s = n; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
+
+class Component extends DCLogic {
+  state = { vol: 'D:', range: '7d', brush: null, sel: null, off: {} };
+
+  ensure() {
+    const el = document.getElementById('strata-timeline-chart');
+    if (!window.echarts || !el) return null;
+    if (this.chart && !this.chart.isDisposed() && this.chart.getDom() === el) return this.chart;
+    const prev = window.echarts.getInstanceByDom(el);
+    if (prev && !prev.isDisposed()) prev.dispose();
+    const ch = window.echarts.init(el, null, { renderer: 'canvas' });
+    ch.on('brushEnd', p => {
+      const a = p.areas && p.areas[0];
+      if (!a || !a.coordRange) { this.setState({ brush: null }); return; }
+      this.setState({ brush: [a.coordRange[0], a.coordRange[1]] });
+    });
+    ch.on('click', () => this.setState({ brush: null }));
+    if (this.ro) this.ro.disconnect();
+    this.ro = new ResizeObserver(() => { if (this.chart && !this.chart.isDisposed()) this.chart.resize(); });
+    this.ro.observe(el);
+    this.chart = ch;
+    return ch;
+  }
+  componentDidMount() {
+    this.tick = setInterval(() => { if (this.ensure()) { clearInterval(this.tick); this.draw(); } }, 60);
+  }
+  componentDidUpdate() { this.draw(); }
+  componentWillUnmount() { clearInterval(this.tick); if (this.ro) this.ro.disconnect(); }
+
+  rangeStart() { return NOW - RANGES[this.state.range].span; }
+
+  eventsInRange() {
+    const t0 = this.rangeStart();
+    return EVENTS.filter(e => e.v === this.state.vol && e.t >= t0 && e.t <= NOW).sort((a, b) => b.t - a.t);
+  }
+
+  // value(t) = current − (events after t), + small deterministic noise
+  buildSeries() {
+    const v = VOLS[this.state.vol], r = RANGES[this.state.range];
+    const t0 = this.rangeStart();
+    const times = [];
+    for (let t = t0; t <= NOW; t += r.step) times.push(t);
+    if (times[times.length - 1] !== NOW) times.push(NOW);
+    const evs = EVENTS.filter(e => e.v === this.state.vol && e.t >= t0);
+    return v.series.map((s, i) => {
+      const rnd = seed(1000 + i * 37);
+      const data = times.map(t => {
+        let val = s.size;
+        for (const e of evs) if (e.t > t && e.s === s.name) val -= e.g;
+        const n = s.hatch ? 0 : (rnd() - 0.5) * Math.max(0.02, s.size * 0.0009);
+        return [t, Math.max(0, +(val + n).toFixed(3))];
+      });
+      return { def: s, data };
+    });
+  }
+
+  draw() {
+    if (!this.ensure()) return;
+    const built = this.buildSeries();
+    const sel = this.state.sel != null ? EVENTS[this.state.sel] : null;
+    const inRange = sel && sel.t >= this.rangeStart() && sel.t <= NOW && sel.v === this.state.vol;
+    const mono = 'JetBrains Mono, monospace';
+    const series = built.map((b, i) => ({
+      name: b.def.name, type: 'line', stack: 'u', symbol: 'none',
+      lineStyle: { width: 1, color: b.def.hatch ? '#4b4743' : b.def.color, type: b.def.hatch ? 'dashed' : 'solid' },
+      areaStyle: { color: b.def.color, opacity: b.def.hatch ? 0.14 : 0.5 },
+      emphasis: { focus: 'series' }, data: b.data,
+      markLine: i === 0 && inRange ? {
+        silent: true, symbol: ['none', 'none'],
+        lineStyle: { color: '#f1eeea', width: 1 },
+        label: { formatter: signed(sel.g), color: '#0f0d0b', backgroundColor: '#f1eeea', padding: [2, 4], fontFamily: mono, fontSize: 10, position: 'insideEndTop' },
+        data: [{ xAxis: sel.t }]
+      } : undefined
+    }));
+    this.chart.setOption({
+      backgroundColor: 'transparent',
+      animation: false,
+      toolbox: { show: false },
+      grid: { left: 62, right: 14, top: 12, bottom: 24 },
+      tooltip: {
+        trigger: 'axis', backgroundColor: '#181613', borderColor: '#393632', borderWidth: 1,
+        padding: 8, textStyle: { color: '#f1eeea', fontSize: 11, fontFamily: mono },
+        axisPointer: { type: 'line', lineStyle: { color: '#aeaaa5', width: 1 } },
+        formatter: ps => {
+          if (!ps.length) return '';
+          let total = 0, rows = '';
+          for (let i = ps.length - 1; i >= 0; i--) {
+            const p = ps[i]; total += p.value[1];
+            rows += '<div style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;background:' + p.color + '"></span><span style="flex:1;color:#aeaaa5">' + p.seriesName + '</span><span>' + fmtSize(p.value[1]) + '</span></div>';
+          }
+          return '<div style="color:#78746f;margin-bottom:5px">' + fmtTime(ps[0].value[0], this.state.range === '1y' ? '1y' : '7d') + '</div>' + rows +
+            '<div style="display:flex;gap:8px;border-top:1px solid #393632;margin-top:5px;padding-top:5px"><span style="flex:1;color:#aeaaa5">used</span><span>' + fmtSize(total) + '</span></div>';
+        }
+      },
+      xAxis: {
+        type: 'time', boundaryGap: false,
+        axisLine: { lineStyle: { color: '#393632' } }, axisTick: { show: false },
+        splitLine: { show: true, lineStyle: { color: '#23201d' } },
+        axisLabel: { color: '#78746f', fontFamily: mono, fontSize: 10, hideOverlap: true }
+      },
+      yAxis: {
+        type: 'value', min: 0, max: VOLS[this.state.vol].cap, interval: Math.round(VOLS[this.state.vol].cap / 4),
+        axisLine: { show: false }, axisTick: { show: false },
+        splitLine: { lineStyle: { color: '#23201d' } },
+        axisLabel: { color: '#78746f', fontFamily: mono, fontSize: 10, formatter: v => v + ' GB' }
+      },
+      brush: {
+        xAxisIndex: 0, brushType: 'lineX', brushMode: 'single', transformable: true,
+        throttleType: 'debounce', throttleDelay: 80, removeOnClick: true,
+        brushStyle: { borderWidth: 1, borderColor: '#f8ac3d', color: 'rgba(248,172,61,0.10)' }
+      },
+      series
+    }, { notMerge: true });
+    this.chart.dispatchAction({ type: 'takeGlobalCursor', key: 'brush', brushOption: { brushType: 'lineX', brushMode: 'single' } });
+  }
+
+  renderVals() {
+    const st = this.state, v = VOLS[st.vol], r = RANGES[st.range];
+    const mono = "'JetBrains Mono',monospace";
+    const evs = this.eventsInRange();
+    const brushed = st.brush ? evs.filter(e => e.t >= st.brush[0] && e.t <= st.brush[1]) : evs;
+    const off = st.off || {};
+    const shown = brushed.filter(e => !off[e.k]);
+
+    const btn = (on) => 'font-family:' + mono + ';font-size:11px;padding:3px 9px;border:1px solid ' + (on ? '#f8ac3d' : '#393632') + ';background:' + (on ? '#452d0a' : '#181613') + ';color:' + (on ? '#f8ac3d' : '#aeaaa5') + ';cursor:pointer;margin-right:-1px;';
+    const chip = (k) => 'padding:1px 5px;font-family:' + mono + ';font-size:10px;letter-spacing:0.04em;text-transform:uppercase;background:' + KINDS[k].bg + ';color:' + KINDS[k].color + ';';
+
+    const written = brushed.filter(e => e.g > 0).reduce((a, e) => a + e.g, 0);
+    const deleted = brushed.filter(e => e.g < 0).reduce((a, e) => a - e.g, 0);
+    const net = written - deleted;
+    const churn = Math.min(written, deleted);
+
+    const top = brushed.slice().sort((a, b) => Math.abs(b.g) - Math.abs(a.g))[0];
+    const kindCounts = {};
+    for (const k in KINDS) kindCounts[k] = brushed.filter(e => e.k === k).length;
+
+    const sel = st.sel != null ? EVENTS[st.sel] : null;
+
+    const vals = {
+      vol: st.vol, volLabel: v.label,
+      usedNow: fmtSize(v.used), capacity: fmtSize(v.cap), freeNow: fmtSize(v.free),
+      headlineDelta: signed(net), headlineAbs: fmtSize(Math.abs(net)),
+      headlineVerb: net >= 0 ? 'gained' : 'released',
+      headlineColor: net >= 0 ? '#f8ac3d' : '#5cd0ea',
+      headlineSince: st.brush ? 'in the brushed window' : r.since,
+      topShare: top ? fmtSize(Math.abs(top.g)) : '\u2014',
+      topPath: top ? top.p.split('\\').slice(0, 3).join('\\') : '\u2014',
+      legend: v.series.map(s => ({ name: s.name, color: s.color, size: fmtSize(s.size) })),
+      fidelityNote: v.fidelity,
+      journalNote: st.vol === 'E:' ? 'No change journal. Events come from a 6-hour periodic walk.' : 'NTFS change journal live. Events are attributed to the minute.',
+      journalColor: st.vol === 'E:' ? '#ff9868' : '#7cb05e',
+      fidelityGlyph: st.vol === 'C:' ? '\u25B2' : st.vol === 'E:' ? '\u25B2' : '\u25CF',
+      fidelityColor: st.vol === 'C:' ? '#f8767a' : st.vol === 'E:' ? '#ff9868' : '#7cb05e',
+      brushReadout: st.brush
+        ? fmtTime(st.brush[0], st.range) + ' \u2192 ' + fmtTime(st.brush[1], st.range) + '  ' + shown.length + ' events'
+        : 'no brush \u00b7 full range ' + r.label,
+      clearBrush: () => this.setState({ brush: null }),
+      clearBrushStyle: 'font-family:' + mono + ';font-size:10px;padding:2px 8px;border:1px solid #393632;background:' + (st.brush ? '#23201d' : 'transparent') + ';color:' + (st.brush ? '#f1eeea' : '#4b4743') + ';cursor:pointer;',
+      feedCount: shown.length + ' of ' + evs.length + ' in range',
+      feedEmpty: shown.length === 0,
+      noSel: !sel, hasSel: !!sel,
+      emptyHint: st.brush ? 'Widen the brush, or clear it to see all ' + evs.length + ' events in the last ' + r.label + '.' : 'The nearest range with activity is 7 days \u2014 ' + EVENTS.filter(e => e.v === st.vol && e.t >= NOW - 7 * DAY).length + ' events.',
+      totalWritten: '+' + fmtSize(written), totalDeleted: '\u2212' + fmtSize(deleted),
+      totalNet: signed(net), totalChurn: fmtSize(churn) + ' cycled',
+      selC: () => this.setState({ vol: 'C:', brush: null }),
+      selD: () => this.setState({ vol: 'D:', brush: null }),
+      selE: () => this.setState({ vol: 'E:', brush: null }),
+      volBtnC: btn(st.vol === 'C:'), volBtnD: btn(st.vol === 'D:'), volBtnE: btn(st.vol === 'E:'),
+      r1h: () => this.setState({ range: '1h', brush: null }),
+      r24h: () => this.setState({ range: '24h', brush: null }),
+      r7d: () => this.setState({ range: '7d', brush: null }),
+      r30d: () => this.setState({ range: '30d', brush: null }),
+      r1y: () => this.setState({ range: '1y', brush: null }),
+      rangeBtn1h: btn(st.range === '1h'), rangeBtn24h: btn(st.range === '24h'),
+      rangeBtn7d: btn(st.range === '7d'), rangeBtn30d: btn(st.range === '30d'), rangeBtn1y: btn(st.range === '1y'),
+      kindFilters: Object.keys(KINDS).map(k => ({
+        name: k, glyph: KINDS[k].glyph, count: kindCounts[k],
+        toggle: () => this.setState(s => ({ off: Object.assign({}, s.off, { [k]: !s.off[k] }) })),
+        style: 'font-family:' + mono + ';font-size:10px;text-transform:uppercase;letter-spacing:0.04em;padding:2px 6px;margin-left:4px;cursor:pointer;white-space:nowrap;border:1px solid ' + (off[k] ? '#2e2b27' : '#393632') + ';background:' + (off[k] ? 'transparent' : KINDS[k].bg) + ';color:' + (off[k] ? '#4b4743' : KINDS[k].color) + ';'
+      })),
+      feed: shown.map(e => {
+        const idx = EVENTS.indexOf(e);
+        const sp = splitPath(e.p);
+        const isSel = st.sel === idx;
+        return {
+          time: fmtTime(e.t, st.range), kind: e.k, kindGlyph: KINDS[e.k].glyph, kindStyle: chip(e.k),
+          head: sp[0], tail: sp[1], path: e.p,
+          delta: signed(e.g), exact: signed(e.g) + ' \u00b7 ' + exactBytes(e.g), files: grp(e.f) + ' files',
+          color: e.g >= 0 ? '#f8ac3d' : '#5cd0ea',
+          pick: () => this.setState(s => ({ sel: s.sel === idx ? null : idx })),
+          rowStyle: 'display:grid;grid-template-columns:106px 92px minmax(0,1fr) 108px 92px;gap:12px;align-items:center;padding:0 12px;height:26px;cursor:pointer;border-bottom:1px solid #23201d;border-left:2px solid ' + (isSel ? '#f8ac3d' : 'transparent') + ';background:' + (isSel ? '#2e2b27' : 'transparent') + ';'
+        };
+      })
+    };
+    if (sel) {
+      Object.assign(vals, {
+        selDelta: signed(sel.g), selColor: sel.g >= 0 ? '#f8ac3d' : '#5cd0ea',
+        selKind: sel.k, selKindGlyph: KINDS[sel.k].glyph, selKindStyle: chip(sel.k),
+        selExact: exactBytes(sel.g), selFiles: grp(sel.f) + ' files',
+        selPath: sel.k === 'moved' && sel.to ? sel.p + '  \u2192  ' + sel.to : sel.p,
+        selDetected: fmtTime(sel.t, '7d') + ' \u00b7 ' + new Date(sel.t).getFullYear(),
+        selSource: sel.src === 'journal' ? 'NTFS change journal' : 'periodic walk (coarse)',
+        selSeries: sel.s
+      });
+    }
+    return vals;
+  }
+}
+</script>
+</body>
+</html>

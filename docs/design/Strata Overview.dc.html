@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:#0f0d0b;}
+::-webkit-scrollbar-thumb{background:#393632;}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;">
+
+  <div style="display:flex;align-items:center;gap:20px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <div style="display:flex;gap:2px;align-self:stretch;">
+      <span style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#f1eeea;background:#23201d;border-bottom:2px solid #f8ac3d;">Overview</span>
+      <a href="Strata Timeline.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Timeline</a>
+      <a href="Strata Explorer.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Explorer</a>
+      <a href="Strata Compare.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Compare</a>
+      <a href="Strata Settings.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Settings</a>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">
+      <span style="width:6px;height:6px;background:#7cb05e;"></span>idle · next tick 14:17
+    </div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">UTC+01:00 · local</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-bottom:1px solid #2e2b27;">
+    <span style="font-size:18px;font-weight:500;letter-spacing:-0.01em;">Overview</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">3 volumes · 3 physical disks · 3,665,912 files tracked</span>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">All scans current. Deepest tree 27 levels on C:.</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:16px;align-items:start;">
+
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #2e2b27;background:#23201d;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;">Disk 0</span>
+          <span style="font-size:11px;color:#aeaaa5;">NVMe M.2 · 1 TB · 1 volume</span>
+          <div style="flex:1"></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8767a;">▲ undercount 30 GB</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">C:</span>
+            <span style="font-size:13px;color:#f1eeea;">OS-M2-1TB</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">NTFS · journal live</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8767a;">51 GB free · 5.5%</span>
+          </div>
+          <div style="display:flex;height:22px;background:#23201d;border:1px solid #393632;">
+            <div style="width:91.3%;background:#e17e72;opacity:0.55;border-right:1px solid #e17e72;"></div>
+            <div style="width:3.2%;background:repeating-linear-gradient(135deg,#4b4743 0 4px,#23201d 4px 8px);border-right:1px solid #4b4743;"></div>
+            <div style="flex:1;background:#0f0d0b;"></div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:6px;font-size:11px;color:#78746f;flex-wrap:wrap;">
+            <span><span style="color:#e17e72;">▮</span> attributed 849 GB</span>
+            <span><span style="color:#4b4743;">▨</span> unreadable, estimated 30 GB</span>
+            <span>free 51 GB</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;">Windows reports 879 GB used · Strata accounts for 96.6%</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px 12px;margin-top:12px;border-top:1px solid #23201d;padding-top:10px;white-space:nowrap;">
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Capacity</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">930 GB</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Files</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">3,053,173</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Directories</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">571,055</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Max depth</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">27</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">30-day change</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;color:#f8ac3d;">+11.9 GB</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Last scan</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">14:02</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:12px;margin-top:12px;border-top:1px solid #23201d;padding-top:10px;">
+            <div style="flex:none;">
+              <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;margin-bottom:4px;">Used, 30 days</div>
+              <div style="display:flex;align-items:flex-end;gap:2px;height:34px;">
+                <sc-for list="{{ sparkC }}" as="b" hint-placeholder-count="30">
+                  <div title="{{ b.title }}" style="width:6px;background:{{ b.color }};height:{{ b.h }};"></div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="flex:1;min-width:0;font-size:11px;color:#aeaaa5;text-wrap:pretty;padding-bottom:2px;">
+              <strong style="color:#f8767a;font-weight:500;">557 directories are unreadable without elevation.</strong> Strata's total is roughly 30 GB under what Windows reports, and that gap is drawn hatched rather than folded into a directory. <a href="Strata Settings.dc.html">Grant one-time elevated access</a> to close it.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #2e2b27;background:#23201d;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;">Disk 1</span>
+          <span style="font-size:11px;color:#aeaaa5;">NVMe M.2 · 1 TB · 1 volume</span>
+          <div style="flex:1"></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#7cb05e;">● fully accounted</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">D:</span>
+            <span style="font-size:13px;color:#f1eeea;">Storage-M2-1TB</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">NTFS · journal live</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">78 GB free · 8.4%</span>
+          </div>
+          <div style="display:flex;height:22px;background:#23201d;border:1px solid #393632;">
+            <div style="width:91.6%;background:#d9884d;opacity:0.55;border-right:1px solid #d9884d;"></div>
+            <div style="flex:1;background:#0f0d0b;"></div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:6px;font-size:11px;color:#78746f;flex-wrap:wrap;">
+            <span><span style="color:#d9884d;">▮</span> attributed 853 GB</span>
+            <span>free 78 GB</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;">Windows reports 853 GB used · Strata accounts for 100%</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px 12px;margin-top:12px;border-top:1px solid #23201d;padding-top:10px;white-space:nowrap;">
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Capacity</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">931 GB</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Files</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">189,776</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Directories</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">10,421</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Max depth</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">14</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">30-day change</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;color:#f8ac3d;">+45.2 GB</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Last scan</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">14:02</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:12px;margin-top:12px;border-top:1px solid #23201d;padding-top:10px;">
+            <div style="flex:none;">
+              <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;margin-bottom:4px;">Used, 30 days</div>
+              <div style="display:flex;align-items:flex-end;gap:2px;height:34px;">
+                <sc-for list="{{ sparkD }}" as="b" hint-placeholder-count="30">
+                  <div title="{{ b.title }}" style="width:6px;background:{{ b.color }};height:{{ b.h }};"></div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="flex:1;min-width:0;font-size:11px;color:#aeaaa5;text-wrap:pretty;padding-bottom:2px;">
+              Two step changes in the window: <a href="Strata Timeline.dc.html">+32.0 GB on Fri 14 Aug</a> under <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">D:\Steam\steamapps</code>, and −9.6 GB on Tue 28 Jul when a June backup was pruned. At the current rate this volume has about 7 weeks of headroom.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #2e2b27;background:#23201d;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;">Disk 2</span>
+          <span style="font-size:11px;color:#aeaaa5;">NVMe M.2 · 1 TB · 1 volume</span>
+          <div style="flex:1"></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#ff9868;">▲ reduced fidelity</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">E:</span>
+            <span style="font-size:13px;color:#f1eeea;">Loadstar-M2-1TB</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#ff9868;">NTFS · no change journal</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">412 GB free · 44.3%</span>
+          </div>
+          <div style="display:flex;height:22px;background:#23201d;border:1px solid #393632;">
+            <div style="width:55.7%;background:#c59634;opacity:0.55;border-right:1px solid #c59634;"></div>
+            <div style="flex:1;background:#0f0d0b;"></div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:6px;font-size:11px;color:#78746f;flex-wrap:wrap;">
+            <span><span style="color:#c59634;">▮</span> attributed 519 GB</span>
+            <span>free 412 GB</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;">Windows reports 519 GB used · Strata accounts for 100%</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px 12px;margin-top:12px;border-top:1px solid #23201d;padding-top:10px;white-space:nowrap;">
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Capacity</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">931 GB</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Files</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">423,063</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Directories</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">24,525</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Max depth</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">15</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">30-day change</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;color:#f8ac3d;">+11.2 GB</div></div>
+            <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Last walk</div><div style="font-family:'JetBrains Mono',monospace;font-size:15px;">08:00</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:12px;margin-top:12px;border-top:1px solid #23201d;padding-top:10px;">
+            <div style="flex:none;">
+              <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;margin-bottom:4px;">Used, 30 days · 6-hour steps</div>
+              <div style="display:flex;align-items:flex-end;gap:2px;height:34px;">
+                <sc-for list="{{ sparkE }}" as="b" hint-placeholder-count="30">
+                  <div title="{{ b.title }}" style="width:6px;background:{{ b.color }};height:{{ b.h }};"></div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="flex:1;min-width:0;font-size:11px;color:#aeaaa5;text-wrap:pretty;padding-bottom:2px;">
+              <strong style="color:#ff9868;font-weight:500;">No NTFS change journal on this volume.</strong> History comes from a periodic walk every 6 hours, so events are attributed to the walk rather than the minute, and anything created and deleted between walks is invisible. <a href="Strata Settings.dc.html">Enable the journal</a> — one elevated command, no reformat.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="display:flex;align-items:baseline;gap:8px;padding:8px 12px;border-bottom:1px solid #2e2b27;">
+          <span style="font-size:15px;font-weight:500;">Largest changes</span>
+          <span style="font-size:11px;color:#78746f;">last 24 hours, all volumes</span>
+        </div>
+        <sc-for list="{{ changes }}" as="c" hint-placeholder-count="4">
+          <a href="Strata Timeline.dc.html" style="display:block;padding:9px 12px;border-bottom:1px solid #23201d;color:inherit;" style-hover="background:#23201d;">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;color:{{ c.color }};">{{ c.delta }}</span>
+              <span style="{{ c.kindStyle }}">{{ c.kindGlyph }} {{ c.kind }}</span>
+              <div style="flex:1"></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">{{ c.time }}</span>
+            </div>
+            <div style="display:flex;min-width:0;overflow:hidden;white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:2px;">
+              <span style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#78746f;">{{ c.head }}</span>
+              <span style="flex:none;color:#f1eeea;">{{ c.tail }}</span>
+            </div>
+            <div style="font-size:11px;color:#78746f;margin-top:2px;">{{ c.files }} · {{ c.vol }}</div>
+          </a>
+        </sc-for>
+        <div style="padding:8px 12px;font-size:11px;color:#78746f;">Net across all volumes in 24 hours: <span style="font-family:'JetBrains Mono',monospace;color:#5cd0ea;">−9.4 GB</span>. <a href="Strata Timeline.dc.html">Open the timeline</a> for the full feed.</div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Scanner</div>
+        <div style="padding:0 12px;">
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #23201d;"><span style="color:#aeaaa5;">Interval</span><span style="font-family:'JetBrains Mono',monospace;">15 min</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #23201d;"><span style="color:#aeaaa5;">Last tick</span><span style="font-family:'JetBrains Mono',monospace;">14:02 · ran · 1.8 s</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #23201d;"><span style="color:#aeaaa5;">Deferred today</span><span style="font-family:'JetBrains Mono',monospace;color:#ff9868;">6 of 56 ticks</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#aeaaa5;">Retention</span><span style="font-family:'JetBrains Mono',monospace;">13 months</span></div>
+        </div>
+        <div style="padding:0 12px 12px 12px;"><a href="Strata Settings.dc.html" style="display:block;text-align:center;padding:5px;background:#23201d;border:1px solid #393632;color:#f1eeea;font-size:11px;">Scan history log</a></div>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Detached volume</div>
+        <div style="padding:12px;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#78746f;">F:</span>
+            <span style="font-size:13px;color:#aeaaa5;">Archive-USB-4TB</span>
+          </div>
+          <div style="display:flex;height:22px;background:#23201d;border:1px dashed #393632;margin-top:8px;">
+            <div style="width:62%;background:repeating-linear-gradient(135deg,#2e2b27 0 4px,#23201d 4px 8px);"></div>
+          </div>
+          <div style="font-size:11px;color:#78746f;margin-top:6px;text-wrap:pretty;">Not connected since <span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">Sun 3 Aug 19:22</span>. Last known 2.31 TB of 3.64 TB used. History is read-only and still browsable — <a href="Strata Explorer.dc.html">open the last snapshot</a>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:1100}}">
+const KINDS = {
+  grew: { glyph: '\u25B2', color: '#f8ac3d', bg: '#452d0a' },
+  shrank: { glyph: '\u25BC', color: '#5cd0ea', bg: '#0b3943' },
+  appeared: { glyph: '\u25C6', color: '#f8ac3d', bg: '#452d0a' },
+  vanished: { glyph: '\u25C7', color: '#5cd0ea', bg: '#0b3943' },
+  moved: { glyph: '\u2192', color: '#aeaaa5', bg: '#2e2b27' }
+};
+function seed(n) { let s = n; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
+function spark(base, steps, color, cap) {
+  const rnd = seed(base * 7 + 13);
+  const out = [];
+  let v = base;
+  for (let i = 0; i < 30; i++) {
+    const st = steps[i];
+    if (st) v += st;
+    v += (rnd() - 0.5) * 0.6;
+    out.push(v);
+  }
+  const lo = Math.min.apply(null, out) - 2, hi = Math.max.apply(null, out) + 2;
+  const day = new Date(2026, 6, 21).getTime();
+  return out.map((x, i) => ({
+    h: Math.round(6 + 28 * (x - lo) / (hi - lo)) + 'px',
+    color: i === 29 ? '#f1eeea' : color,
+    title: new Date(day + i * 864e5).toDateString() + ' \u00b7 ' + x.toFixed(1) + ' GB used of ' + cap + ' GB'
+  }));
+}
+function splitPath(p) {
+  const parts = p.split('\\');
+  if (parts.length <= 3) return [p, ''];
+  return [parts.slice(0, -3).join('\\'), '\\' + parts.slice(-3).join('\\')];
+}
+class Component extends DCLogic {
+  renderVals() {
+    const cStep = {}; cStep[24] = 8.9; cStep[28] = 5.4; cStep[29] = -16.78 + 3.42 + 2.0;
+    const dStep = {}; dStep[7] = -9.6; dStep[24] = 32.0; dStep[27] = 4.8; dStep[29] = -0.5;
+    const eStep = {}; eStep[26] = 11.2;
+    const chips = k => 'padding:1px 5px;font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:0.04em;text-transform:uppercase;background:' + KINDS[k].bg + ';color:' + KINDS[k].color + ';';
+    const raw = [
+      { d: '\u221216.78 GB', k: 'vanished', t: 'Wed 19 11:02', p: 'C:\\Users\\chris\\Documents\\My Programming Projects\\aerisetta\\warrior-of-lust\\unity\\Library\\PlayerDataCache\\Win642\\Data', f: '\u221215 files', v: 'C: OS-M2-1TB' },
+      { d: '+3.42 GB', k: 'grew', t: 'Wed 19 06:15', p: 'C:\\WINDOWS\\SoftwareDistribution\\Download', f: '+1,882 files', v: 'C: OS-M2-1TB' },
+      { d: '\u22122.1 GB', k: 'vanished', t: 'Wed 19 13:22', p: 'D:\\Steam\\steamapps\\downloading\\1091500', f: '\u221264 files', v: 'D: Storage-M2-1TB' },
+      { d: '+2.0 GB', k: 'grew', t: 'Wed 19 14:02', p: 'C:\\pagefile.sys', f: '+0 files', v: 'C: OS-M2-1TB' },
+      { d: '+1.62 GB', k: 'appeared', t: 'Wed 19 13:58', p: 'D:\\Downloads\\sdk\\android-ndk-r27', f: '+812 files', v: 'D: Storage-M2-1TB' }
+    ];
+    return {
+      sparkC: spark(867, cStep, '#e17e72', 930),
+      sparkD: spark(808, dStep, '#d9884d', 931),
+      sparkE: spark(508, eStep, '#c59634', 931),
+      changes: raw.map(r => {
+        const sp = splitPath(r.p);
+        return {
+          delta: r.d, kind: r.k, kindGlyph: KINDS[r.k].glyph, kindStyle: chips(r.k),
+          color: r.d.charAt(0) === '+' ? '#f8ac3d' : '#5cd0ea',
+          time: r.t, head: sp[0], tail: sp[1], files: r.f, vol: r.v
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

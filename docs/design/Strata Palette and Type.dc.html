@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+:root{
+--bg-0:#0f0d0b; --bg-1:#181613; --bg-2:#23201d; --bg-3:#2e2b27;
+--rule:#2e2b27; --rule-strong:#393632; --grid:#23201d;
+--fg-1:#f1eeea; --fg-2:#aeaaa5; --fg-3:#78746f;
+--pos:#f8ac3d; --pos-bg:#452d0a; --neg:#5cd0ea; --neg-bg:#0b3943;
+--warn:#ff9868; --alert:#f8767a; --other:#4b4743;
+--s1:#e17e72; --s2:#d9884d; --s3:#c59634; --s4:#a6a43c; --s5:#7cb05e; --s6:#46b686;
+--s7:#00b7b0; --s8:#06b0d2; --s9:#56a5e7; --s10:#8897ec; --s11:#b189dd; --s12:#d07fb9;
+}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;padding:0 0 80px 0;font-variant-numeric:tabular-nums;">
+
+  <div style="display:flex;align-items:baseline;gap:16px;padding:14px 24px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;letter-spacing:0.14em;color:#f1eeea;">STRATA</span>
+    <span style="font-size:11px;color:#78746f;letter-spacing:0.06em;text-transform:uppercase;">Design specification</span>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:14px;font-size:11px;">
+      <a href="Strata Timeline.dc.html">Timeline</a>
+      <a href="Strata Overview.dc.html">Overview</a>
+      <a href="Strata Explorer.dc.html">Explorer</a>
+      <a href="Strata Compare.dc.html">Compare</a>
+      <a href="Strata Settings.dc.html">Settings</a>
+      <a href="Strata States.dc.html">States</a>
+    </div>
+  </div>
+
+  <div style="max-width:1360px;margin:0 auto;padding:32px 24px 0 24px;display:flex;flex-direction:column;gap:24px;">
+
+    <div>
+      <div style="font-size:22px;font-weight:500;letter-spacing:-0.01em;margin-bottom:6px;">Palette and type scale</div>
+      <div style="font-size:13px;color:#aeaaa5;max-width:74ch;text-wrap:pretty;">Every value below is fixed. Backgrounds and text are warm neutrals — a little yellow chroma keeps a panel this dark from reading blue-cold at night. All values were generated in OKLCH, so the twelve series hues sit on one lightness plane and none of them fights the others for attention.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+
+      <div style="background:#181613;border:1px solid #2e2b27;">
+        <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Background layers</div>
+        <div style="display:grid;grid-template-columns:44px 136px 1fr;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><div style="height:26px;background:#0f0d0b;border:1px solid #393632;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--bg-0 #0f0d0b</code><span style="color:#78746f;font-size:11px;">app ground, chart plot area</span></div>
+        <div style="display:grid;grid-template-columns:44px 136px 1fr;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><div style="height:26px;background:#181613;border:1px solid #393632;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--bg-1 #181613</code><span style="color:#78746f;font-size:11px;">panels, top bar, table header</span></div>
+        <div style="display:grid;grid-template-columns:44px 136px 1fr;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><div style="height:26px;background:#23201d;border:1px solid #393632;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--bg-2 #23201d</code><span style="color:#78746f;font-size:11px;">raised rows, chips, inputs</span></div>
+        <div style="display:grid;grid-template-columns:44px 136px 1fr;align-items:center;gap:12px;padding:9px 14px;"><div style="height:26px;background:#2e2b27;border:1px solid #393632;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--bg-3 #2e2b27</code><span style="color:#78746f;font-size:11px;">hover, selected row, active tab</span></div>
+      </div>
+
+      <div style="background:#181613;border:1px solid #2e2b27;">
+        <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Text — three emphasis levels</div>
+        <div style="display:grid;grid-template-columns:1fr 136px 52px;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><span style="color:#f1eeea;font-size:13px;">Primary — numbers, paths, headings</span><code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">--fg-1 #f1eeea</code><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">16.3:1</span></div>
+        <div style="display:grid;grid-template-columns:1fr 136px 52px;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><span style="color:#aeaaa5;font-size:13px;">Secondary — units, labels, meta</span><code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">--fg-2 #aeaaa5</code><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">7.6:1</span></div>
+        <div style="display:grid;grid-template-columns:1fr 136px 52px;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><span style="color:#78746f;font-size:13px;">Tertiary — column heads, hints</span><code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">--fg-3 #78746f</code><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">3.6:1</span></div>
+        <div style="padding:9px 14px;font-size:11px;color:#aeaaa5;">Tertiary is for 10–11px non-essential labels only. Never a number, never a path.</div>
+      </div>
+
+      <div style="background:#181613;border:1px solid #2e2b27;">
+        <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Grid and rule lines</div>
+        <div style="display:grid;grid-template-columns:44px 156px 1fr;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><div style="border-top:1px solid #23201d;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--grid #23201d</code><span style="color:#78746f;font-size:11px;">chart gridlines, row separators</span></div>
+        <div style="display:grid;grid-template-columns:44px 156px 1fr;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><div style="border-top:1px solid #2e2b27;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--rule #2e2b27</code><span style="color:#78746f;font-size:11px;">panel borders, table body rules</span></div>
+        <div style="display:grid;grid-template-columns:44px 156px 1fr;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #23201d;"><div style="border-top:1px solid #393632;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">--rule-strong #393632</code><span style="color:#78746f;font-size:11px;">structural edges, axis line</span></div>
+        <div style="display:grid;grid-template-columns:44px 156px 1fr;align-items:center;gap:12px;padding:9px 14px;"><div style="height:26px;background:repeating-linear-gradient(135deg,#2e2b27 0 5px,#181613 5px 10px);"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;">hatch 135° 5px</code><span style="color:#78746f;font-size:11px;">unreadable or unattributed bytes</span></div>
+      </div>
+
+      <div style="background:#181613;border:1px solid #2e2b27;">
+        <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Deltas — colour is the second signal, never the first</div>
+        <div style="padding:14px;display:flex;flex-direction:column;gap:11px;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:44px;height:26px;background:#f8ac3d;"></div>
+            <code style="font-family:'JetBrains Mono',monospace;font-size:11px;width:120px;">--pos #f8ac3d</code>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:#f8ac3d;">▲ +32.0 GB</span>
+            <span style="font-size:11px;color:#78746f;">growth</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:44px;height:26px;background:#5cd0ea;"></div>
+            <code style="font-family:'JetBrains Mono',monospace;font-size:11px;width:120px;">--neg #5cd0ea</code>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:#5cd0ea;">▼ −16.78 GB</span>
+            <span style="font-size:11px;color:#78746f;">shrinkage</span>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <div style="flex:1;background:#452d0a;padding:7px 10px;"><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#f8ac3d;">--pos-bg #452d0a</code></div>
+            <div style="flex:1;background:#0b3943;padding:7px 10px;"><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#5cd0ea;">--neg-bg #0b3943</code></div>
+          </div>
+          <div style="font-size:11px;color:#aeaaa5;text-wrap:pretty;border-top:1px solid #23201d;padding-top:11px;">Amber against cyan, not red against green: the pair separates on both the deutan and protan axes, and survives greyscale because amber is much the lighter of the two. Sign, triangle and bar direction each carry the meaning on their own, so the palette can be thrown away without losing the reading.</div>
+          <div style="display:flex;align-items:center;gap:14px;border-top:1px solid #23201d;padding-top:11px;"><div style="width:44px;height:26px;background:#ff9868;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;width:120px;">--warn #ff9868</code><span style="font-size:11px;color:#78746f;">reduced fidelity, deferred scan</span></div>
+          <div style="display:flex;align-items:center;gap:14px;"><div style="width:44px;height:26px;background:#f8767a;"></div><code style="font-family:'JetBrains Mono',monospace;font-size:11px;width:120px;">--alert #f8767a</code><span style="font-size:11px;color:#78746f;">undercount, free space under 8%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#181613;border:1px solid #2e2b27;">
+      <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;">
+        <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Categorical series ramp — 12 hues, stacked area and treemap</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">oklch(0.70 0.125 h) · h = 28…338</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(13,1fr);">
+        <div style="background:#e17e72;height:56px;"></div><div style="background:#d9884d;height:56px;"></div><div style="background:#c59634;height:56px;"></div><div style="background:#a6a43c;height:56px;"></div><div style="background:#7cb05e;height:56px;"></div><div style="background:#46b686;height:56px;"></div><div style="background:#00b7b0;height:56px;"></div><div style="background:#06b0d2;height:56px;"></div><div style="background:#56a5e7;height:56px;"></div><div style="background:#8897ec;height:56px;"></div><div style="background:#b189dd;height:56px;"></div><div style="background:#d07fb9;height:56px;"></div><div style="background:#4b4743;height:56px;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(13,1fr);border-bottom:1px solid #2e2b27;font-family:'JetBrains Mono',monospace;font-size:10px;color:#aeaaa5;">
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s1<br>#e17e72</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s2<br>#d9884d</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s3<br>#c59634</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s4<br>#a6a43c</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s5<br>#7cb05e</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s6<br>#46b686</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s7<br>#00b7b0</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s8<br>#06b0d2</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s9<br>#56a5e7</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s10<br>#8897ec</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s11<br>#b189dd</div>
+        <div style="padding:7px 8px;border-right:1px solid #23201d;">--s12<br>#d07fb9</div>
+        <div style="padding:7px 8px;color:#78746f;">--other<br>#4b4743</div>
+      </div>
+      <div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:24px;font-size:11px;color:#aeaaa5;">
+        <div style="text-wrap:pretty;">One lightness, one chroma, twelve hues about 30° apart. No series dominates by brightness, all twelve take an 11px label in <code style="font-family:'JetBrains Mono',monospace;color:#0f0d0b;background:#a6a43c;padding:0 3px;">#0f0d0b</code> at 4.5:1 or better, and stacked bands read as one family. Assign by stable directory hash, not by rank, so <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">Users</code> keeps its colour across every screen and across a re-scan that reorders it.</div>
+        <div style="text-wrap:pretty;">Series 13 and beyond fold into <strong style="color:#f1eeea;font-weight:500;">other</strong> in <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">#4b4743</code> — the only desaturated band, so "everything else" never looks like a named directory. Closest pairs are s1/s2 and s7/s8; both are separated in the stack by adjacency ordering and in the treemap by an always-drawn label.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:start;">
+      <div style="background:#181613;border:1px solid #2e2b27;">
+        <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;display:flex;justify-content:space-between;">
+          <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Type scale</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">IBM Plex Sans · JetBrains Mono</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:500;letter-spacing:-0.02em;">+40.0 GB</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">num-hero 32/34 mono 500</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">930 GB</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">num-lg 22/28 mono 500</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-size:18px;font-weight:500;letter-spacing:-0.01em;">Timeline</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">title 18/24 sans 500</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-size:15px;font-weight:500;">Events, last 24 hours</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">panel 15/22 sans 500</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-size:13px;">32.0 GB of it landed in one folder</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">body-lg 13/20 sans 400</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-size:12px;">Default UI text and table cells</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">body 12/18 sans 400</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><code style="font-family:'JetBrains Mono',monospace;font-size:12px;">D:\Steam\steamapps\common</code><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">path 12/18 mono 400</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;border-bottom:1px solid #23201d;"><span style="font-size:11px;color:#aeaaa5;">Meta, timestamps, secondary counts</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">meta 11/16</code></div>
+        <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:baseline;padding:11px 14px;"><span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Column head / panel eyebrow</span><code style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">micro 10/14 +0.1em caps</code></div>
+        <div style="padding:12px 14px;border-top:1px solid #2e2b27;font-size:11px;color:#aeaaa5;text-wrap:pretty;">Nine steps, no more. Sans carries language; mono carries every number and every path, with <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">font-variant-numeric: tabular-nums</code> set globally so columns of bytes align on the decimal without per-cell work.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:24px;">
+        <div style="background:#181613;border:1px solid #2e2b27;">
+          <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Numbers, units, time</div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:11px;font-size:11px;color:#aeaaa5;">
+            <div><span style="color:#f1eeea;font-size:12px;">Binary sizes, Windows labels.</span><br>1 GB = 1024³ bytes, written <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">GB</code> and not <code style="font-family:'JetBrains Mono',monospace;">GiB</code>, so Strata and File Explorer agree on screen. Stated once in Settings, never re-explained in the UI.</div>
+            <div style="border-top:1px solid #23201d;padding-top:11px;"><span style="color:#f1eeea;font-size:12px;">Never rounded into meaninglessness.</span><br>Three significant figures minimum: <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">−16.78 GB</code>, <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">550 GB</code>, <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">92.5 GB</code>. Exact byte count on hover, always. A unit on every figure; no bare numbers.</div>
+            <div style="border-top:1px solid #23201d;padding-top:11px;"><span style="color:#f1eeea;font-size:12px;">Counts are grouped, not abbreviated.</span><br><code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">3,053,173 files</code> — not 3.1M. File-count deltas carry a sign: <code style="font-family:'JetBrains Mono',monospace;color:#5cd0ea;">−15 files</code>.</div>
+            <div style="border-top:1px solid #23201d;padding-top:11px;"><span style="color:#f1eeea;font-size:12px;">UTC in, local out.</span><br>Snapshots and events arrive UTC and always display in the machine's local zone, 24-hour: <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">Tue 11 Aug 14:07</code>. The zone is stamped once in the top bar; any absolute timestamp carries its UTC offset on hover. Range edges snap to local midnight, not UTC midnight.</div>
+          </div>
+        </div>
+
+        <div style="background:#181613;border:1px solid #2e2b27;">
+          <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Theme scope</div>
+          <div style="padding:14px;font-size:11px;color:#aeaaa5;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Dark is the only theme. A light theme is explicitly out of scope.</span><br><br>All values ship as CSS custom properties on <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">:root</code>, and ECharts reads them via <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">getComputedStyle</code> at chart init — so a light set could be added later as a second block without touching a component. Nothing in the layout assumes it, and no toggle is drawn.</div>
+        </div>
+
+        <div style="background:#181613;border:1px solid #2e2b27;">
+          <div style="padding:10px 14px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Density</div>
+          <div style="padding:14px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">Table row 26px. Panel padding 14px, gutter 24px. Square corners; 2px maximum on chips. No shadows anywhere — elevation is one background step plus a 1px rule. Nothing in this interface has 40px of padding.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1700}}"></script>
+</body>
+</html>

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:#0f0d0b;}
+::-webkit-scrollbar-thumb{background:#393632;}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;">
+
+  <div style="display:flex;align-items:center;gap:20px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <div style="display:flex;gap:2px;align-self:stretch;">
+      <a href="Strata Overview.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Overview</a>
+      <a href="Strata Timeline.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Timeline</a>
+      <a href="Strata Explorer.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Explorer</a>
+      <span style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#f1eeea;background:#23201d;border-bottom:2px solid #f8ac3d;">Compare</span>
+      <a href="Strata Settings.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Settings</a>
+    </div>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">UTC+01:00 · local</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:12px;padding:9px 16px;border-bottom:1px solid #2e2b27;flex-wrap:wrap;">
+    <span style="font-size:18px;font-weight:500;letter-spacing:-0.01em;">Compare</span>
+    <div style="width:1px;height:20px;background:#2e2b27;"></div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">From</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 9px;background:#23201d;border:1px solid #393632;">Tue 11 Aug 14:00</span>
+      <span style="color:#4b4743;">→</span>
+      <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">To</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 9px;background:#23201d;border:1px solid #393632;">Wed 19 Aug 14:02</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">8 days 0 h · 768 snapshots between</span>
+    </div>
+    <div style="flex:1"></div>
+    <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
+      <button onClick="{{ p.pick }}" style="{{ p.style }}">{{ p.name }}</button>
+    </sc-for>
+  </div>
+
+  <div style="display:flex;align-items:stretch;gap:0;border-bottom:1px solid #2e2b27;background:#181613;flex-wrap:wrap;">
+    <div style="padding:12px 16px;border-right:1px solid #2e2b27;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Net across 3 volumes</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:500;letter-spacing:-0.02em;line-height:1.1;color:#f8ac3d;white-space:nowrap;">+44.28 GB</div>
+    </div>
+    <div style="padding:12px 16px;border-right:1px solid #2e2b27;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Written</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#f8ac3d;">+66.06 GB</div>
+      <div style="font-size:11px;color:#78746f;">+1,255,441 files</div>
+    </div>
+    <div style="padding:12px 16px;border-right:1px solid #2e2b27;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Deleted</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#5cd0ea;">−21.78 GB</div>
+      <div style="font-size:11px;color:#78746f;">−1,211,286 files</div>
+    </div>
+    <div style="padding:12px 16px;border-right:1px solid #2e2b27;background:#1c1a16;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Churn · invisible in net</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#f1eeea;">59.6 GB</div>
+      <div style="font-size:11px;color:#78746f;">2 directories cycled bytes</div>
+    </div>
+    <div style="padding:12px 16px;flex:1;min-width:280px;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Attribution</div>
+      <div style="display:flex;height:10px;margin:5px 0;border:1px solid #393632;">
+        <div style="width:94.7%;background:#f8ac3d;opacity:0.65;"></div>
+        <div style="width:5.3%;background:repeating-linear-gradient(135deg,#4b4743 0 4px,#23201d 4px 8px);"></div>
+      </div>
+      <div style="font-size:11px;color:#aeaaa5;text-wrap:pretty;">94.7% of the change is attributed to a specific path. The remaining <span style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">4.72 GB</span> is real but spread too thin to name, and is shown as an <span style="color:#f1eeea;">elsewhere in</span> row at the level where it stops being attributable — never folded into a parent, never dropped.</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16px;align-items:start;">
+
+    <div style="border:1px solid #2e2b27;background:#181613;min-width:0;">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #2e2b27;flex-wrap:wrap;">
+        <span style="font-size:15px;font-weight:500;">Attributed changes</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">{{ rowCount }}</span>
+        <div style="flex:1"></div>
+        <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Rank by</span>
+        <sc-for list="{{ sorts }}" as="s" hint-placeholder-count="4">
+          <button onClick="{{ s.pick }}" style="{{ s.style }}">{{ s.name }}</button>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 112px 104px 132px;gap:12px;padding:6px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">
+        <div>Path · aggregated</div><div style="text-align:right;">Net</div><div style="text-align:right;">Δ files</div><div style="text-align:right;">Written / deleted</div>
+      </div>
+
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+        <div onClick="{{ r.pick }}" style="{{ r.rowStyle }}" style-hover="background:#23201d;">
+          <div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;padding-left:{{ r.indent }};">
+            <span style="flex:none;width:12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">{{ r.twisty }}</span>
+            <span style="flex:none;width:8px;height:8px;background:{{ r.dot }};"></span>
+            <span style="flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ r.headColor }};">{{ r.head }}</span>
+            <span style="flex:none;font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ r.tailColor }};">{{ r.tail }}</span>
+            <span style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#78746f;">{{ r.agg }}</span>
+            <span style="{{ r.kindStyle }}">{{ r.kind }}</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;text-align:right;color:{{ r.netColor }};" title="{{ r.exact }}">{{ r.net }}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;color:{{ r.netColor }};">{{ r.files }}</div>
+          <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
+            <div style="display:flex;width:76px;height:8px;background:#23201d;">
+              <div style="width:{{ r.wBar }};background:#f8ac3d;"></div>
+              <div style="width:{{ r.dBar }};background:#5cd0ea;"></div>
+            </div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;width:44px;text-align:right;">{{ r.churn }}</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <div style="padding:9px 12px;border-top:1px solid #2e2b27;font-size:11px;color:#78746f;text-wrap:pretty;">
+        One row per change, not one row per file. <code style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">Cyberpunk 2077</code> is 1,204 new files under one folder and appears once, at the folder that explains it. Rows are collapsed at the shallowest directory that accounts for 90% of its subtree's change; expanding shows how that total was reached.
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="border:1px solid {{ drawerBorder }};background:#181613;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2e2b27;">
+          <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Churn detail</span>
+          <div style="flex:1"></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">{{ drawerTag }}</span>
+        </div>
+        <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:12px;display:flex;flex-direction:column;gap:11px;">
+            <code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;word-break:break-all;line-height:1.6;">{{ selPath }}</code>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid #23201d;padding-top:11px;">
+              <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Net</div><div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:{{ selNetColor }};">{{ selNet }}</div></div>
+              <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Churn</div><div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">{{ selChurn }}</div></div>
+            </div>
+
+            <div style="border-top:1px solid #23201d;padding-top:11px;">
+              <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;margin-bottom:6px;">Bytes in and out over the window</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f8ac3d;width:64px;">written</span>
+                <div style="flex:1;height:12px;background:#23201d;"><div style="height:100%;background:#f8ac3d;width:{{ selWBar }};"></div></div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;width:72px;text-align:right;">{{ selWritten }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5cd0ea;width:64px;">deleted</span>
+                <div style="flex:1;height:12px;background:#23201d;"><div style="height:100%;background:#5cd0ea;width:{{ selDBar }};"></div></div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;width:72px;text-align:right;">{{ selDeleted }}</span>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid #23201d;padding-top:11px;display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:11px;">
+              <span style="color:#78746f;">Files touched</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selTouched }}</span>
+              <span style="color:#78746f;">Rewrite cycles</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selCycles }}</span>
+              <span style="color:#78746f;">Peak in one hour</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selPeak }}</span>
+              <span style="color:#78746f;">Attribution</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">{{ selSource }}</span>
+            </div>
+
+            <div style="border-top:1px solid #23201d;padding-top:11px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">{{ selNote }}</div>
+
+            <div style="display:flex;gap:6px;">
+              <a href="Strata Timeline.dc.html" style="flex:1;text-align:center;padding:5px 8px;background:#23201d;border:1px solid #393632;color:#f1eeea;font-size:11px;">See it on the timeline</a>
+              <a href="Strata Settings.dc.html" style="flex:1;text-align:center;padding:5px 8px;background:#23201d;border:1px solid #393632;color:#f1eeea;font-size:11px;">Exclude this path</a>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noSel }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px;font-size:11px;color:#78746f;text-wrap:pretty;">Select a row. Net change answers "is it bigger"; churn answers "how much did it write to get there". A build directory that cycled 41 GB and ended 803 MB larger looks almost unchanged in every other tool.</div>
+        </sc-if>
+      </div>
+
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="padding:8px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Highest churn, near-zero net</div>
+        <sc-for list="{{ churny }}" as="c" hint-placeholder-count="2">
+          <div onClick="{{ c.pick }}" style="padding:9px 12px;border-bottom:1px solid #23201d;cursor:pointer;" style-hover="background:#23201d;">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;">{{ c.churn }}</span>
+              <span style="font-size:11px;color:#78746f;">cycled for</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#f8ac3d;">{{ c.net }}</span>
+              <span style="font-size:11px;color:#78746f;">net</span>
+            </div>
+            <div style="display:flex;min-width:0;overflow:hidden;white-space:nowrap;font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:2px;">
+              <span style="flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#78746f;">{{ c.head }}</span>
+              <span style="flex:none;color:#f1eeea;">{{ c.tail }}</span>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding:8px 12px;font-size:11px;color:#78746f;text-wrap:pretty;">59.6 GB written and deleted in 8 days on a drive rated for 600 TBW. At this rate these two directories alone account for 2.7 TB a year.</div>
+      </div>
+
+      <div style="border:1px dashed #393632;background:#131110;">
+        <div style="padding:8px 12px;border-bottom:1px dashed #393632;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Note — aggregation rule</div>
+        <div style="padding:12px;display:flex;flex-direction:column;gap:9px;font-size:11px;color:#aeaaa5;">
+          <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Roll up until it stops explaining.</span> Walking down from the volume root, a directory collapses into one row when a single child accounts for 90% or more of its change. Descent stops when no child dominates — that directory is the honest answer to "where", and its children become the expansion.</div>
+          <div style="border-top:1px solid #23201d;padding-top:9px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">The remainder gets a row, not a rounding.</span> Whatever a directory's change is that its named children do not account for appears as <code style="font-family:'JetBrains Mono',monospace;">elsewhere in …</code>, drawn hatched. Without it the list would either lie about the total or collapse into a single root row.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:980}}">
+const GB = 1073741824;
+function trim(s) {
+  if (s.indexOf('.') < 0) return s;
+  s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return (Math.abs(parseFloat(s)) < 10 && s.indexOf('.') < 0) ? s + '.0' : s;
+}
+function fmtSize(gb) {
+  const a = Math.abs(gb);
+  if (a >= 1024) return trim((gb / 1024).toFixed(2)) + ' TB';
+  if (a >= 100) return gb.toFixed(0) + ' GB';
+  if (a >= 1) return trim(gb.toFixed(2)) + ' GB';
+  const mb = gb * 1024;
+  if (Math.abs(mb) >= 1) return (Math.abs(mb) >= 100 ? mb.toFixed(0) : trim(mb.toFixed(2))) + ' MB';
+  return (mb * 1024).toFixed(0) + ' KB';
+}
+function signed(gb) { return (gb >= 0 ? '+' : '\u2212') + fmtSize(Math.abs(gb)); }
+function grp(n) { return (n < 0 ? '\u2212' : '+') + Math.abs(n).toLocaleString('en-US'); }
+function splitPath(p) {
+  const parts = p.split('\\');
+  if (parts.length <= 2) return [p, ''];
+  return [parts.slice(0, -2).join('\\') + '\\', parts.slice(-2).join('\\')];
+}
+const KINDS = {
+  grew: { color: '#f8ac3d', bg: '#452d0a' }, shrank: { color: '#5cd0ea', bg: '#0b3943' },
+  appeared: { color: '#f8ac3d', bg: '#452d0a' }, vanished: { color: '#5cd0ea', bg: '#0b3943' },
+  moved: { color: '#aeaaa5', bg: '#2e2b27' }, remainder: { color: '#78746f', bg: '#23201d' }
+};
+
+// net, w = written, d = deleted, f = file delta, dot = series colour
+const DATA = [
+  { id: 'd', path: 'D:\\', net: 45.24, w: 47.34, d: 2.10, f: 21042, dot: '#d9884d', kind: '', depth: 0, kids: [
+    { id: 'd1', path: 'D:\\Steam\\steamapps', net: 29.9, w: 32.0, d: 2.10, f: 1140, dot: '#e17e72', kind: '', depth: 1, kids: [
+      { id: 'd1a', path: 'D:\\Steam\\steamapps\\common\\Cyberpunk 2077', net: 32.0, w: 32.0, d: 0, f: 1204, dot: '#e17e72', kind: 'appeared', agg: '1,204 new files, one row', depth: 2 },
+      { id: 'd1b', path: 'D:\\Steam\\steamapps\\downloading\\1091500', net: -2.10, w: 0, d: 2.10, f: -64, dot: '#e17e72', kind: 'vanished', depth: 2 }
+    ] },
+    { id: 'd2', path: 'D:\\VMs\\win11-dev\\Virtual Hard Disks', net: 6.40, w: 6.40, d: 0, f: 2, dot: '#d9884d', kind: 'grew', agg: '1 file, sparse vhdx', depth: 1 },
+    { id: 'd3', path: 'D:\\Backups\\chris\\2026-08-17T09-04', net: 4.80, w: 4.80, d: 0, f: 18922, dot: '#c59634', kind: 'appeared', agg: '18,922 new files, one row', depth: 1 },
+    { id: 'd4', path: 'D:\\Downloads\\sdk\\android-ndk-r27', net: 1.62, w: 1.62, d: 0, f: 812, dot: '#46b686', kind: 'appeared', depth: 1 },
+    { id: 'd5', path: 'elsewhere in D:\\', net: 2.52, w: 2.52, d: 0, f: 366, dot: '#4b4743', kind: 'remainder', agg: '412 directories, none above 0.4 GB', depth: 1 }
+  ] },
+  { id: 'c', path: 'C:\\', net: -12.16, w: 7.52, d: 19.68, f: 1233104, dot: '#e17e72', kind: '', depth: 0, kids: [
+    { id: 'c1', path: 'C:\\Users\\chris', net: -15.68, w: 1.10, d: 16.78, f: 8827, dot: '#e17e72', kind: '', depth: 1, kids: [
+      { id: 'c1a', path: 'C:\\Users\\chris\\Documents\\My Programming Projects\\aerisetta\\warrior-of-lust\\unity\\Library\\PlayerDataCache\\Win642\\Data', net: -16.78, w: 0, d: 16.78, f: -15, dot: '#e17e72', kind: 'vanished', agg: '15 files, whole directory gone', depth: 2 },
+      { id: 'c1b', path: 'C:\\Users\\chris\\AppData\\Local\\Temp\\unity-build-cache', net: 1.10, w: 19.5, d: 18.4, f: 8842, dot: '#e17e72', kind: 'grew', agg: 'cycled 18.4 GB', depth: 2, churnStar: true }
+    ] },
+    { id: 'c2', path: 'C:\\WINDOWS\\SoftwareDistribution\\Download', net: 3.42, w: 3.42, d: 0, f: 1882, dot: '#46b686', kind: 'grew', agg: '1,882 update payloads', depth: 1 },
+    { id: 'c3', path: 'C:\\src\\aerisetta', net: -2.10, w: 42.0, d: 44.1, f: -17101, dot: '#a6a43c', kind: '', depth: 1, kids: [
+      { id: 'c3a', path: 'C:\\src\\aerisetta\\unity\\Library\\Bee\\artifacts', net: 0.784, w: 42.0, d: 41.2, f: 24106, dot: '#a6a43c', kind: 'grew', agg: 'cycled 41.2 GB', depth: 2, churnStar: true },
+      { id: 'c3b', path: 'C:\\src\\aerisetta\\.venv', net: -2.90, w: 0, d: 2.90, f: -41207, dot: '#a6a43c', kind: 'moved', agg: 'to D:\\src-archive', depth: 2 }
+    ] },
+    { id: 'c4', path: 'elsewhere in C:\\', net: 2.20, w: 2.20, d: 0, f: 1239496, dot: '#4b4743', kind: 'remainder', agg: '1,204 directories, none above 0.3 GB', depth: 1 }
+  ] },
+  { id: 'e', path: 'E:\\Games\\Epic\\Fortnite', net: 11.20, w: 11.20, d: 0, f: 1104, dot: '#c59634', kind: 'grew', agg: 'coarse · 6-hour walk', depth: 0 }
+];
+
+const NOTES = {
+  c3a: 'A Unity build directory. It wrote 42.0 GB and deleted 41.2 GB over eight days across 12 rebuilds, ending 803 MB larger. Net change says nothing happened here; the SSD disagrees. This is the single largest write source on C:.',
+  c1b: 'A cache Unity clears on every project open. 19.5 GB written, 18.4 GB deleted, and it will do the same next week. Excluding it from history would hide 18 GB of write per week from the churn total.',
+  c1a: 'The other half of the same story: this cache was cleared entirely rather than rewritten, so it reads as one clean 16.78 GB deletion with no churn at all.',
+  d1a: 'A game install. 32.0 GB written once, nothing deleted, 1,204 files in one folder — the archetypal single-row change.',
+  c4: 'The part of C:\\ that no single directory explains: 2.20 GB spread across 1,204 directories, mostly logs, profiles and package caches. Attributing it further would invent precision that is not in the data.',
+  d5: 'The part of D:\\ that no single directory explains: 2.52 GB across 412 directories.'
+};
+
+class Component extends DCLogic {
+  state = { open: { d: true, c: true, c1: true, c3: true }, sort: 'net', sel: 'c3a', preset: 'Last 7 days' };
+
+  flat() {
+    const out = [];
+    const key = this.state.sort;
+    const rank = a => key === 'churn' ? Math.min(a.w, a.d) : key === 'growth' ? a.net : key === 'shrinkage' ? -a.net : Math.abs(a.net);
+    const walk = (list, depth) => {
+      list.slice().sort((a, b) => rank(b) - rank(a)).forEach(n => {
+        out.push({ n: n, depth: depth });
+        if (n.kids && this.state.open[n.id]) walk(n.kids, depth + 1);
+      });
+    };
+    walk(DATA, 0);
+    return out;
+  }
+
+  renderVals() {
+    const st = this.state, mono = "'JetBrains Mono',monospace";
+    const btn = on => 'font-family:' + mono + ';font-size:11px;padding:3px 9px;margin-left:-1px;cursor:pointer;border:1px solid ' + (on ? '#f8ac3d' : '#393632') + ';background:' + (on ? '#452d0a' : '#181613') + ';color:' + (on ? '#f8ac3d' : '#aeaaa5') + ';';
+    const chip = k => k ? 'padding:1px 5px;font-family:' + mono + ';font-size:10px;letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;background:' + KINDS[k].bg + ';color:' + KINDS[k].color + ';' : 'display:none;';
+    const rows = this.flat();
+    const maxIO = 42.0;
+
+    const findById = (list, id) => {
+      for (const n of list) {
+        if (n.id === id) return n;
+        if (n.kids) { const r = findById(n.kids, id); if (r) return r; }
+      }
+      return null;
+    };
+    const sel = st.sel ? findById(DATA, st.sel) : null;
+
+    const vals = {
+      presets: ['Last hour', 'Last 24 h', 'Last 7 days', 'Last 30 days', 'Custom'].map(name => ({
+        name: name, pick: () => this.setState({ preset: name }), style: btn(st.preset === name)
+      })),
+      sorts: ['net', 'growth', 'shrinkage', 'churn'].map(name => ({
+        name: name, pick: () => this.setState({ sort: name }), style: btn(st.sort === name)
+      })),
+      rowCount: rows.length + ' rows · ' + (st.sort === 'net' ? 'largest absolute change first' : st.sort === 'churn' ? 'most bytes cycled first' : st.sort === 'growth' ? 'growth first' : 'shrinkage first'),
+      rows: rows.map(r => {
+        const n = r.n, sp = splitPath(n.path);
+        const isRem = n.kind === 'remainder';
+        const isSel = st.sel === n.id;
+        const tot = n.w + n.d;
+        return {
+          twisty: n.kids ? (st.open[n.id] ? '\u25be' : '\u25b8') : '',
+          dot: n.dot, indent: (r.depth * 18) + 'px',
+          head: isRem ? '' : sp[0], tail: isRem ? n.path : sp[1],
+          headColor: '#78746f', tailColor: isRem ? '#78746f' : '#f1eeea',
+          agg: n.agg || '', kind: n.kind, kindStyle: chip(n.kind),
+          net: signed(n.net), netColor: n.net >= 0 ? '#f8ac3d' : '#5cd0ea',
+          exact: signed(n.net) + ' \u00b7 ' + Math.round(Math.abs(n.net) * GB).toLocaleString('en-US') + ' bytes',
+          files: grp(n.f) + ' files',
+          wBar: (n.w / maxIO * 76 > 0.5 ? Math.max(1, n.w / maxIO * 100) : 0) + '%',
+          dBar: (n.d / maxIO * 76 > 0.5 ? Math.max(1, n.d / maxIO * 100) : 0) + '%',
+          churn: Math.min(n.w, n.d) > 0.05 ? fmtSize(Math.min(n.w, n.d)) : '\u2014',
+          pick: () => { if (n.kids) this.setState(s => ({ open: Object.assign({}, s.open, { [n.id]: !s.open[n.id] }), sel: n.id })); else this.setState({ sel: n.id }); },
+          rowStyle: 'display:grid;grid-template-columns:minmax(0,1fr) 112px 104px 132px;gap:12px;align-items:center;padding:0 12px;height:28px;cursor:pointer;border-bottom:1px solid #23201d;border-left:2px solid ' + (isSel ? '#f8ac3d' : 'transparent') + ';background:' + (isSel ? '#2e2b27' : (isRem ? 'repeating-linear-gradient(135deg,#1b1916 0 5px,#181613 5px 10px)' : 'transparent')) + ';'
+        };
+      }),
+      churny: [
+        { id: 'c3a', churn: '41.2 GB', net: '+803 MB', path: 'C:\\src\\aerisetta\\unity\\Library\\Bee\\artifacts' },
+        { id: 'c1b', churn: '18.4 GB', net: '+1.1 GB', path: 'C:\\Users\\chris\\AppData\\Local\\Temp\\unity-build-cache' }
+      ].map(c => {
+        const sp = splitPath(c.path);
+        return { churn: c.churn, net: c.net, head: sp[0], tail: sp[1], pick: () => this.setState({ sel: c.id }) };
+      }),
+      hasSel: !!sel, noSel: !sel,
+      drawerBorder: sel && sel.churnStar ? '#f8ac3d' : '#2e2b27',
+      drawerTag: sel ? (sel.churnStar ? 'high churn' : 'net change only') : 'nothing selected'
+    };
+    if (sel) {
+      const cycles = sel.id === 'c3a' ? '12 rebuilds' : sel.id === 'c1b' ? '9 clears' : '1';
+      Object.assign(vals, {
+        selPath: sel.path,
+        selNet: signed(sel.net), selNetColor: sel.net >= 0 ? '#f8ac3d' : '#5cd0ea',
+        selChurn: Math.min(sel.w, sel.d) > 0.05 ? fmtSize(Math.min(sel.w, sel.d)) : 'none',
+        selWritten: fmtSize(sel.w), selDeleted: '\u2212' + fmtSize(sel.d),
+        selWBar: Math.max(1, sel.w / maxIO * 100) + '%', selDBar: Math.max(1, sel.d / maxIO * 100) + '%',
+        selTouched: Math.abs(sel.f).toLocaleString('en-US') + ' files',
+        selCycles: cycles, selPeak: sel.id === 'c3a' ? '7.10 GB written, 18 Aug 21:00' : sel.id === 'c1b' ? '4.80 GB written, 18 Aug 21:00' : fmtSize(Math.max(sel.w, sel.d)) + ' in one tick',
+        selSource: sel.path.charAt(0) === 'E' ? 'periodic walk · coarse' : 'NTFS change journal',
+        selNote: NOTES[sel.id] || 'Net change with no measurable churn: bytes arrived or left once and stayed that way.'
+      });
+    }
+    return vals;
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+html,body{margin:0;padding:0;background:#0f0d0b;}
+*{box-sizing:border-box;}
+a{color:#5cd0ea;text-decoration:none;}
+a:hover{color:#8fe0f2;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:#0f0d0b;}
+::-webkit-scrollbar-thumb{background:#393632;}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0f0d0b;color:#f1eeea;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;">
+
+  <div style="display:flex;align-items:center;gap:20px;padding:0 16px;height:38px;border-bottom:1px solid #393632;background:#181613;">
+    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:0.14em;">STRATA</span>
+    <div style="display:flex;gap:2px;align-self:stretch;">
+      <a href="Strata Overview.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Overview</a>
+      <a href="Strata Timeline.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Timeline</a>
+      <span style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#f1eeea;background:#23201d;border-bottom:2px solid #f8ac3d;">Explorer</span>
+      <a href="Strata Compare.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Compare</a>
+      <a href="Strata Settings.dc.html" style="display:flex;align-items:center;padding:0 11px;font-size:12px;color:#aeaaa5;">Settings</a>
+    </div>
+    <div style="flex:1"></div>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">snapshot Wed 19 Aug 14:02 · local</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #2e2b27;flex-wrap:wrap;">
+    <span style="font-size:18px;font-weight:500;letter-spacing:-0.01em;">Explorer</span>
+    <div style="width:1px;height:20px;background:#2e2b27;"></div>
+    <div style="display:flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12px;flex-wrap:wrap;">
+      <sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="3">
+        <span style="display:flex;align-items:center;">
+          <button onClick="{{ c.go }}" style="{{ c.style }}">{{ c.name }}</button>
+          <span style="color:#4b4743;padding:0 2px;">{{ c.sep }}</span>
+        </span>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <button onClick="{{ up }}" style="{{ upStyle }}">↰ Up one level</button>
+    <button onClick="{{ toRoot }}" style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:3px 9px;border:1px solid #393632;background:#181613;color:#aeaaa5;cursor:pointer;">Reset to C:\</button>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:16px;padding:10px 16px;border-bottom:1px solid #2e2b27;background:#181613;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">You are here</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:15px;color:#f1eeea;word-break:break-all;">{{ herePath }}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">{{ reconcile }}</div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="text-align:right;"><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Size</div><div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">{{ hereSize }}</div></div>
+    <div style="text-align:right;"><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Files</div><div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">{{ hereFiles }}</div></div>
+    <div style="text-align:right;"><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Children</div><div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;">{{ hereChildren }}</div></div>
+    <div style="text-align:right;min-width:150px;">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Share of {{ parentName }}</div>
+      <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+        <div style="width:88px;height:8px;background:#23201d;border:1px solid #393632;"><div style="height:100%;background:#f8ac3d;width:{{ shareBar }};"></div></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:15px;">{{ sharePct }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;padding:16px;align-items:start;">
+
+    <div style="border:1px solid #2e2b27;background:#181613;min-width:0;">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #2e2b27;flex-wrap:wrap;">
+        <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Treemap · area is bytes</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:#78746f;">{{ mapNote }}</span>
+      </div>
+      <div id="strata-treemap" style="height:520px;width:100%;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid #23201d;font-size:11px;color:#78746f;flex-wrap:wrap;">
+        <span style="flex:1 1 240px;min-width:0;">Click a tile to drill in. Tiles with a <span style="font-family:'JetBrains Mono',monospace;color:#f1eeea;">›</span> have children; leaf tiles select instead of descending.</span>
+        <span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;white-space:nowrap;">depth {{ depth }} of 27</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="border:1px solid #2e2b27;background:#181613;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2e2b27;flex-wrap:wrap;">
+          <span style="font-size:15px;font-weight:500;">Children</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">{{ listNote }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 84px 88px 62px;gap:10px;padding:6px 12px;border-bottom:1px solid #2e2b27;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">
+          <div>Name</div><div style="text-align:right;">Bytes</div><div style="text-align:right;">Files</div><div style="text-align:right;">Share</div>
+        </div>
+        <div style="max-height:452px;overflow-y:auto;overflow-x:hidden;">
+          <sc-for list="{{ siblings }}" as="s" hint-placeholder-count="8">
+            <div onClick="{{ s.click }}" style="{{ s.rowStyle }}" style-hover="background:#23201d;">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                <span style="width:8px;height:8px;flex:none;background:{{ s.color }};"></span>
+                <span style="flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ s.nameColor }};">{{ s.name }}</span>
+                <span style="flex:none;font-family:'JetBrains Mono',monospace;font-size:11px;color:#78746f;">{{ s.badge }}</span>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:12px;text-align:right;color:{{ s.nameColor }};" title="{{ s.exact }}">{{ s.size }}</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;color:#aeaaa5;">{{ s.files }}</div>
+              <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end;">
+                <div style="width:24px;height:6px;background:#23201d;"><div style="height:100%;background:{{ s.color }};width:{{ s.shareBar }};"></div></div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#aeaaa5;">{{ s.share }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:7px 12px;border-top:1px solid #2e2b27;font-size:11px;color:#78746f;">{{ tailNote }}</div>
+      </div>
+
+      <sc-if value="{{ showLink }}" hint-placeholder-val="{{ true }}">
+        <div style="border:1px solid #56a5e7;background:#181613;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2e2b27;background:#0f1a26;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#56a5e7;">⇄ link</span>
+            <span style="font-size:11px;color:#aeaaa5;">counted at another path</span>
+            <div style="flex:1"></div>
+            <button onClick="{{ closeLink }}" style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:1px 7px;border:1px solid #393632;background:#23201d;color:#aeaaa5;cursor:pointer;">close</button>
+          </div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+            <code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1eeea;word-break:break-all;line-height:1.6;">{{ linkPath }}</code>
+            <div style="display:flex;align-items:baseline;gap:10px;">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:#56a5e7;">{{ linkSize }}</span>
+              <span style="font-size:11px;color:#aeaaa5;">apparent · <span style="color:#f1eeea;">0 bytes unique</span></span>
+            </div>
+            <div style="border-top:1px solid #23201d;padding-top:10px;font-size:11px;color:#aeaaa5;text-wrap:pretty;">
+              These bytes exist once on disk and are reached from more than one path. Strata counts them at the first path it saw and shows every later path as a link, so the volume total stays honest. Deleting this path frees nothing.
+            </div>
+            <div style="border-top:1px solid #23201d;padding-top:10px;">
+              <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;margin-bottom:4px;">Bytes are counted at</div>
+              <code style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#56a5e7;word-break:break-all;line-height:1.6;">{{ linkTarget }}</code>
+            </div>
+            <div style="border-top:1px solid #23201d;padding-top:10px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:11px;">
+              <span style="color:#78746f;">Kind</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">NTFS hardlink · 3 references</span>
+              <span style="color:#78746f;">Overlap on C:</span><span style="font-family:'JetBrains Mono',monospace;color:#aeaaa5;">36.4 GB across 2,041 entries</span>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="border:1px dashed #393632;background:#131110;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px dashed #393632;">
+          <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#78746f;">Interaction note — not part of the UI</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#78746f;">drill-down</span>
+        </div>
+        <div style="padding:12px;display:flex;flex-direction:column;gap:9px;font-size:11px;color:#aeaaa5;">
+          <div style="text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">The tile you clicked becomes the frame.</span> On click, the target tile animates from its position in the parent map to fill the plot over 260 ms, <code style="font-family:'JetBrains Mono',monospace;">cubic-out</code>, while its children cross-fade in at 40% opacity rising to full. Siblings do not fly out; they fade to nothing in place. The effect is a camera push, not a card shuffle, so you keep your bearings.</div>
+          <div style="border-top:1px solid #23201d;padding-top:9px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Colour is inherited, not reassigned.</span> A child keeps the hue of its top-level ancestor and steps one lightness level per depth. <code style="font-family:'JetBrains Mono',monospace;">Users</code> is <code style="font-family:'JetBrains Mono',monospace;color:#e17e72;">--s1</code> at every depth, so a folder you know stays the colour you learnt on the Timeline.</div>
+          <div style="border-top:1px solid #23201d;padding-top:9px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">Three children and two thousand are the same code path.</span> Below 40 children every tile is labelled. Above that, tiles smaller than 400 px² merge into one <code style="font-family:'JetBrains Mono',monospace;">+n smaller</code> tile drawn in <code style="font-family:'JetBrains Mono',monospace;">--other</code>, which is itself clickable and expands into the sibling list. The list, not the map, is the exhaustive view — it is sorted, searchable and virtualised, and it is where a 2,041-child directory is actually read.</div>
+          <div style="border-top:1px solid #23201d;padding-top:9px;text-wrap:pretty;"><span style="color:#f1eeea;font-size:12px;">You are here is stated three ways.</span> The breadcrumb marks the current segment in <code style="font-family:'JetBrains Mono',monospace;">--fg-1</code> on <code style="font-family:'JetBrains Mono',monospace;">--bg-3</code>; the header repeats the full path with its size, file count and share of parent; and the map's own frame carries a 1px amber edge. Backspace goes up, and the browser Back button does too — every drill-down is a history entry.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:1080}}">
+const GB = 1073741824;
+const RAMP = ['#e17e72', '#d9884d', '#c59634', '#a6a43c', '#7cb05e', '#46b686', '#00b7b0', '#06b0d2', '#56a5e7', '#8897ec', '#b189dd', '#d07fb9'];
+
+function trim(s) {
+  if (s.indexOf('.') < 0) return s;
+  s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return (Math.abs(parseFloat(s)) < 10 && s.indexOf('.') < 0) ? s + '.0' : s;
+}
+function fmtSize(gb) {
+  const a = Math.abs(gb);
+  if (a >= 1024) return trim((gb / 1024).toFixed(2)) + ' TB';
+  if (a >= 100) return gb.toFixed(0) + ' GB';
+  if (a >= 1) return trim(gb.toFixed(2)) + ' GB';
+  const mb = gb * 1024;
+  if (Math.abs(mb) >= 1) return (Math.abs(mb) >= 100 ? mb.toFixed(0) : trim(mb.toFixed(2))) + ' MB';
+  return (mb * 1024).toFixed(0) + ' KB';
+}
+function grp(n) { return n.toLocaleString('en-US'); }
+
+// size in GB, f = file count, link = counted elsewhere
+const TREE = {
+  'C:\\': { f: 3053173, kids: [
+    { n: 'Users', s: 550, f: 2140882 },
+    { n: 'Program Files (x86)', s: 134, f: 402118 },
+    { n: 'Program Files', s: 92.5, f: 214907 },
+    { n: 'WINDOWS', s: 47.5, f: 241004 },
+    { n: 'src', s: 42, f: 48122 },
+    { n: 'ProgramData', s: 19.4, f: 6018 },
+    { n: 'unreadable · 557 directories', s: 30, f: 0, dead: true, est: true }
+  ] },
+  'C:\\Users': { f: 2140882, kids: [
+    { n: 'chris', s: 548, f: 2138401 },
+    { n: 'Public', s: 1.2, f: 2210 },
+    { n: 'Default', s: 0.8, f: 271 }
+  ] },
+  'C:\\Users\\chris': { f: 2138401, kids: [
+    { n: 'Documents', s: 214, f: 1204882 },
+    { n: 'AppData', s: 122, f: 641209 },
+    { n: 'Downloads', s: 88, f: 3814 },
+    { n: 'Videos', s: 64, f: 412 },
+    { n: 'Pictures', s: 32, f: 28841 },
+    { n: 'Desktop', s: 18, f: 1204 },
+    { n: '.cache', s: 9.4, f: 258039 }
+  ] },
+  'C:\\Users\\chris\\Documents': { f: 1204882, kids: [
+    { n: 'My Programming Projects', s: 186, f: 1180221 },
+    { n: 'Unreal Projects', s: 21, f: 21044 },
+    { n: 'Scanned', s: 5.1, f: 2841 },
+    { n: 'Office Lens', s: 1.9, f: 776 }
+  ] },
+  'C:\\Users\\chris\\Documents\\My Programming Projects': { f: 1180221, kids: [
+    { n: 'aerisetta', s: 142, f: 1021882 },
+    { n: 'strata', s: 18, f: 84120 },
+    { n: 'ludicrous-speed', s: 14.4, f: 52218 },
+    { n: 'sandbox', s: 11.6, f: 22001 }
+  ] },
+  'C:\\Users\\chris\\Documents\\My Programming Projects\\aerisetta': { f: 1021882, kids: [
+    { n: 'warrior-of-lust', s: 121, f: 902441 },
+    { n: 'shared-assets', s: 14.8, f: 88221 },
+    { n: '.git', s: 6.2, f: 31220 }
+  ] },
+  'C:\\WINDOWS': { f: 241004, kids: [
+    { n: 'WinSxS', s: 36.4, f: 182004, links: true },
+    { n: 'System32', s: 6.1, f: 44118 },
+    { n: 'SoftwareDistribution', s: 3.42, f: 9882 },
+    { n: 'Fonts', s: 1.1, f: 1204 },
+    { n: 'SysWOW64', s: 0.48, f: 3796 }
+  ] }
+};
+
+// 2,041 children, power-law sizes summing to ~36.4 GB
+(function () {
+  const kids = [];
+  const NAMES = ['amd64_microsoft-windows-', 'x86_microsoft-windows-', 'amd64_netfx4-', 'msil_system.', 'wow64_microsoft-windows-'];
+  const COMP = ['gdi32', 'shell32', 'kernel32-core', 'directx-d3d11', 'servicingstack', 'font-truetype', 'printing-spooler', 'wpf-presentationcore', 'defender-engine', 'tcpip-binaries'];
+  let s = 987654321;
+  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+  let total = 0;
+  for (let i = 0; i < 2041; i++) {
+    const sz = 0.42 / Math.pow(i + 1, 0.42) * (0.6 + rnd() * 0.8);
+    total += sz;
+    kids.push({ n: NAMES[i % 5] + COMP[i % 10] + '_31bf3856ad364e35_10.0.26100.' + (1200 + i) + '_none_' + (100000 + i * 7).toString(16), s: sz, f: 20 + Math.floor(rnd() * 260), links: true });
+  }
+  const k = 36.4 / total;
+  kids.forEach(x => { x.s = x.s * k; });
+  kids.sort((a, b) => b.s - a.s);
+  TREE['C:\\WINDOWS\\WinSxS'] = { f: 182004, kids: kids, links: true };
+})();
+
+function parentOf(p) {
+  if (p === 'C:\\') return null;
+  const parts = p.split('\\');
+  parts.pop();
+  return parts.length === 1 ? 'C:\\' : parts.join('\\');
+}
+function nodeSize(p) {
+  const par = parentOf(p);
+  if (!par) return 879;
+  const me = p.split('\\').pop();
+  const k = (TREE[par] || { kids: [] }).kids.filter(x => x.n === me)[0];
+  return k ? k.s : 0;
+}
+function hueFor(path) {
+  const top = path.split('\\')[1];
+  const root = TREE['C:\\'].kids;
+  for (let i = 0; i < root.length; i++) if (root[i].n === top) return RAMP[i % 12];
+  return '#4b4743';
+}
+
+class Component extends DCLogic {
+  state = { path: 'C:\\', sel: null, link: null };
+
+  ensure() {
+    const el = document.getElementById('strata-treemap');
+    if (!window.echarts || !el) return null;
+    if (this.chart && this.chart.getDom && this.chart.getDom() === el && window.echarts.getInstanceByDom(el) === this.chart) return this.chart;
+    const prev = window.echarts.getInstanceByDom(el);
+    if (prev) prev.dispose();
+    const ch = window.echarts.init(el, null, { renderer: 'canvas' });
+    ch.on('click', p => {
+      if (!p || !p.data) return;
+      const d = p.data;
+      if (d.dead) return;
+      if (d.merged) { this.setState({ sel: null }); return; }
+      const next = this.state.path === 'C:\\' ? 'C:\\' + d.name : this.state.path + '\\' + d.name;
+      if (TREE[next]) this.setState({ path: next, sel: null, link: null });
+      else this.setState({ sel: d.name, link: d.links ? next : null });
+    });
+    if (this.ro) this.ro.disconnect();
+    this.ro = new ResizeObserver(() => { if (this.chart) this.chart.resize(); });
+    this.ro.observe(el);
+    this.chart = ch;
+    return ch;
+  }
+  componentDidMount() { this.tick = setInterval(() => { if (this.ensure()) { clearInterval(this.tick); this.draw(); } }, 60); }
+  componentDidUpdate() { this.draw(); }
+  componentWillUnmount() { clearInterval(this.tick); if (this.ro) this.ro.disconnect(); }
+
+  kids() { return (TREE[this.state.path] || { kids: [] }).kids; }
+
+  draw() {
+    const ch = this.ensure();
+    if (!ch) return;
+    const kids = this.kids();
+    const base = hueFor(this.state.path === 'C:\\' ? 'C:\\x' : this.state.path);
+    const mono = 'JetBrains Mono, monospace';
+    let data, merged = 0, mergedSize = 0;
+    const big = kids.length > 40;
+    if (big) {
+      const keep = kids.slice(0, 40);
+      const rest = kids.slice(40);
+      merged = rest.length;
+      mergedSize = rest.reduce((a, x) => a + x.s, 0);
+      data = keep.slice();
+    } else {
+      data = kids.slice();
+    }
+    const series = data.map((k, i) => ({
+      name: k.n, value: k.s, files: k.f, dead: !!k.dead, links: !!k.links, hasKids: !!TREE[this.state.path === 'C:\\' ? 'C:\\' + k.n : this.state.path + '\\' + k.n],
+      itemStyle: k.dead
+        ? { color: '#23201d', borderColor: '#4b4743', borderWidth: 1, borderType: 'dashed' }
+        : { color: this.state.path === 'C:\\' ? RAMP[i % 12] : base, opacity: this.state.path === 'C:\\' ? 0.85 : Math.max(0.35, 0.9 - i * 0.05), borderColor: '#0f0d0b', borderWidth: 1 }
+    }));
+    if (merged) series.push({ name: '+' + grp(merged) + ' smaller', value: mergedSize, merged: true, files: 0, itemStyle: { color: '#4b4743', borderColor: '#0f0d0b', borderWidth: 1 } });
+    ch.setOption({
+      animation: false,
+      backgroundColor: 'transparent',
+      tooltip: {
+        backgroundColor: '#181613', borderColor: '#393632', borderWidth: 1, padding: 8,
+        textStyle: { color: '#f1eeea', fontSize: 11, fontFamily: mono },
+        formatter: p => {
+          const d = p.data;
+          if (d.merged) return d.name + '<br><span style="color:#aeaaa5">' + fmtSize(d.value) + ' combined \u00b7 click to list</span>';
+          return '<span style="color:#f1eeea">' + d.name + '</span><br>' + fmtSize(d.value) +
+            (d.files ? '<br><span style="color:#aeaaa5">' + grp(d.files) + ' files</span>' : '') +
+            (d.links ? '<br><span style="color:#56a5e7">\u21c4 link \u00b7 counted elsewhere</span>' : '') +
+            (d.dead ? '<br><span style="color:#f8767a">unreadable \u00b7 estimated</span>' : '') +
+            (d.hasKids ? '<br><span style="color:#78746f">click to drill in \u203a</span>' : '');
+        }
+      },
+      series: [{
+        type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false },
+        left: 1, right: 1, top: 1, bottom: 1,
+        visibleMin: 12, childrenVisibleMin: 0,
+        itemStyle: { gapWidth: 1, borderColor: '#0f0d0b' },
+        label: {
+          show: true, position: 'insideTopLeft', color: '#0f0d0b', fontFamily: mono, fontSize: 11, lineHeight: 15, overflow: 'truncate', ellipsis: '\u2026',
+          formatter: p => {
+            const d = p.data;
+            if (d.dead) return '{d|' + d.name + '}\n{d|' + fmtSize(d.value) + '}';
+            return d.name + (d.hasKids ? ' \u203a' : '') + '\n' + fmtSize(d.value);
+          },
+          rich: { d: { color: '#aeaaa5', fontFamily: mono, fontSize: 11, lineHeight: 15 } }
+        },
+        upperLabel: { show: false },
+        emphasis: { itemStyle: { borderColor: '#f1eeea', borderWidth: 2 }, label: { color: '#0f0d0b' } },
+        data: series
+      }]
+    }, { notMerge: true });
+  }
+
+  renderVals() {
+    const st = this.state;
+    const kids = this.kids();
+    const total = kids.reduce((a, k) => a + k.s, 0);
+    const node = TREE[st.path];
+    const size = st.path === 'C:\\' ? 879 : nodeSize(st.path);
+    const par = parentOf(st.path);
+    const parSize = par ? (par === 'C:\\' ? 879 : nodeSize(par)) : 0;
+    const share = par ? (size / parSize * 100) : 100;
+    const mono = "'JetBrains Mono',monospace";
+    const parts = st.path === 'C:\\' ? ['C:'] : st.path.split('\\');
+    const shown = kids.slice(0, 120);
+
+    return {
+      crumbs: parts.map((name, i) => {
+        const isLast = i === parts.length - 1;
+        const target = i === 0 ? 'C:\\' : parts.slice(0, i + 1).join('\\');
+        return {
+          name: i === 0 ? 'C:\\' : name, sep: isLast ? '' : '\\',
+          go: () => this.setState({ path: target, sel: null, link: null }),
+          style: 'font-family:' + mono + ';font-size:12px;padding:2px 6px;cursor:pointer;border:none;background:' + (isLast ? '#2e2b27' : 'transparent') + ';color:' + (isLast ? '#f1eeea' : '#aeaaa5') + ';'
+        };
+      }),
+      up: () => { if (par) this.setState({ path: par, sel: null, link: null }); },
+      upStyle: 'font-family:' + mono + ';font-size:11px;padding:3px 9px;border:1px solid #393632;cursor:pointer;background:#181613;color:' + (par ? '#f1eeea' : '#4b4743') + ';',
+      toRoot: () => this.setState({ path: 'C:\\', sel: null, link: null }),
+      herePath: st.path,
+      hereSize: fmtSize(size),
+      hereFiles: node ? grp(node.f) : '\u2014',
+      hereChildren: grp(kids.length),
+      parentName: par ? (par === 'C:\\' ? 'C:\\' : par.split('\\').pop()) : 'volume',
+      sharePct: par ? share.toFixed(share < 10 ? 1 : 0) + '%' : '100%',
+      shareBar: Math.max(2, Math.min(100, share)) + '%',
+      depth: st.path === 'C:\\' ? 1 : parts.length,
+      mapNote: kids.length > 40
+        ? grp(kids.length) + ' children, no dominant one — largest is ' + (kids[0].s / total * 100).toFixed(1) + '% · 40 drawn, ' + grp(kids.length - 40) + ' merged'
+        : grp(kids.length) + ' children · all drawn and labelled',
+      listNote: grp(kids.length) + ' children · sorted by size' + (kids.length > 120 ? ' · 120 rendered, virtualised' : ''),
+      tailNote: kids.length > 120
+        ? 'Rows beyond 120 render on scroll. The ' + grp(kids.length - 120) + ' smallest entries here total ' + fmtSize(kids.slice(120).reduce((a, k) => a + k.s, 0)) + ' between them.'
+        : st.path === 'C:\\'
+          ? 'Share is of the 915 GB apparent here: 885 GB attributed, plus 30 GB estimated behind 557 unreadable directories.'
+          : 'Every child is listed. Share is of ' + fmtSize(total) + ' in this directory.',
+      reconcile: st.path === 'C:\\'
+        ? 'apparent 915 GB \u00b7 hardlink overlap \u221236.4 GB \u00b7 Windows reports 879 GB'
+        : (TREE[st.path] && TREE[st.path].links ? 'largely hardlinks \u00b7 0 bytes unique to this path' : ''),
+      siblings: shown.map((k, i) => {
+        const child = st.path === 'C:\\' ? 'C:\\' + k.n : st.path + '\\' + k.n;
+        const hasKids = !!TREE[child];
+        const sh = k.s / total * 100;
+        return {
+          name: k.n, color: k.dead ? '#4b4743' : (st.path === 'C:\\' ? RAMP[i % 12] : hueFor(child)),
+          nameColor: k.dead ? '#78746f' : '#f1eeea',
+          badge: k.dead ? 'est' : (k.links ? '\u21c4' : (hasKids ? '\u203a' : '')),
+          size: fmtSize(k.s), exact: Math.round(k.s * GB).toLocaleString('en-US') + ' bytes',
+          files: k.f ? grp(k.f) : '\u2014',
+          share: sh.toFixed(sh < 10 ? 1 : 0) + '%', shareBar: Math.max(2, sh) + '%',
+          click: () => {
+            if (k.dead) return;
+            if (hasKids) this.setState({ path: child, sel: null, link: null });
+            else this.setState({ sel: k.n, link: k.links ? child : null });
+          },
+          rowStyle: 'display:grid;grid-template-columns:minmax(0,1fr) 84px 88px 62px;gap:10px;align-items:center;padding:0 12px;height:26px;cursor:' + (k.dead ? 'default' : 'pointer') + ';border-bottom:1px solid #23201d;border-left:2px solid ' + (st.sel === k.n ? '#f8ac3d' : 'transparent') + ';background:' + (st.sel === k.n ? '#2e2b27' : 'transparent') + ';'
+        };
+      }),
+      showLink: !!st.link,
+      closeLink: () => this.setState({ link: null, sel: null }),
+      linkPath: st.link || '',
+      linkSize: st.link ? fmtSize(nodeSize(st.link)) : '',
+      linkTarget: 'C:\\Program Files\\WindowsApps\\component-store\\10.0.26100'
+    };
+  }
+}
+</script>
+</body>
+</html>
