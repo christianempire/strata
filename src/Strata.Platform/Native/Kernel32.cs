@@ -199,6 +199,21 @@ internal static partial class Kernel32
 
     // --- Threads -------------------------------------------------------------------------------
 
+    // --- The console this process was given, if any -------------------------------------------
+
+    [LibraryImport(Library)]
+    internal static partial nint GetConsoleWindow();
+
+    /// <summary>
+    /// How many processes share this console. One means it was created for us alone.
+    /// </summary>
+    [LibraryImport(Library, SetLastError = true)]
+    internal static partial uint GetConsoleProcessList([Out] uint[] lpdwProcessList, uint dwProcessCount);
+
+    [LibraryImport(Library, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FreeConsole();
+
     [LibraryImport(Library)]
     internal static partial nint GetCurrentThread();
 

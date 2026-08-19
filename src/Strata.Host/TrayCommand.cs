@@ -1,6 +1,7 @@
 using Strata.Core.Scanning;
 using Strata.Host.Api;
 using Strata.Host.Scanning;
+using Strata.Host.Setup;
 using Strata.Platform;
 using Strata.Storage;
 
@@ -30,6 +31,17 @@ internal static class TrayCommand
 
     internal static int Run(CliOptions options)
     {
+        // Claimed before the database is opened and long before Kestrel binds. A second tray used
+        // to die on the port with a Kestrel stack trace, having already started a second scheduler
+        // against the same SQLite file; this says the one useful thing instead.
+        using var instance = SingleInstance.TryAcquire();
+
+        if (instance is null)
+        {
+            Console.Error.WriteLine("strata: Strata is already running in this session.");
+            return 1;
+        }
+
         var database = new StrataDatabase(options.DatabasePath);
         database.Migrate();
 
@@ -50,6 +62,10 @@ internal static class TrayCommand
 
         var scheduler = app.Services.GetService(typeof(ScanScheduler)) as ScanScheduler;
         var status = new TrayStatus(database, scheduler, tray, url, stopping.Token);
+
+        // How `strata install` replaces a running copy: the same shutdown path as Exit from the
+        // menu, so a tick in flight ends the way it would have anyway rather than being killed.
+        SingleInstance.ListenForShutdown(tray.Quit, stopping.Token);
 
         tray.Activated += () => Browser.Open(url);
 

@@ -32,6 +32,13 @@ internal static partial class User32
 
     internal const uint MONITOR_DEFAULTTONEAREST = 2;
 
+    /// <summary>Hides the console window a scheduled task hands an inherently-console process.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ShowWindow(nint hWnd, int nCmdShow);
+
+    internal const int SW_HIDE = 0;
+
     // --- the tray's hidden window ---------------------------------------------------------------
     //
     // A notification-area icon needs a window to send its mouse messages to, and a window needs a
