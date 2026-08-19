@@ -9,7 +9,7 @@
           [class.on]="shell.selected() === keyOf(v)"
           (click)="selectVolume(keyOf(v))"
         >
-          {{ v.driveLetter ?? v.label }}
+          {{ nameOf(v) }}
         </button>
       }
     </div>
@@ -186,7 +186,7 @@
       <!-- State 07. The header is dated rather than live, and nothing is greyed out. -->
       <div class="note">
         <span class="chip">◌ not connected</span>
-        {{ v.driveLetter }} is not attached. This is its last recorded state, from
+        {{ nameOf(v) }} is not attached. This is its last recorded state, from
         <span class="mono">{{ v.lastSnapshotUtc | stamp }}</span>. It is not stale, it is finished —
         no scan is scheduled and nothing here will change.
       </div>

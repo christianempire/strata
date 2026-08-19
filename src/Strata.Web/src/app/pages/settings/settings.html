@@ -127,7 +127,7 @@
 
           @for (v of shell.volumes(); track v.guidPath) {
             <div class="vol-row">
-              <span class="mono">{{ v.driveLetter ?? '—' }}</span>
+              <span class="mono">{{ nameOf(v) }}</span>
               <span class="dim">{{ v.label || 'unlabelled' }}</span>
 
               <span>
@@ -159,7 +159,7 @@
             @if (v.attached && !v.supportsUsnJournal) {
               <!-- State 04's fix, offered where the fidelity is stated. -->
               <div class="vol-note">
-                {{ v.driveLetter }} has no NTFS change journal, so history comes from a periodic walk
+                {{ nameOf(v) }} has no NTFS change journal, so history comes from a periodic walk
                 and anything created and deleted between walks is invisible. Enabling it is one
                 elevated command and needs no reformat:
                 <span class="mono">strata enable-journal</span>. Strata does not stay elevated.
@@ -170,11 +170,12 @@
               <!-- State 05, with the arithmetic rather than a bare number. -->
               <div class="vol-note alert-note">
                 Strata accounts for {{ v.accountedBytes | bytes }} of the
-                {{ v.usedBytes | bytes }} Windows reports used on {{ v.driveLetter }} — about
-                {{ v.usedBytes - v.accountedBytes | bytes }} short. Directories that cannot be read
-                without elevation are the bulk of it, and the gap is drawn hatched everywhere rather
-                than folded into a directory. One elevated
-                <span class="mono">strata scan</span> closes it.
+                {{ v.usedBytes | bytes }} Windows reports used on {{ nameOf(v) }} — about
+                {{ v.usedBytes - v.accountedBytes | bytes }} short. The gap is drawn hatched
+                everywhere rather than folded into a directory. Run one elevated
+                <span class="mono">strata scan</span> to rule out directories this one could not
+                read; whatever remains is filesystem metadata and hardlinked bytes counted once at
+                their first path.
               </div>
             }
           }
@@ -277,7 +278,7 @@
         @for (tick of ticks(); track tick.id) {
           <div class="log-row">
             <span class="mono faint" [title]="tick.whenUtc | stamp">{{ tick.whenUtc | clock }}</span>
-            <span class="mono">{{ tick.volume }}</span>
+            <span class="mono log-volume" [title]="tick.volume">{{ tick.volume }}</span>
 
             <span>
               @switch (tick.result) {

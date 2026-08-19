@@ -7,13 +7,14 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { Api, errorText } from '../../core/api';
 import { AttributedChange, Snapshot } from '../../core/models';
 import { seriesColour } from '../../core/series';
-import { Shell, volumeKey } from '../../core/state';
+import { Shell, volumeKey, volumeName } from '../../core/state';
 import { KindChip } from '../../ui/kind-chip';
 import { PathCell } from '../../ui/path-cell';
 import {
@@ -63,6 +64,7 @@ interface Row {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FormsModule,
     RouterLink,
     PathCell,
     KindChip,
@@ -168,7 +170,19 @@ export class Compare {
       written,
       deleted: -deleted,
       net: written - deleted,
-      churn: Math.min(written, deleted),
+
+      /**
+       * Write activity that the net change does not show.
+       *
+       * Not the sum of the rows' churn, which for a two-snapshot comparison is a lower bound equal
+       * to each row's own delta and would only restate the net. This is the part *above* that — and
+       * for a snapshot diff it is usually zero, honestly, because a directory that wrote and
+       * deleted the same 50 GB between two measurements is indistinguishable from one that did
+       * nothing. Only the Timeline, which reads the journal, sees the real figure.
+       */
+      churn: Math.max(0, churn - (written + deleted)),
+      churnIsBlind: churn <= written + deleted,
+      cycled: this.changes().filter((c) => c.churnBytes > Math.abs(c.deltaBytes)).length,
       filesAdded,
       filesRemoved,
       attributed,
@@ -240,12 +254,12 @@ export class Compare {
     });
   }
 
-  protected setFrom(value: string): void {
+  protected setFrom(value: number): void {
     this.fromId.set(Number(value));
     this.reset();
   }
 
-  protected setTo(value: string): void {
+  protected setTo(value: number): void {
     this.toId.set(Number(value));
     this.reset();
   }
@@ -326,6 +340,7 @@ export class Compare {
   }
 
   protected keyOf = volumeKey;
+  protected nameOf = volumeName;
 
   protected topOf = topSegment;
 

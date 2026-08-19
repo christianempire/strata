@@ -4,10 +4,10 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { Api } from '../../core/api';
-import { toIso } from '../../core/format';
+import { bytes, toIso } from '../../core/format';
 import { ChangeEvent, Snapshot, Volume } from '../../core/models';
 import { seriesColour } from '../../core/series';
-import { Shell, volumeKey } from '../../core/state';
+import { Shell, volumeKey, volumeName } from '../../core/state';
 import { KindChip } from '../../ui/kind-chip';
 import { PathCell } from '../../ui/path-cell';
 import { SparkPoint, Sparkline } from '../../ui/sparkline';
@@ -31,8 +31,19 @@ interface VolumeCard {
   key: string;
   colour: string;
 
-  /** Bytes Windows says are used that Strata cannot account for. Drawn hatched, never folded in. */
+  /**
+   * Bytes Windows says are used that Strata cannot account for. Drawn hatched, never folded in.
+   *
+   * Zero on a volume with no baseline. Nothing has been measured there, so there is nothing to be
+   * short *of* — calling an unscanned disk an 855 GB undercount would be the loudest possible way
+   * to report "we have not looked yet".
+   */
   unaccounted: number;
+
+  /** How many directories the last scan could not read. The elevation story, when there is one. */
+  unreadable: number;
+
+  scanned: boolean;
 
   accountedShare: number;
   unaccountedShare: number;
@@ -150,6 +161,7 @@ export class Overview {
   }
 
   protected keyOf = volumeKey;
+  protected nameOf = volumeName;
 
   private load(): void {
     const now = new Date();
@@ -198,7 +210,8 @@ export class Overview {
     // Newest-first from the API; a sparkline reads left to right.
     const ordered = [...history].reverse();
 
-    const unaccounted = Math.max(0, volume.usedBytes - volume.accountedBytes);
+    const scanned = volume.baselineUtc !== null;
+    const unaccounted = scanned ? Math.max(0, volume.usedBytes - volume.accountedBytes) : 0;
     const capacity = Math.max(1, volume.totalBytes);
     const freeShareOfCapacity = volume.freeBytes / capacity;
 
@@ -207,10 +220,12 @@ export class Overview {
       key,
       colour: seriesColour(volume.driveLetter ?? volume.label ?? key),
       unaccounted,
+      unreadable: ordered.length > 0 ? ordered[ordered.length - 1].inaccessibleCount : 0,
+      scanned,
       accountedShare: (volume.accountedBytes / capacity) * 100,
       unaccountedShare: (unaccounted / capacity) * 100,
       freeShare: (volume.freeBytes / capacity) * 100,
-      coverage: volume.usedBytes > 0 ? volume.accountedBytes / volume.usedBytes : 1,
+      coverage: scanned && volume.usedBytes > 0 ? volume.accountedBytes / volume.usedBytes : 0,
       freeShareOfCapacity,
 
       // Eight percent, from the palette's alert note. Below it a volume is a problem rather than a
@@ -259,20 +274,27 @@ function fidelityOf(volume: Volume): { text: string; cls: string } {
   return { text: 'journal live', cls: 'dim' };
 }
 
+/**
+ * One badge per disk, showing its worst news.
+ *
+ * Ordered so that "we have not looked" outranks "we looked and came up short" — an unscanned volume
+ * has no coverage figure to be alarmed about, and reporting one as an undercount would put a red
+ * number against a disk that has simply never been read.
+ */
 function worstBadge(cards: VolumeCard[]): { text: string; cls: string } {
+  if (cards.some((c) => !c.scanned)) {
+    return { text: '○ not scanned', cls: 'faint' };
+  }
+
   const undercounted = cards.find((c) => c.unaccounted > 1024 * 1024 * 1024);
 
   if (undercounted) {
-    return { text: `▲ undercount ${Math.round(undercounted.unaccounted / 1024 ** 3)} GB`, cls: 'alert' };
+    return { text: `▲ undercount ${bytes(undercounted.unaccounted)}`, cls: 'alert' };
   }
 
   if (cards.some((c) => c.fidelity.cls === 'warn')) {
     return { text: '▲ reduced fidelity', cls: 'warn' };
   }
 
-  if (cards.every((c) => c.volume.baselineUtc)) {
-    return { text: '● fully accounted', cls: 'dim' };
-  }
-
-  return { text: '○ not scanned', cls: 'faint' };
+  return { text: '● fully accounted', cls: 'dim' };
 }

@@ -126,6 +126,28 @@ export function volumeKey(volume: Volume): string {
 }
 
 /**
+ * What to call a volume on screen.
+ *
+ * Recovery and EFI partitions have neither a drive letter nor a label, and Windows really does
+ * enumerate them. Falling through to a shortened GUID keeps them identifiable without letting a
+ * 48-character path into a table column — and beats the blank button an unguarded
+ * `driveLetter ?? label` produces.
+ */
+export function volumeName(volume: Volume): string {
+  if (volume.driveLetter) {
+    return volume.driveLetter;
+  }
+
+  if (volume.label) {
+    return volume.label;
+  }
+
+  const guid = /Volume\{([0-9a-f]{8})/i.exec(volume.guidPath);
+
+  return guid ? `{${guid[1]}}` : 'unnamed';
+}
+
+/**
  * Which volume to open on.
  *
  * The one with history and the most recent activity, because that is the one with something to say.

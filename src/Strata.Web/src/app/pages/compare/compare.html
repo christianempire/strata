@@ -9,7 +9,7 @@
           [class.on]="shell.selected() === keyOf(v)"
           (click)="selectVolume(keyOf(v))"
         >
-          {{ v.driveLetter ?? v.label }}
+          {{ nameOf(v) }}
         </button>
       }
     </div>
@@ -17,7 +17,7 @@
     <div class="spacer"></div>
 
     <span class="t-micro">From</span>
-    <select class="picker" [value]="fromId()" (change)="setFrom($any($event.target).value)">
+    <select class="picker" [ngModel]="fromId()" (ngModelChange)="setFrom($event)">
       @for (s of snapshots(); track s.id) {
         <option [value]="s.id">{{ s.takenUtc | stamp }} · #{{ s.id }}</option>
       }
@@ -26,7 +26,7 @@
     <span class="faint">→</span>
 
     <span class="t-micro">To</span>
-    <select class="picker" [value]="toId()" (change)="setTo($any($event.target).value)">
+    <select class="picker" [ngModel]="toId()" (ngModelChange)="setTo($event)">
       @for (s of snapshots(); track s.id) {
         <option [value]="s.id">{{ s.takenUtc | stamp }} · #{{ s.id }}</option>
       }
@@ -40,7 +40,7 @@
   @if (snapshots().length < 2) {
     <div class="panel">
       <div class="panel-body dim">
-        {{ volume()?.driveLetter }} has
+        {{ nameOf(volume()!) }} has
         {{ snapshots().length }} snapshot{{ snapshots().length === 1 ? '' : 's' }}. Comparing needs
         two moments, so this screen starts working one tick after the next scan lands.
         <a routerLink="/settings">Scan now</a>.
@@ -70,8 +70,20 @@
 
       <div class="summary-cell">
         <div class="t-micro">Churn · invisible in net</div>
-        <div class="t-num-lg dim">{{ totals().churn | bytes }}</div>
-        <div class="t-meta faint">{{ churners().length }} directories cycled bytes</div>
+
+        @if (totals().churnIsBlind) {
+          <div class="t-num-lg faint">not visible</div>
+          <div class="t-meta faint">
+            two snapshots cannot see it —
+            <a routerLink="/timeline" [queryParams]="{ volume: shell.selected() }">the timeline can</a>
+          </div>
+        } @else {
+          <div class="t-num-lg dim">{{ totals().churn | bytes }}</div>
+          <div class="t-meta faint">
+            {{ totals().cycled | grouped }}
+            director{{ totals().cycled === 1 ? 'y' : 'ies' }} cycled bytes
+          </div>
+        }
       </div>
 
       <!--

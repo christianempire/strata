@@ -15,7 +15,7 @@ import { Api, errorText } from '../../core/api';
 import { bytes, count, joinPath, leaf } from '../../core/format';
 import { TreeNode } from '../../core/models';
 import { otherSeriesColour, seriesColour } from '../../core/series';
-import { Shell, volumeKey } from '../../core/state';
+import { Shell, volumeKey, volumeName } from '../../core/state';
 import {
   BytesPipe,
   ExactBytesPipe,
@@ -230,6 +230,7 @@ export class Explorer {
   }
 
   protected keyOf = volumeKey;
+  protected nameOf = volumeName;
 
   private load(volume: string, path: string): void {
     this.loading.set(true);

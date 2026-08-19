@@ -72,6 +72,15 @@ export class EChartDirective implements OnDestroy {
    */
   readonly replace = input(false, { alias: 'strataChartReplace' });
 
+  /**
+   * Arm the lineX brush as the default cursor.
+   *
+   * Brushing is the default cursor rather than a mode you enter, so there is no toolbox button to
+   * press — which means something has to put the chart into brush mode, and has to do it again
+   * after every setOption, because changing the option resets the global cursor.
+   */
+  readonly brush = input(false, { alias: 'strataChartBrush' });
+
   readonly chartClick = output<unknown>();
   readonly chartBrush = output<unknown>();
   readonly chartReady = output<echarts.ECharts>();
@@ -83,8 +92,9 @@ export class EChartDirective implements OnDestroy {
     effect(() => {
       const option = this.option();
       const replace = this.replace();
+      const brush = this.brush();
 
-      this.zone.runOutsideAngular(() => this.render(option, replace));
+      this.zone.runOutsideAngular(() => this.render(option, replace, brush));
     });
   }
 
@@ -93,7 +103,7 @@ export class EChartDirective implements OnDestroy {
     this.chart?.dispose();
   }
 
-  private render(option: EChartOption, replace: boolean): void {
+  private render(option: EChartOption, replace: boolean, brush: boolean): void {
     const element = this.host.nativeElement as HTMLElement;
 
     if (!this.chart) {
@@ -114,6 +124,14 @@ export class EChartDirective implements OnDestroy {
     }
 
     this.chart.setOption(option, { notMerge: replace });
+
+    if (brush) {
+      this.chart.dispatchAction({
+        type: 'takeGlobalCursor',
+        key: 'brush',
+        brushOption: { brushType: 'lineX', brushMode: 'single' },
+      });
+    }
   }
 }
 

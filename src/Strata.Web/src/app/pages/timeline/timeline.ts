@@ -17,7 +17,7 @@ import { Api, errorText } from '../../core/api';
 import { bytes, deltaBytes, stamp, toIso } from '../../core/format';
 import { ChangeEvent, ChangeKind, VolumeSeries } from '../../core/models';
 import { otherSeriesColour, seriesColours } from '../../core/series';
-import { Shell, volumeKey } from '../../core/state';
+import { Shell, volumeKey, volumeName } from '../../core/state';
 import { KindChip } from '../../ui/kind-chip';
 import { PathCell } from '../../ui/path-cell';
 import {
@@ -102,6 +102,12 @@ export class Timeline {
 
   protected readonly volume = this.shell.volume;
 
+  protected readonly volumeLabel = computed(() => {
+    const volume = this.volume();
+
+    return volume ? volumeName(volume) : '';
+  });
+
   protected readonly window = computed(() => {
     const spec = RANGES.find((r) => r.key === this.range())!;
     const to = new Date();
@@ -185,10 +191,18 @@ export class Timeline {
 
     return {
       net: totals.net,
+
+      // The verb already carries the sign, so the figure beside it is an absolute value. "lost
+      // -13.93 GB" is a double negative, and reads as a gain on a second glance.
       verb: totals.net >= 0 ? 'gained' : 'lost',
+      amount: bytes(Math.abs(totals.net)),
       since: stamp(this.window().from),
       topPath: largest ? largest.path : null,
       topShare: largest ? bytes(Math.abs(largest.deltaBytes)) : null,
+
+      // Where the largest change went, or where it went from. Saying bytes "landed in" a directory
+      // that lost them is the same double negative one clause later.
+      topVerb: largest && largest.deltaBytes < 0 ? 'left' : 'landed in',
       empty: feed.length === 0,
     };
   });
@@ -329,6 +343,7 @@ export class Timeline {
   }
 
   protected keyOf = volumeKey;
+  protected nameOf = volumeName;
 
   private load(key: string, from: Date, to: Date, buckets: number): void {
     this.loading.set(true);
@@ -449,6 +464,10 @@ export class Timeline {
       animation: false,
       backgroundColor: 'transparent',
       grid: { left: 62, right: 14, top: 12, bottom: 24 },
+
+      // No toolbox. Mouse-down anywhere in the plot starts the brush; the directive arms it after
+      // every setOption, so it survives a range or volume change.
+      toolbox: { show: false },
       tooltip: {
         trigger: 'axis',
         ...tooltipStyle(),

@@ -225,6 +225,14 @@ input[type='range']::-moz-range-thumb {
   background: var(--bg-2);
 }
 
+/* A volume with no letter logs under its GUID path, which is 48 characters and must not wrap the
+   row to four lines. */
+.log-volume {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .reason {
   overflow: hidden;
   text-overflow: ellipsis;

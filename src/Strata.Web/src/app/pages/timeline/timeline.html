@@ -10,7 +10,7 @@
           [class.on]="shell.selected() === keyOf(v)"
           (click)="selectVolume(keyOf(v))"
         >
-          {{ v.driveLetter ?? v.label }}
+          {{ nameOf(v) }}
         </button>
       }
     </div>
@@ -38,12 +38,12 @@
         @if (head.empty) {
           <!-- State 08. An empty range is an answer, so it is phrased as one. -->
           Nothing above the reporting floor happened on
-          <strong>{{ volume()?.driveLetter }}</strong> since {{ head.since }}. The line below is
+          <strong>{{ volumeLabel() }}</strong> since {{ head.since }}. The line below is
           still drawn, because the window was measured rather than missed.
         } @else {
-          Your <strong>{{ volume()?.driveLetter }}</strong> drive {{ head.verb }}
-          <strong>{{ head.net | deltaBytes }}</strong> since {{ head.since }}@if (head.topPath) {
-            , and <strong>{{ head.topShare }}</strong> of it landed in
+          Your <strong>{{ volumeLabel() }}</strong> drive {{ head.verb }}
+          <strong>{{ head.amount }}</strong> since {{ head.since }}@if (head.topPath) {
+            , and <strong>{{ head.topShare }}</strong> of it {{ head.topVerb }}
             <span class="t-path">{{ head.topPath }}</span>
           }.
         }
@@ -92,7 +92,13 @@
       </div>
     </div>
 
-    <div class="chart" [strataChart]="chart()" [strataChartReplace]="true" (chartBrush)="onBrush($event)"></div>
+    <div
+      class="chart"
+      [strataChart]="chart()"
+      [strataChartReplace]="true"
+      [strataChartBrush]="true"
+      (chartBrush)="onBrush($event)"
+    ></div>
 
     <div class="chart-foot">
       <span class="faint">
@@ -165,7 +171,7 @@
                 State 08 again, in the feed. The two offers are always the nearest range with
                 content and the timestamp of the last change — never a generic "no data".
               -->
-              Nothing happened on {{ volume()?.driveLetter }} in this range.
+              Nothing happened on {{ volumeLabel() }} in this range.
               @if (wider(); as next) {
                 <button class="btn" (click)="setRange(next)">Widen to {{ next }}</button>
               }

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Api, errorText } from '../../core/api';
 import { toIso } from '../../core/format';
 import { ScanLog, ScanTier, Settings } from '../../core/models';
-import { Shell, volumeKey } from '../../core/state';
+import { Shell, volumeKey, volumeName } from '../../core/state';
 import {
   BytesPipe,
   ClockPipe,
@@ -183,6 +183,7 @@ export class SettingsPage {
   }
 
   protected keyOf = volumeKey;
+  protected nameOf = volumeName;
 
   private patch(change: Partial<Settings>): void {
     this.saving.set(true);

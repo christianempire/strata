@@ -24,7 +24,7 @@
       @for (card of disk.cards; track card.key) {
         <div class="panel volume">
           <div class="volume-head">
-            <span class="t-num-lg">{{ card.volume.driveLetter ?? '—' }}</span>
+            <span class="t-num-lg">{{ nameOf(card.volume) }}</span>
             <span class="t-panel dim">{{ card.volume.label || 'unlabelled' }}</span>
             <span class="t-meta faint">
               {{ card.volume.fileSystem }} · <span [class]="card.fidelity.cls">{{ card.fidelity.text }}</span>
@@ -63,7 +63,7 @@
             @if (card.unaccounted > 0) {
               <span class="key">
                 <span class="swatch hatched"></span>
-                unreadable, estimated <span class="mono">{{ card.unaccounted | bytes }}</span>
+                unaccounted <span class="mono">{{ card.unaccounted | bytes }}</span>
               </span>
             }
 
@@ -75,7 +75,11 @@
 
             <span class="faint t-meta">
               Windows reports <span class="mono">{{ card.volume.usedBytes | bytes }}</span> used ·
-              Strata accounts for {{ card.coverage | percent1 }}
+              @if (card.scanned) {
+                Strata accounts for {{ card.coverage | percent1 }}
+              } @else {
+                Strata has not scanned it
+              }
             </span>
           </div>
 
@@ -121,13 +125,24 @@
             State 05, on the volume it applies to. The arithmetic that reconciles Strata's total
             with the operating system's is on screen rather than in a tooltip.
           -->
-          @if (card.unaccounted > 1024 * 1024 * 1024) {
+          @if (card.scanned && card.unaccounted > 1024 * 1024 * 1024) {
             <div class="note alert-note">
-              <span class="mono">{{ card.snapshot?.inaccessibleCount | grouped }}</span> directories
-              could not be read without elevation. Strata's total is about
-              <span class="mono">{{ card.unaccounted | bytes }}</span> under what Windows reports,
-              and that gap is drawn hatched rather than folded into a directory. One elevated
-              <span class="mono">strata scan</span> closes it; Strata does not stay elevated.
+              Strata accounts for
+              <span class="mono">{{ card.volume.accountedBytes | bytes }}</span> of the
+              <span class="mono">{{ card.volume.usedBytes | bytes }}</span> Windows reports used —
+              about <span class="mono">{{ card.unaccounted | bytes }}</span> short. The gap is drawn
+              hatched rather than folded into a directory.
+
+              @if (card.unreadable > 0) {
+                <span class="mono">{{ card.unreadable | grouped }}</span> directories could not be
+                read without elevation, which is most of it; one elevated
+                <span class="mono">strata scan</span> closes that part. Strata does not stay
+                elevated.
+              } @else {
+                No directory was unreadable on the last scan, so this is filesystem metadata,
+                hardlinked bytes counted once at their first path, and anything written since that
+                scan.
+              }
             </div>
           }
 
@@ -250,7 +265,7 @@
           </div>
           <div class="panel-body">
             <div class="volume-head">
-              <span class="t-num-lg faint">{{ volume.driveLetter ?? '—' }}</span>
+              <span class="t-num-lg faint">{{ nameOf(volume) }}</span>
               <span class="t-panel dim">{{ volume.label || 'unlabelled' }}</span>
               <div class="spacer"></div>
               <span class="chip">◌ not connected</span>
