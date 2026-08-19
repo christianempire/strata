@@ -1,0 +1,31 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+
+# Test output
+[Tt]est[Rr]esult*/
+*.trx
+coverage*.json
+coverage*.xml
+
+# Node / Angular (Phase 3)
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# Local data — never commit a scanned database
+*.db
+*.db-wal
+*.db-shm
+docs/MEASUREMENTS.local.md
+
+# OS
+Thumbs.db
+desktop.ini
