@@ -24,11 +24,17 @@ export interface SparkPoint {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="spark" [style.--spark-colour]="colour()">
-      @for (bar of bars(); track bar.key) {
-        <span class="bar" [class.last]="bar.last" [style.height.%]="bar.height" [title]="bar.title">
-        </span>
-      } @empty {
-        <span class="t-meta faint">no history in this window</span>
+      @if (bars().length >= 2) {
+        @for (bar of bars(); track bar.key) {
+          <span class="bar" [class.last]="bar.last" [style.height.%]="bar.height" [title]="bar.title">
+          </span>
+        }
+      } @else {
+        <!--
+          One bucket is not a trend, and drawing it as a single bar stretched across the cell reads
+          as a solid block rather than as a chart with one reading in it. Say what there is instead.
+        -->
+        <span class="t-meta faint">{{ bars().length === 1 ? 'under a day of history' : 'no history in this window' }}</span>
       }
     </div>
   `,
@@ -39,11 +45,25 @@ export interface SparkPoint {
         align-items: flex-end;
         gap: 2px;
         height: 34px;
+
+        /* Left-aligned, so a partial series reads as a series that has not filled up rather than as
+           one spread thin to fit. */
+        justify-content: flex-start;
+
+        /* Belt as well as braces. The bars are bucketed to one a day so they fit, but a flex row of
+           fixed-minimum children grows through its container rather than shrinking, and that failure
+           mode is a chart drawn outside its own panel. */
+        min-width: 0;
+        overflow: hidden;
       }
 
       .bar {
-        flex: 1;
-        min-width: 2px;
+        flex: 1 1 0;
+        min-width: 0;
+
+        /* Capped, or a handful of readings become fat slabs. Thirty bars in a 150px cell are about
+           three pixels each; six is as wide as one ever needs to be. */
+        max-width: 6px;
         min-height: 2px;
         background: var(--spark-colour, var(--s1));
         opacity: 0.75;

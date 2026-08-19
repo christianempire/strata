@@ -2,15 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--gutter);
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 20px var(--gutter) 0;
-}
-
-.page-head {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
+  padding: 12px var(--gutter) 60px;
 }
 
 .spacer {
@@ -86,7 +78,7 @@
 
 .facts {
   display: grid;
-  grid-template-columns: repeat(6, minmax(80px, 1fr)) minmax(180px, 2fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr)) minmax(150px, 2fr);
   gap: 14px;
   margin-top: 14px;
   padding-top: 12px;
@@ -101,6 +93,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* --- notes ------------------------------------------------------------------------------------ */

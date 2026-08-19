@@ -237,10 +237,7 @@ export class Overview {
       // Used space as the OS sees it, not as Strata counts it. Every snapshot records free space,
       // so capacity minus free is the same measure across the whole window — and it is the one a
       // person recognises, because it is the number in Explorer's properties dialog.
-      spark: ordered.map((s) => ({
-        whenUtc: s.takenUtc,
-        usedBytes: s.freeBytes > 0 ? volume.totalBytes - s.freeBytes : s.totalBytes,
-      })),
+      spark: daily(ordered, volume),
       thirtyDayChange:
         ordered.length >= 2
           ? usedAt(ordered[ordered.length - 1], volume) - usedAt(ordered[0], volume)
@@ -248,6 +245,29 @@ export class Overview {
       snapshot: ordered.length > 0 ? ordered[ordered.length - 1] : null,
     };
   }
+}
+
+/**
+ * One reading per day, which is what a 30-day sparkline means.
+ *
+ * A tick every fifteen minutes is 2,880 snapshots in thirty days, and drawing a bar per snapshot is
+ * what pushed the chart out through the side of its panel: each bar carries a minimum width, so a
+ * hundred of them cannot fit in a 150px column and the flex row simply grows instead. Bucketing by
+ * local day also matches the label — and the last reading of a day is the right one to keep, because
+ * "size at T" is the latest measurement at or before T.
+ */
+function daily(ordered: Snapshot[], volume: Volume): SparkPoint[] {
+  const byDay = new Map<string, SparkPoint>();
+
+  for (const snapshot of ordered) {
+    const at = new Date(snapshot.takenUtc);
+    const day = `${at.getFullYear()}-${at.getMonth()}-${at.getDate()}`;
+
+    // Ordered oldest-first, so a later reading on the same day overwrites an earlier one.
+    byDay.set(day, { whenUtc: snapshot.takenUtc, usedBytes: usedAt(snapshot, volume) });
+  }
+
+  return [...byDay.values()];
 }
 
 /** Used space at a snapshot, as the OS reported it at the time. */

@@ -78,10 +78,10 @@
   --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
 
-  /* Density: table row 26px, panel padding 14px, gutter 24px. Nothing here has 40px of padding. */
+  /* Density: table row 26px, panel padding 14px, gutter 16px. Nothing here has 40px of padding. */
   --row: 26px;
   --pad: 14px;
-  --gutter: 24px;
+  --gutter: 16px;
 }
 
 * {
@@ -202,6 +202,35 @@ button {
     var(--other) 0 1px,
     transparent 1px 5px
   );
+}
+
+/* --- the screen head -------------------------------------------------------------------------
+ *
+ * The bar under the nav carrying the screen's name and its controls. Full-bleed: its rule runs edge
+ * to edge like the nav's above it, which is what makes the two read as one piece of chrome rather
+ * than as a bar and a boxed heading. The negative margin pulls it out of the page's own gutter.
+ *
+ * Defined once here rather than per screen. Four component stylesheets each had their own copy and
+ * they had already drifted to three different gaps.
+ */
+.screen-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: -12px calc(-1 * var(--gutter)) 0;
+  padding: 9px var(--gutter);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* The divider between a screen's name and its first control group. 1px by 20px, from the mockups —
+   without it the title and the buttons read as one run of things rather than as a label and a
+   control. */
+.rule-v {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: var(--rule);
 }
 
 .chip {

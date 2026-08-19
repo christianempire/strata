@@ -6,7 +6,7 @@
 .bar {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
   padding: 0 var(--gutter);
   height: 38px;
   background: var(--bg-1);
@@ -14,7 +14,7 @@
 }
 
 .wordmark {
-  font: 700 13px/1 var(--mono);
+  font: 700 12px/1 var(--mono);
   letter-spacing: 0.14em;
   color: var(--fg-1);
 }
@@ -22,17 +22,17 @@
 .nav {
   display: flex;
   align-self: stretch;
-  gap: 4px;
+  gap: 2px;
 }
 
 .nav a {
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 11px;
   font-size: 12px;
   color: var(--fg-2);
 
-  /* Two pixels of amber under the active tab, and nothing else. No pill, no fill. */
+  /* One background step and two pixels of amber under the active tab. No pill, no rounding. */
   border-bottom: 2px solid transparent;
 }
 
@@ -42,6 +42,7 @@
 
 .nav a.on {
   color: var(--fg-1);
+  background: var(--bg-2);
   border-bottom-color: var(--pos);
 }
 

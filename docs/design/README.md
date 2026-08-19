@@ -75,5 +75,10 @@ hardlinked bytes counted once at their first path, and writes since the last sca
 blaming a cause that is not there. A volume that has never been scanned is reported as not scanned
 rather than as a whole-disk undercount.
 
+**The 30-day sparkline has a state the mockups do not.** It buckets to one reading per day, which
+is what the label means — but a volume whose history is hours old has one bucket, and a single bar
+stretched across the cell reads as a solid block rather than as a chart with one reading in it. Under
+two buckets the cell says "under a day of history" instead.
+
 **Treemap tiles cap at 40 before the tail merges.** The mockup's own figure. Stated here because it
 is a number rather than a shape: the sibling list beside the map still lists every child.
