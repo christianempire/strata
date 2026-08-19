@@ -30,7 +30,7 @@ Work proceeds one phase at a time, and each stops for review.
 | 3b | Angular UI — **gated on mockups landing in `docs/design/`** | blocked |
 | 4 | Tray icon, retention/downsampling, polish | not started |
 
-Phase 3 has a handoff brief at `docs/PHASE3-HANDOFF.md`.
+Phase 3a's brief is `docs/PHASE3-HANDOFF.md`; Phase 3b's is `docs/PHASE3B-HANDOFF.md`.
 
 Do not build ahead of the current phase. Phase 3's UI is gated on design mockups landing in
 `docs/design/`; if they are absent, stop and ask rather than inventing a visual language.
