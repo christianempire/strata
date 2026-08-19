@@ -1,6 +1,10 @@
 # Design mockups
 
-Delivered 19 Aug 2026 from Claude Design, built to `BRIEF.md`. Seven files, dark only.
+Delivered 19 Aug 2026 from Claude Design. Seven files, dark only.
+
+These *are* the visual language, not a starting point. The tokens in
+`src/Strata.Web/src/styles.css` are lifted from `Strata Palette and Type` verbatim, and a component
+that wants a colour takes it from a token rather than inventing one.
 
 | File | Covers |
 |---|---|

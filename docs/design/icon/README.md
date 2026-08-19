@@ -1,9 +1,8 @@
 # Icon
 
-Delivered 19 Aug 2026 from Claude Design, built to [`../ICON-BRIEF.md`](../ICON-BRIEF.md). The full
-rationale — geometry table, contrast figures, the light-taskbar approach — is in
-`../Strata Tray Icon.dc.html`. The three directions it was chosen from are the `Strata Icon A/B/C`
-files beside it.
+Delivered 19 Aug 2026 from Claude Design. The full rationale — geometry table, contrast figures,
+the light-taskbar approach — is in `../Strata Tray Icon.dc.html`, and the three directions it was
+chosen from are the `Strata Icon A/B/C` files beside it.
 
 ## What ships
 
