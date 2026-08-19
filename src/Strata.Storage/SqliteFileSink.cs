@@ -169,33 +169,23 @@ public sealed class SqliteFileSink : IScanSink, IDisposable
         var command = _connection.CreateCommand();
         command.Transaction = transaction;
 
-        // A file with several hardlinks arrives once per link but shares one file ID, so the rows
-        // collide. The conflict clause makes the winner deterministic: the row that owns the bytes
-        // always survives, whichever order the scan threads happened to reach the links in. With
-        // INSERT OR REPLACE the last writer won, which meant the surviving row could be one flagged
-        // as a link to bytes counted at a path that no longer had a row.
+        // One row per directory entry, so every hardlink gets its own row. A plain INSERT is safe:
+        // the primary key is (volume_id, parent_id, name), and a directory cannot hold two entries
+        // with the same name. A conflict here would mean the scanner walked a directory twice,
+        // which is a bug worth surfacing rather than papering over.
         command.CommandText = """
             INSERT INTO files
-                (volume_id, file_id, parent_id, name, logical_size, size_on_disk,
+                (volume_id, parent_id, name, file_id, logical_size, size_on_disk,
                  attributes, modified_unix, is_hard_link)
-            VALUES ($volume, $file, $parent, $name, $logical, $ondisk, $attr, $modified, $link)
-            ON CONFLICT (volume_id, file_id) DO UPDATE SET
-                parent_id     = excluded.parent_id,
-                name          = excluded.name,
-                logical_size  = excluded.logical_size,
-                size_on_disk  = excluded.size_on_disk,
-                attributes    = excluded.attributes,
-                modified_unix = excluded.modified_unix,
-                is_hard_link  = excluded.is_hard_link
-            WHERE excluded.is_hard_link = 0;
+            VALUES ($volume, $parent, $name, $file, $logical, $ondisk, $attr, $modified, $link);
             """;
 
         // Parameters are created once and their values reassigned per row. Building parameter
         // objects per row would dominate the cost of a multi-million-row insert.
         command.Parameters.Add("$volume", SqliteType.Integer).Value = _volumeId;
-        command.Parameters.Add("$file", SqliteType.Integer);
         command.Parameters.Add("$parent", SqliteType.Integer);
         command.Parameters.Add("$name", SqliteType.Text);
+        command.Parameters.Add("$file", SqliteType.Integer);
         command.Parameters.Add("$logical", SqliteType.Integer);
         command.Parameters.Add("$ondisk", SqliteType.Integer);
         command.Parameters.Add("$attr", SqliteType.Integer);
@@ -209,9 +199,9 @@ public sealed class SqliteFileSink : IScanSink, IDisposable
     private static void Bind(SqliteCommand command, in FileRecord record)
     {
         var parameters = command.Parameters;
-        parameters[1].Value = record.FileId;
-        parameters[2].Value = record.ParentId;
-        parameters[3].Value = record.Name;
+        parameters[1].Value = record.ParentId;
+        parameters[2].Value = record.Name;
+        parameters[3].Value = record.FileId;
         parameters[4].Value = record.LogicalSize;
         parameters[5].Value = record.SizeOnDisk;
         parameters[6].Value = record.RawAttributes;

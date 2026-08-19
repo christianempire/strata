@@ -109,6 +109,10 @@ internal static class Cli
                     options.TopDirectories = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
+                case "--no-compact":
+                    options.SkipCompact = true;
+                    break;
+
                 case "--quiet":
                     options.Quiet = true;
                     break;
@@ -162,6 +166,7 @@ internal static class Cli
               --no-store           scan and report without writing to the database
               --histogram          report directory counts by depth and size floor
               --top <n>            list the n largest directories (default: 15)
+              --no-compact         skip the post-scan VACUUM
               --quiet              suppress progress output
 
             EXAMPLES
@@ -198,6 +203,8 @@ internal sealed class CliOptions
     internal bool ShowHistogram { get; set; }
 
     internal int TopDirectories { get; set; } = 15;
+
+    internal bool SkipCompact { get; set; }
 
     internal bool Quiet { get; set; }
 

@@ -77,6 +77,17 @@ internal static class ScanCommand
 
         if (database is not null)
         {
+            // A baseline rewrites every row for the volume, so the file is left full of free pages.
+            // Reclaiming them is only worth doing after a full scan, never on the Tier 2 path.
+            if (!options.SkipCompact)
+            {
+                var compactClock = Stopwatch.StartNew();
+                database.Compact();
+                compactClock.Stop();
+                Console.WriteLine($"Compacted in {compactClock.Elapsed.TotalSeconds:F2} s");
+                Console.WriteLine();
+            }
+
             PrintDatabaseFootprint(database);
         }
 

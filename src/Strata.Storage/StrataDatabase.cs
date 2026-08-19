@@ -173,6 +173,21 @@ public sealed class StrataDatabase
         return migrations;
     }
 
+    /// <summary>
+    /// Compacts the database, reclaiming pages freed by a baseline rebuild.
+    /// </summary>
+    /// <remarks>
+    /// A baseline scan deletes every row for a volume and reinserts it, which leaves the file full
+    /// of free pages: measured at 514 MB live against 447 MB compacted, so this reclaims about 13%.
+    /// Only worth doing after a baseline, which is rare. It rewrites the whole file and needs room
+    /// for a second copy while it runs, so it must never be on the Tier 2 path.
+    /// </remarks>
+    public void Compact()
+    {
+        using var connection = Open();
+        Execute(connection, "VACUUM;");
+    }
+
     private static void Execute(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();

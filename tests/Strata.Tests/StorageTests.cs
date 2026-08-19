@@ -53,13 +53,34 @@ public sealed class StorageTests : IDisposable
     [Fact]
     public void MigrationIsIdempotent()
     {
-        _database.Migrate();
-        _database.Migrate();
-
         using var connection = _database.Open();
-        var applied = QueryLong(connection, "SELECT COUNT(*) FROM schema_migrations;");
+        var afterFirst = QueryLong(connection, "SELECT COUNT(*) FROM schema_migrations;");
 
-        Assert.Equal(1, applied);
+        _database.Migrate();
+        _database.Migrate();
+
+        var afterThird = QueryLong(connection, "SELECT COUNT(*) FROM schema_migrations;");
+
+        Assert.True(afterFirst > 0, "no migrations were applied at all");
+        Assert.Equal(afterFirst, afterThird);
+    }
+
+    /// <summary>
+    /// Migrations are applied in numeric order, not in whatever order the assembly happens to list
+    /// its embedded resources. 002 rebuilds a table 001 created, so the order is load-bearing.
+    /// </summary>
+    [Fact]
+    public void MigrationsAreAppliedInOrder()
+    {
+        using var connection = _database.Open();
+
+        var versions = QueryStrings(connection, "SELECT version FROM schema_migrations ORDER BY version;")
+            .Select(int.Parse)
+            .ToList();
+
+        Assert.Equal(versions.OrderBy(v => v), versions);
+        Assert.Contains(1, versions);
+        Assert.Contains(2, versions);
     }
 
     [Fact]
@@ -178,15 +199,14 @@ public sealed class StorageTests : IDisposable
     }
 
     /// <summary>
-    /// Hardlinks share a file ID, so their rows collide on the primary key. Whichever order the scan
-    /// threads reach the links in, the surviving row must be the one that owns the bytes — otherwise
-    /// the table can end up holding a row flagged as a link to bytes counted at a path that has no
-    /// row at all.
+    /// Hardlinks share a file ID but are distinct directory entries, so each must get its own row.
+    /// Under the original key of (volume_id, file_id) they collided and all but one path was lost —
+    /// 135,520 of 3.67M entries on the target machine.
     /// </summary>
     [Theory]
     [InlineData(false)] // owner written first
     [InlineData(true)]  // link written first
-    public void TheByteOwningRowSurvivesAHardLinkCollision(bool linkFirst)
+    public void EveryHardLinkGetsItsOwnRow(bool linkFirst)
     {
         using var connection = _database.Open();
         var volumeId = VolumeRepository.Upsert(connection, Volume());
@@ -200,9 +220,60 @@ public sealed class StorageTests : IDisposable
             sink.Complete();
         }
 
-        Assert.Equal(1, QueryLong(connection, "SELECT COUNT(*) FROM files;"));
-        Assert.Equal(0, QueryLong(connection, "SELECT is_hard_link FROM files;"));
-        Assert.Equal("owner.dll", QueryStrings(connection, "SELECT name FROM files;").Single());
+        Assert.Equal(2, QueryLong(connection, "SELECT COUNT(*) FROM files;"));
+
+        // Both entries point at the same file...
+        Assert.Equal(1, QueryLong(connection, "SELECT COUNT(DISTINCT file_id) FROM files;"));
+
+        // ...but only one of them owns the bytes, so rollups cannot double-count.
+        Assert.Equal(1, QueryLong(connection, "SELECT COUNT(*) FROM files WHERE is_hard_link = 0;"));
+        Assert.Equal(
+            "owner.dll",
+            QueryStrings(connection, "SELECT name FROM files WHERE is_hard_link = 0;").Single());
+    }
+
+    /// <summary>
+    /// The same name in two different directories is two entries; the same name in one directory is
+    /// impossible. The primary key has to encode both facts.
+    /// </summary>
+    [Fact]
+    public void SameNameInDifferentDirectoriesCoexists()
+    {
+        using var connection = _database.Open();
+        var volumeId = VolumeRepository.Upsert(connection, Volume());
+
+        using (var sink = new SqliteFileSink(connection, volumeId))
+        {
+            sink.Write([
+                new FileRecord(1, 10, "readme.md", 5, 5, 0x80, DateTime.UnixEpoch, false),
+                new FileRecord(2, 11, "readme.md", 7, 7, 0x80, DateTime.UnixEpoch, false),
+            ]);
+            sink.Complete();
+        }
+
+        Assert.Equal(2, QueryLong(connection, "SELECT COUNT(*) FROM files;"));
+    }
+
+    /// <summary>
+    /// A file can have two links in the same directory under different names. Rare, but legal, and
+    /// the key must not conflate them.
+    /// </summary>
+    [Fact]
+    public void TwoLinksToOneFileInTheSameDirectoryCoexist()
+    {
+        using var connection = _database.Open();
+        var volumeId = VolumeRepository.Upsert(connection, Volume());
+
+        using (var sink = new SqliteFileSink(connection, volumeId))
+        {
+            sink.Write([
+                new FileRecord(42, 10, "first.dll", 100, 100, 0x80, DateTime.UnixEpoch, false),
+                new FileRecord(42, 10, "second.dll", 100, 100, 0x80, DateTime.UnixEpoch, true),
+            ]);
+            sink.Complete();
+        }
+
+        Assert.Equal(2, QueryLong(connection, "SELECT COUNT(*) FROM files;"));
     }
 
     [Fact]
