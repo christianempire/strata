@@ -1,0 +1,130 @@
+### Strata API probe — Phase 3a
+#
+# Every endpoint, in the order it is worth trying. Start the host first:
+#
+#     dotnet run --project src/Strata.Host -c Release -- serve --verbose
+#
+# Then send these from a REST client (VS Code REST Client, Rider, Visual Studio .http).
+# Everything is equally reachable with curl; the equivalents are noted where the shape is
+# not obvious.
+#
+# Note on a throwaway HTML page instead: it would have to be loaded from file://, which is a
+# different origin, so the browser would block every response unless the API sent
+# Access-Control-Allow-Origin. Sending that would let any site the user happens to visit read
+# their disk contents from localhost, which is a worse trade than using a REST client. The
+# Angular app in Phase 3b has no such problem: it is served by this same host, same origin.
+
+@host = http://localhost:5177
+
+### Volumes — every volume, merged with what Strata has recorded about it.
+# A volume with no baselineUtc has never been scanned and Tier 2 cannot run on it.
+# attached=false means history exists for a volume that is not plugged in right now.
+GET {{host}}/api/volumes
+
+### Settings — everything the resident scanner is configured by.
+GET {{host}}/api/settings
+
+### Settings — partial update. Fields not sent are left alone.
+PUT {{host}}/api/settings
+Content-Type: application/json
+
+{
+  "intervalSeconds": 900,
+  "eventFloorBytes": 1048576
+}
+
+### Settings — pause the scanner without stopping the process.
+PUT {{host}}/api/settings
+Content-Type: application/json
+
+{ "paused": true }
+
+### Settings — and resume.
+PUT {{host}}/api/settings
+Content-Type: application/json
+
+{ "paused": false }
+
+### Settings — rejected. An interval this short would busy-loop against the disk.
+PUT {{host}}/api/settings
+Content-Type: application/json
+
+{ "intervalSeconds": 1 }
+
+### Snapshots — newest first.
+# rolledUpDirCount is the field that matters for /diff: a snapshot with zero cannot take part
+# in one. Ticks taken before Phase 3a recorded none.
+GET {{host}}/api/snapshots?volume=C:&limit=20
+
+### Snapshots — a time range. A value with no zone is read as UTC.
+GET {{host}}/api/snapshots?volume=C:&from=2026-08-19T00:00:00Z&to=2026-08-20T00:00:00Z
+
+### Events — the change log the Timeline screen is built on.
+GET {{host}}/api/events?limit=50
+
+### Events — only changes above 100 MB.
+GET {{host}}/api/events?minBytes=104857600&limit=50
+
+### Tree — current state, one level under the volume root.
+# Nodes carry parentId and a leaf name rather than a full path: the caller knows the path it
+# asked for, and every other path is that plus the names on the way down.
+GET {{host}}/api/tree?volume=C:&depth=1
+
+### Tree — drill into a path. Backslashes, forward slashes and a bare path all work.
+GET {{host}}/api/tree?volume=C:&path=C:\Users\chris\AppData\Local&depth=1
+
+### Tree — three levels. About 9,700 nodes and 2.6 MB on the target machine.
+GET {{host}}/api/tree?volume=C:&depth=3
+
+### Tree — the pathological case: the whole volume, 571k directories, 107 MB.
+# Streamed, so the first byte arrives in about 2 ms and the rest takes 3.4 s. Raising the limit
+# above the 10,000 default is what makes it walk the whole tree.
+GET {{host}}/api/tree?volume=C:&depth=32&limit=600000
+
+### Tree — historical, out of one snapshot's stored rollup.
+# Bounded by the depth cap and size floor that snapshot was written with, so it is not the same
+# answer as the current-state walk and the API does not pretend it is.
+GET {{host}}/api/tree?snapshot=1&depth=2
+
+### Diff — what changed between two snapshots, attributed to the directories that explain it.
+# Substitute two ids whose rolledUpDirCount is above zero.
+GET {{host}}/api/diff?from=1&to=46
+
+### Diff — scoped to a subtree, with a 1 GB reporting floor.
+GET {{host}}/api/diff?from=1&to=46&path=C:\Users&minBytes=1073741824
+
+### Diff — refused, with the reason, when a snapshot has no rollup to compare.
+GET {{host}}/api/diff?from=1&to=2
+
+### Scan — queue an incremental tick. Answers 202; the tick has not run yet.
+POST {{host}}/api/scan
+Content-Type: application/json
+
+{ "volume": "C:", "tier": "incremental" }
+
+### Scan — queue a full baseline. Minutes, not seconds: 211 s cold for 3M files.
+POST {{host}}/api/scan
+Content-Type: application/json
+
+{ "volume": "D:", "tier": "full" }
+
+### Scan — rejected.
+POST {{host}}/api/scan
+Content-Type: application/json
+
+{ "volume": "C:", "tier": "sideways" }
+
+### Not found — a volume that does not exist.
+GET {{host}}/api/snapshots?volume=Q:
+
+### Bad request — a time that is not a time.
+GET {{host}}/api/events?from=yesterday
+
+### Bad request — /tree needs either a volume or a snapshot.
+GET {{host}}/api/tree
+
+### Local only. This must fail to connect from any address that is not loopback.
+# Confirm the listeners with:
+#     Get-NetTCPConnection -LocalPort 5177 -State Listen
+# Expected: 127.0.0.1 and ::1, and nothing else.
+GET http://127.0.0.1:5177/api/volumes

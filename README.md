@@ -18,7 +18,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 ## Status
 
 Phases 1 and 2 are done: volume enumeration, full baseline scanner, SQLite storage, the NTFS change
-journal incremental scanner, the diff engine, the resource guards, and a scheduler. No API or UI yet.
+journal incremental scanner, the diff engine, the resource guards, and a scheduler.
+
+Phase 3a is done: a localhost API on port 5177, hosted in the same process as the scanner by
+`strata serve`. `tools/api-probe.http` exercises every endpoint. Phase 3b, the Angular UI, is
+waiting on design mockups landing in `docs/design/`.
 
 Strata runs unelevated. The one thing that needs administrator is creating a change journal on a
 volume that lacks one, which is a one-time `strata enable-journal` from an elevated prompt. See
@@ -40,4 +44,5 @@ strata scan D:                 full baseline scan
 strata usn-probe               report what the change journal permits here
 strata enable-journal          create a journal on volumes lacking one (elevated)
 strata watch                   run the incremental scanner on a schedule
+strata serve                   run the scanner and the localhost API together
 ```

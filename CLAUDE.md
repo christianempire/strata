@@ -26,7 +26,8 @@ Work proceeds one phase at a time, and each stops for review.
 |---|---|---|
 | 1 | Volume enumeration, Tier 1 scanner, SQLite schema, snapshot writing, `strata scan` CLI | done |
 | 2 | USN incremental (Tier 2), scheduler, resource guards, diff engine + `events` | done |
-| 3 | Minimal API, then Angular UI (gated on mockups in `docs/design/`) | current |
+| 3a | Minimal API on `localhost:5177`, hosted with the scanner by `strata serve` | done |
+| 3b | Angular UI — **gated on mockups landing in `docs/design/`** | blocked |
 | 4 | Tray icon, retention/downsampling, polish | not started |
 
 Phase 3 has a handoff brief at `docs/PHASE3-HANDOFF.md`.
@@ -40,7 +41,7 @@ Do not build ahead of the current phase. Phase 3's UI is gated on design mockups
 src/Strata.Core       domain models, scan orchestration, rollup + diff engines — NO I/O
 src/Strata.Storage    SQLite schema, migrations, repositories
 src/Strata.Platform   Win32 P/Invoke: volumes, directory enumeration, USN, idle detection
-src/Strata.Host       the executable: CLI now, worker + API + tray later
+src/Strata.Host       the executable: CLI, the API, the scan scheduler; tray later
 src/Strata.Web        Angular app (Phase 3)
 tests/Strata.Tests    xUnit
 ```
@@ -98,6 +99,13 @@ Outside that loop, write ordinary readable C#.
   statistics, and gets it catastrophically wrong on large tables: one lookup measured 442 ms against
   0.010 ms with `INDEXED BY`, while the same predicate with a narrower projection planned as a
   covering index scan and looked healthy. Any query on the Tier 2 path gets timed, not inspected.
+- **Recursive CTEs over `dir_totals` do not work here.** SQLite plans the recursive term as
+  `SEARCH ... USING PRIMARY KEY (volume_id=?)`, a range scan over every directory on the volume once
+  per level, and `INDEXED BY` does not move it. Measured: 2,342 ms to return thirteen rows, against
+  2.2 ms for the same answer walked a level at a time in code. Walk trees with indexed child lookups.
+- **An index is a measurement, not a hunch.** Phase 3 added one on `snapshot_dirs (snapshot_id, path)`
+  by reading a plan, then measured 21 ms with and without it while `dbstat` put its cost at 87% of the
+  table's own size. Migration 004 drops it. Time the query before and after, on the real database.
 - Schema changes go in a new numbered migration in `Strata.Storage/Migrations/`. Never edit an
   applied migration.
 - All timestamps are UTC. Stored as ISO-8601 strings (`O` format) for legibility in a SQLite browser

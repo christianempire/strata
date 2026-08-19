@@ -204,18 +204,25 @@ Tier 2 budget for reasons unrelated to the journal. This table is not in the ori
 
 **`snapshot_dirs`** — the historical rollup, and the table that decides whether this design is
 affordable. Per snapshot, aggregated bytes and file count per directory, limited by a depth cap
-(default 6) and a size floor (default 10 MB). Stores the **path as text**, denormalised on purpose:
+(default 6) and a size floor (default 10 MB). Written by Tier 1 from the rollup it has just built,
+and from Phase 3a by Tier 2 as well, derived from `dir_totals` — until then only baselines wrote it,
+which left every incremental snapshot with totals and nothing to attribute them to. Stores the **path as text**, denormalised on purpose:
 file IDs churn, and history has to stay readable after the underlying directory is gone.
 
 > **Measured and settled.** 2,984 qualifying directories on the worst volume, not the tens of
 > thousands feared, which works out at ~260 MB per week of full-resolution history across all three
-> volumes. The design is affordable as specified, and the proposed mitigations (changed-rows-only
+> volumes. (The per-row figure behind that was an estimate; Phase 3a measured the real one and it is
+> higher. See docs/MEASUREMENTS.md.) The design is affordable as specified, and the proposed mitigations (changed-rows-only
 > against a daily anchor, decoupled rollup cadence) were **not** built. The depth cap was raised from
 > 6 to 8 on the strength of the numbers, since the extra two levels make growth inside deep AppData
 > paths attributable and cost about 80 MB a week. See `MEASUREMENTS.md`.
 
 **`snapshot_top_files`** — the ~500 largest files per snapshot, so "what single file ate 8 GB" stays
-answerable after that file is deleted. Schema exists from Phase 1; populated from Phase 2.
+answerable after that file is deleted. Schema exists from Phase 1. **Still never populated**, which
+is now the last thing in the storage model that is schema-only.
+
+**`settings`** — key/value, added in Phase 3a. Everything the resident scanner is configured by,
+which through Phases 1 and 2 was command line flags.
 
 **`events`** — the derived, human-readable change log: `{ when, volume, path, delta_bytes, kind }`
 where kind is `grew | shrank | appeared | vanished`. Written by the diff engine after each snapshot.
@@ -268,19 +275,50 @@ in place.
 `strata volumes` and `strata scan`, so that real numbers — scan duration, file counts, resulting
 database size, directory histogram — exist before the rest is committed to.
 
-### API surface (Phase 3)
+### API surface (Phase 3a, built)
 
-All under `/api`, JSON, no wrapper envelope, large trees streamed with `IAsyncEnumerable`:
+All under `/api`, JSON, no wrapper envelope. The only shape anything is wrapped in is
+`{ "error": "..." }`, and only on a failure.
 
 ```
 GET  /volumes
-GET  /snapshots?volume=&from=&to=
-GET  /tree?snapshot=&path=&depth=
-GET  /diff?from=&to=&path=
-GET  /events?from=&to=
-POST /scan
+GET  /snapshots?volume=&from=&to=&limit=
+GET  /tree?volume=|snapshot=&path=&depth=&limit=
+GET  /diff?from=&to=&path=&minBytes=&limit=
+GET  /events?volume=&from=&to=&minBytes=&limit=
+POST /scan                     { "volume": "C:", "tier": "full" | "incremental" }
 GET|PUT /settings
 ```
+
+Hosted by `strata serve`, in the same process as the scanner. Bound to `127.0.0.1` and `::1` by
+address rather than to the string `localhost`, because local-only is a hard constraint rather than a
+default: an explicit Kestrel `Listen` also overrides anything `ASPNETCORE_URLS` might try to bind.
+
+Five things about it are decisions rather than details:
+
+- **`volume` and `snapshot` are different questions.** `/tree?volume=` reads current state from
+  `dir_totals`, every directory at full depth. `/tree?snapshot=` reads that snapshot's stored rollup,
+  bounded by the depth cap and size floor it was written with. The endpoint serves both and does not
+  blur them; a snapshot that recorded nothing returns nothing rather than quietly falling back to the
+  present.
+- **Tree nodes carry a parent id and a leaf name, not a path.** The caller already knows the path it
+  asked for, and every other path is that plus the names on the way down. Sending materialised paths
+  would have cost roughly 90 MB of strings on a full walk of C:, to send the caller something it can
+  assemble from what it already has.
+- **Large trees stream, and a caller that stops reading stops the walk.** The whole of C: is 571k
+  directories and 107 MB of JSON; the first byte arrives in 2.4 ms and the rest takes 3.4 s. The same
+  request at the default limit of 10,000 nodes finishes in 93 ms without having queried the rest of
+  the tree.
+- **`POST /scan` always answers 202.** The scan has not happened when it returns, and a baseline will
+  not have happened for another few minutes, so the response says which. It runs on the scheduler's
+  own dedicated thread, never on a request thread.
+- **`PUT /settings` applies the fields present and leaves the rest alone.** A strict replacement would
+  mean a client omitting a field it does not know about silently resets it, and this record gains
+  fields every phase.
+
+Settings live in a `settings` table rather than a config file, read at the start of every scheduler
+cycle so a change from the UI takes effect on the next tick. The console verbs deliberately ignore
+that table and use their flags, so a measurement run stays reproducible.
 
 ### UI (Phase 3, gated on mockups)
 

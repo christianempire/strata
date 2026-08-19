@@ -413,3 +413,165 @@ to get wrong.
 - **Whether elevation closes the 29.6 GB gap on C:.**
 - **A journal that wraps or is reset while running.** The code path exists and is unit-tested
   against a fake, but has not been provoked for real.
+
+---
+
+# Phase 3a measurements
+
+19 Aug 2026, same machine, **unelevated**, Release. Database 455 MB at the start, 3.05M files on C:.
+Timings are end-to-end HTTP against `strata serve`, five runs each, so they include JSON
+serialisation and loopback — which is what the UI will actually experience.
+
+## API endpoint latency
+
+| Endpoint | min | median | max | response |
+|---|---:|---:|---:|---:|
+| `GET /api/settings` | 1.3 ms | 1.5 ms | 6.6 ms | 325 B |
+| `GET /api/events?limit=500` | 1.2 ms | 1.7 ms | 8.6 ms | 7.0 KB |
+| `GET /api/tree?volume=C:&depth=1` | 1.8 ms | 2.0 ms | 15.8 ms | 5.2 KB |
+| `GET /api/tree?volume=C:&path=…\AppData\Local&depth=1` | 2.5 ms | 2.6 ms | 11.5 ms | 23 KB |
+| `GET /api/snapshots?volume=C:&limit=500` | 7.2 ms | 7.5 ms | 31.5 ms | 15 KB |
+| `GET /api/volumes` | 14.0 ms | 14.3 ms | 151.7 ms | 1.9 KB |
+| `GET /api/tree?snapshot=46&depth=2` | 15.6 ms | 19.4 ms | 36.6 ms | 26 KB |
+| `GET /api/diff?from=1&to=46` | 30.9 ms | 41.2 ms | 65.3 ms | 173 B |
+| `GET /api/tree?volume=C:&depth=3` | 104 ms | 109 ms | 156 ms | 2.6 MB |
+
+`/api/volumes` is the slowest of the small ones because it enumerates live volumes through Win32 on
+every call rather than serving the stored rows alone. That is deliberate — the stored rows only exist
+after a scan, and free space changes constantly — but it is why it costs 14 ms and the others cost 2.
+
+### The pathological tree
+
+The root of C: at unbounded depth: **571k directories, 107.5 MB of JSON, 3.40 s**, first byte at
+**2.4 ms**. The same request at the default 10,000-node limit: **93 ms**, first byte at 3.0 ms.
+
+That second number is the point of streaming. The walk stops when the caller stops reading, so the
+limit is reached without ever querying the rest of the tree.
+
+## The recursive CTE trap
+
+Both of the new tree-shaped queries were written as recursive CTEs over `dir_totals` first. Both were
+catastrophic, for the same reason:
+
+```
+|--CO-ROUTINE walk
+|  `--RECURSIVE STEP
+|     |--SEARCH c USING PRIMARY KEY (volume_id=?)     <- every row on the volume, per level
+|     `--SCAN w
+```
+
+`INDEXED BY ix_dir_totals_parent` changes the line to `SEARCH c USING INDEX ix_dir_totals_parent
+(volume_id=?)` and changes nothing else: it still constrains only `volume_id`, never `parent_id`.
+
+| Query | As a recursive CTE | Walked a level at a time |
+|---|---:|---:|
+| `/tree?volume=C:&depth=1` (13 rows) | **2,342 ms** | **2.2 ms** |
+| Materialising `snapshot_dirs` for one tick | **did not finish** | **112–152 ms** |
+
+A factor of about a thousand on the first, and the second was unusable. This is the same lesson as
+the 442 ms `GetEntriesByFileId` from Phase 2, in a new place: **the plan looked reasonable and only
+the clock disagreed.**
+
+Path resolution had a milder version of it. `WHERE volume_id = ? AND parent_id = ? AND name = ?`
+planned as a primary-key range scan at roughly 9 ms a segment, so resolving a four-segment path cost
+37 ms. Pinned with `INDEXED BY ix_dir_totals_parent`: **2.6 ms** for the whole path.
+
+## Materialising the historical rollup on every tick
+
+`snapshot_dirs` was previously written only by a baseline scan, so 21 of 22 recorded snapshots could
+not take part in a diff. Tier 2 now derives it from `dir_totals`.
+
+Measured on C: in a long-running `watch`, after the first tick has loaded the directory tree:
+
+| Tick phase | Cost |
+|---|---:|
+| Journal read | 0–1 ms |
+| Apply deltas | 2–3 ms |
+| Ancestor rollup | 0 ms |
+| **`snapshot_dirs` (5,740 rows)** | **112–152 ms** |
+| Events | 3–5 ms |
+| Commit | 2–3 ms |
+| **Total** | **122–163 ms** |
+
+The 2 s budget holds with an order of magnitude to spare. About 50 ms of the rollup write is the
+filtered read of `dir_totals` — a range scan over the volume's 571k rows, which is the honest cost of
+asking a question about subtree size when nothing indexes subtree size. Indexing it would be worse:
+every tick updates that column for every ancestor of every changed file, so the index would be
+rewritten on the hot path to speed up a query that runs once per tick.
+
+## Storage: the per-row estimate was low
+
+Phase 1 estimated `snapshot_dirs` at ~88 bytes a row and projected 330 MB per week for C:. That was
+an estimate, not a measurement. Measured with `dbstat` over 13 real snapshots:
+
+| | Bytes per row | Per snapshot (5,740 dirs) | C: per week at 15 min |
+|---|---:|---:|---:|
+| Phase 1 estimate | 88 | 503 KB | 330 MB |
+| **Measured, table only** | **117** | **669 KB** | **449 MB** |
+| Measured, with the path index | 218 | 1.25 MB | 840 MB |
+
+**The real figure is 449 MB per week for C: alone**, against the 330 MB projected — 36% higher. It is
+still a rolling seven-day window rather than unbounded growth, and Phase 4's retention is what bounds
+it, but the Phase 4 sizing should start from 449 and not 330.
+
+### An index added by reading a plan, and removed by timing the query
+
+Migration 003 added `ix_snapshot_dirs_path` on `(snapshot_id, path)` so the historical subtree walk
+would be a seek rather than a scan. That was reasoning about a plan, which this project has a rule
+against. Timed on the real database, reading the `C:\Users` subtree of one snapshot:
+
+| | Time | Cost per row |
+|---|---:|---:|
+| With the index | 21 ms | 101 bytes |
+| Without it | 21 ms | 0 |
+
+No measurable benefit, because one snapshot is only 5,740 rows and the primary key already clusters
+them together. The cost was 87% on top of the table's own size, on the one table in the schema that
+grows with the number of snapshots — about 390 MB a week of pure index. Migration 004 drops it.
+
+## Correctness observations
+
+### Diffing bounded rollups leaves an unattributable remainder
+
+`SnapshotDiff` recovers a directory's own bytes as its subtree total minus the subtree totals of the
+children the snapshot recorded. What falls below the size floor therefore lands on the nearest
+recorded ancestor, which is the right place for it — but it behaves like a phantom sibling, and it
+can stop the diff engine from descending.
+
+Baseline (snapshot 1) against a recent tick (snapshot 46) on C:
+
+```
+C:            -17.487 GB      <- what /api/diff reports
+C:\Users      -15.045 GB      86% of it, below the 90% dominance threshold
+C: own        - 2.150 GB      nine files deleted directly from C:\ during Phase 2 testing
+```
+
+Users accounts for 86% of the change, the dominance threshold is 90%, and no other child clears the
+reporting floor — so the engine summarises at the volume root and reports `C: -17.5 GB`. That is the
+"technically true and useless" row the diff engine's own documentation says it exists to avoid, and
+lowering the reporting floor does not help, because the remainder is at the root rather than in a
+child.
+
+Scoping the same diff to `C:\Users` gives the answer anyone would want, in one row:
+
+```
+-16.84 GB  C:\Users\chris\Documents\My Programming Projects\aerisetta\warrior-of-lust\unity\Library
+```
+
+The engine is behaving as specified and its rules are settled, so nothing was changed. Flagging it
+because it is a design question the Compare screen will run into: a node's own delta is not modelled
+as a child, so it dilutes dominance without ever being nameable. Reporting the remainder alongside
+the children — "C:\Users −15.0 GB, and 2.2 GB elsewhere in C:\" — would be the honest shape.
+
+## Still not measured
+
+Unchanged from Phase 2, plus one:
+
+- **Scan cost with a game running.** The constraint the whole design exists to satisfy, still
+  untested under real contention.
+- **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
+- **Whether elevation closes the 29.6 GB gap on C:.**
+- **A journal that wraps or is reset while running.**
+- **API latency while a Tier 1 baseline is running.** The per-thread background I/O priority exists
+  precisely so a scan cannot throttle a read in the same process, and that has never been shown end
+  to end. D: and E: have no baseline yet, so the run that would show it is still available.

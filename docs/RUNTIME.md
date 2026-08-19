@@ -17,7 +17,7 @@ It contains, in a single Windows process:
 | Part | What it does |
 |---|---|
 | Background scanner | `IHostedService` running the Tier 2 tick on a timer |
-| Minimal API | ASP.NET Core listening on `http://localhost:5177` |
+| Minimal API | ASP.NET Core listening on `http://localhost:5177`, loopback only |
 | Static file server | Serves the **pre-built** Angular app from the same host |
 | Tray icon | Open UI / Scan now / Pause / Exit |
 
@@ -48,7 +48,7 @@ or a shortcut in the Startup folder. No UAC prompt, ever, at login or otherwise.
 ```
 Task:     Strata
 Trigger:  At log on (current user)
-Action:   C:\...\strata.exe watch
+Action:   C:\...\strata.exe serve
 ```
 
 Whenever an installer exists it will register that. Until then, starting it by hand is just running
@@ -76,8 +76,13 @@ user should be the one asking for it.
 
 Different, and only for developers:
 
-- `dotnet run --project src/Strata.Host -- watch` runs the scanner and API with a console attached,
-  which is how the resource behaviour gets judged — every deferral and tick duration prints.
+- `dotnet run --project src/Strata.Host -- serve` runs the shipped shape with a console attached:
+  the scanner and the API in one process, listening on `http://localhost:5177`. Add `--verbose` for
+  a line per HTTP request with its duration. `tools/api-probe.http` exercises every endpoint.
+- `dotnet run --project src/Strata.Host -- watch` runs the scanner *without* the API, which is how
+  the resource behaviour gets judged — every deferral and every tick's phase breakdown prints, and
+  its configuration comes from flags rather than from the settings table, so a measurement run is
+  reproducible.
 - `ng serve` runs the Angular dev server on its own port with hot reload, proxying `/api` to
   `localhost:5177`. This exists so a CSS change does not need a full rebuild.
 
@@ -108,6 +113,13 @@ For a read-only tool that watches disks, that trade is clearly worth making.
 %LOCALAPPDATA%\Strata\strata.db        the database
 %LOCALAPPDATA%\Strata\strata.db-wal    write-ahead log
 ```
+
+Settings live in the database too, in a `settings` table, rather than in a config file. They were
+command line flags through Phases 1 and 2, which suits a console verb and does not suit a process
+configured from a browser tab. `strata serve` reads them at the start of every cycle, so a change
+saved from the UI takes effect on the next tick without a restart. The console verbs deliberately
+ignore the table and use their flags, so a measurement run is not silently affected by whatever the
+UI last saved.
 
 Strata's own data directory is excluded from the change feed by default. It is rewritten by every
 tick, so left in it would permanently be the loudest thing in its own report. It is **not** excluded
