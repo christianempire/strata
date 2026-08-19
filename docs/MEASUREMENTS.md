@@ -606,3 +606,10 @@ Reproduce with:
 strata watch --interval 900 --rollup-log rollup.csv
 python tools/replay-rollup-log.py rollup.csv %LOCALAPPDATA%\Strata\strata.db
 ```
+
+**Built, same day.** Migrations 005 to 007 replaced `snapshot_dirs` with the sparse history. Measured
+after the fact: the history row is **22.0 B** against the old **116.4 B**, a tick writes **43-241**
+rows against **5,751**, and the database went from **545 MiB to 438 MiB** after a `VACUUM` — half the
+storage for history that is complete instead of capped at depth 8 and 10 MB. All 29 directories that
+changed between the last two rolled-up snapshots agreed exactly between the two models before the old
+table was dropped. Full figures in docs/STORAGE-MODEL.md.

@@ -108,6 +108,11 @@ Outside that loop, write ordinary readable C#.
   table's own size. Migration 004 drops it. Time the query before and after, on the real database.
 - Schema changes go in a new numbered migration in `Strata.Storage/Migrations/`. Never edit an
   applied migration.
+- **Directory history is sparse.** `dir_history` records a directory only when its subtree total has
+  moved, at any depth and any size; `dir_names` holds the names and is append-only, because a
+  baseline truncates `dir_totals` and history older than it would otherwise lose its paths. The
+  per-snapshot rollup this replaced cost 429 MiB a week on C: and could not see 55% of what changed.
+  See `docs/STORAGE-MODEL.md` before changing either table.
 - All timestamps are UTC. Stored as ISO-8601 strings (`O` format) for legibility in a SQLite browser
   **except in tables with millions of rows**, where they are Unix seconds: measured on the target
   machine, that convention was costing 95 MB in `files` alone, which is not a price worth paying for

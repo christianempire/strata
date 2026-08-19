@@ -1,7 +1,11 @@
 # A better shape for directory history
 
 Written after Phase 3a, when measuring the read side showed what `snapshot_dirs` actually costs.
-Numbers are from the target machine, 19 Aug 2026. Nothing here is built yet.
+Numbers are from the target machine, 19 Aug 2026.
+
+> **Built, 19 Aug 2026.** Migrations 005 to 007. What it actually cost, including the two things
+> this proposal got wrong, is at the bottom under *What it actually cost*. The proposal is left as
+> written, because being able to see where it was wrong is worth more than a tidy document.
 
 **Verdict up front: the current table is the wrong shape, and replacing it is worth doing before
 Phase 4 rather than after.** It costs 429 MiB a week on C: alone, and in exchange it cannot see more
@@ -225,3 +229,89 @@ reimplemented underneath. Suggested order:
 4. Drop `snapshot_dirs`.
 
 Step 2 writing both is what makes step 3 checkable rather than a leap.
+
+---
+
+# What it actually cost
+
+Built as migrations 005 (the tables), 006 (backfill from `snapshot_dirs`), and 007 (drop it).
+Measured on the target machine afterwards.
+
+## Against the projection
+
+| | Projected | Measured |
+|---|---:|---:|
+| History row size | 26.5 B | **22.0 B** |
+| Rows per tick | 68 mean | **43–241**, tracking activity |
+| `dir_names` one-time | ~17 MiB | **40.3 MiB** (27.0 table + 13.3 index) |
+| Database, after `VACUUM` | — | **545 MiB → 438 MiB** |
+
+The row came out smaller than the prototype suggested and the name dimension came out larger, since
+names average about fourteen characters and a `WITHOUT ROWID` index carries the full key. Both are
+one-time; only `dir_history` grows.
+
+Side by side on the same database, over comparable periods:
+
+| | Rows | Bytes | Covers |
+|---|---:|---:|---|
+| `snapshot_dirs` | 379k over 66 snapshots | 41.5 MB | depth ≤ 8 and ≥ 10 MB |
+| `dir_history` | 941k over 68 moments | 20.9 MB | every directory, any depth |
+
+**Half the storage for two and a half times the rows, and complete coverage instead of bounded.**
+
+## What was wrong with the proposal
+
+**The daily anchor was not needed and is not built.** The proposal wanted one so a historical treemap
+would not need a per-directory "latest row at or before T" across 571k directories. But the Explorer
+drills down rather than rendering a whole volume at once, so a level at a time is a few dozen seeks:
+`/tree?snapshot=&depth=1` measures **8.5 ms**. What *was* needed is an opening row per directory at
+baseline, so that drilling into a directory that has never changed reports its size rather than
+looking as though it never existed. That is the same insert, once per baseline instead of once a day.
+
+**Seeding the migration at the epoch was wrong on its own.** Migration 005 gave every directory an
+opening row dated at the epoch and valued at its size *now*, which back-dates the present across the
+whole of recorded history: a comparison spanning the migration would read every pre-existing snapshot
+as though the volume had always been its current size, and answer "nothing changed" rather than "I do
+not know". Migration 006 fixes it by carrying every `snapshot_dirs` row across at its real timestamp.
+What cannot be recovered is the pre-migration history of directories that table never recorded —
+below its depth cap or under its floor. That is a one-off consequence of the old model's bounds.
+
+## Read cost
+
+| Endpoint | Time |
+|---|---:|
+| `/api/tree?snapshot=&depth=1` | 8.5 ms |
+| `/api/tree?snapshot=&depth=3` (2.5 MB) | 204–355 ms |
+| `/api/diff` between two snapshots | 123–223 ms |
+
+The depth-3 historical walk is two to three times the current-state walk, because sizes come from a
+seek per directory rather than from a row already in hand. Worth it, and worth revisiting if the
+Explorer turns out to want deep historical views rather than one level at a time.
+
+## Correctness
+
+Checked before `snapshot_dirs` was dropped: across the last two rolled-up snapshots on C:, **all 29
+directories that changed agreed exactly** between the old table and the new one.
+
+And it answers what the old model could not. A diff inside the complete window reports
+
+```
++1.29 GB  grew  d10  C:\Users\chris\...\gamcore\unity-web-builder\work\quickie\ripped\ExportedProject
+```
+
+at depth 10 — two levels past anything `snapshot_dirs` could represent, at any storage budget.
+
+## Still open
+
+**Retention must preserve each directory's last row before the horizon**, or "size at T" silently
+answers from a newer measurement. Phase 4.
+
+**The unattributable remainder.** With complete history a directory's own bytes are exact, but they
+still are not a *child*, so they dilute the diff engine's dominance test without ever being nameable.
+On C: that turns a clear answer into `C: −15.7 GB`. The Phase 3b mockups design for this — Compare
+has "elsewhere in …" remainder rows — so it is now a UI requirement rather than an observation, and
+it wants a change to `DiffEngine` rather than to storage.
+
+**Directory id recycling is still an assumption.** NTFS sequence numbers should make a recycled MFT
+index yield a different 64-bit id, which is what makes the name dimension safe. Untested. Tier 3
+volumes synthesise their key and have no such guarantee at all.

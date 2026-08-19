@@ -202,24 +202,36 @@ Tier 2 budget for reasons unrelated to the journal. This table is not in the ori
 
 **`snapshots`** — one row per scan: volume, timestamp, tier, duration, totals, file count. Cheap.
 
-**`snapshot_dirs`** — the historical rollup, and the table that decides whether this design is
-affordable. Per snapshot, aggregated bytes and file count per directory, limited by a depth cap
-(default 6) and a size floor (default 10 MB). Written by Tier 1 from the rollup it has just built,
-and from Phase 3a by Tier 2 as well, derived from `dir_totals` — until then only baselines wrote it,
-which left every incremental snapshot with totals and nothing to attribute them to. Stores the **path as text**, denormalised on purpose:
-file IDs churn, and history has to stay readable after the underlying directory is gone.
+**`dir_history`** — the historical record, and the table that decides whether this design is
+affordable. One row per directory per moment its subtree total moved, at any depth and at any size.
+Values are absolute rather than deltas, which costs the same on disk and queries better: "the size
+of X at time T" is the latest row at or before T, one seek, with no replay from an anchor and no
+drift accumulating across a year.
 
-> **Measured and settled.** 2,984 qualifying directories on the worst volume, not the tens of
-> thousands feared, which works out at ~260 MB per week of full-resolution history across all three
-> volumes. (The per-row figure behind that was an estimate; Phase 3a measured the real one and it is
-> higher. See docs/MEASUREMENTS.md.) The design is affordable as specified, and the proposed mitigations (changed-rows-only
-> against a daily anchor, decoupled rollup cadence) were **not** built. The depth cap was raised from
-> 6 to 8 on the strength of the numbers, since the extra two levels make growth inside deep AppData
-> paths attributable and cost about 80 MB a week. See `MEASUREMENTS.md`.
+> **Replaced `snapshot_dirs` in Phase 3, on measurement.** That table recorded every directory
+> within a depth cap and above a size floor on *every* snapshot, whether or not anything had
+> happened to it: 5,740 rows every fifteen minutes on C:, 429 MiB a week. Sampled against real
+> activity, a mean of **68** directories per tick actually moved — and the cap and floor between
+> them hid **55%** of them. This records what changed, and costs **18.2 MiB a week** for complete
+> coverage. See `docs/STORAGE-MODEL.md`.
+
+A directory is recorded once it has drifted past a configurable band since its last row. The band
+defaults to zero, meaning every change: at these sizes exactness is worth more than the megabytes.
+Raising it to 1 MiB would cost 4.0 MiB a week instead of 18.2.
+
+**`dir_names`** — the name dimension. One row per directory ever seen, storing `parent_id` + `name`
+rather than a path, so a prefix is written once instead of once per descendant. 61% of the table it
+replaced was repeated path text: 8.2 MB across only 5,742 distinct paths.
+
+Separate from `dir_totals` for one specific reason: a Tier 1 baseline truncates that table and
+rebuilds it, which would orphan every history row older than the last baseline. This one is merged
+into, never replaced. Keying on the directory id is safe across deletion because an NTFS file
+reference number is a 48-bit MFT index plus a 16-bit sequence number, so a recycled index yields a
+different id rather than a stale name.
 
 **`snapshot_top_files`** — the ~500 largest files per snapshot, so "what single file ate 8 GB" stays
-answerable after that file is deleted. Schema exists from Phase 1. **Still never populated**, which
-is now the last thing in the storage model that is schema-only.
+answerable after that file is deleted. Schema exists from Phase 1. **Still never populated**, and now
+the only thing in the storage model that is schema-only.
 
 **`settings`** — key/value, added in Phase 3a. Everything the resident scanner is configured by,
 which through Phases 1 and 2 was command line flags.
@@ -231,6 +243,12 @@ keeps full resolution when directory rollups get downsampled.
 
 **Retention**, run nightly, RRD-style and configurable: every snapshot for 7 days, hourly for 30
 days, daily for 1 year, weekly forever.
+
+> **One constraint the sparse history imposes on retention.** Because "the size at T" is the latest
+> row at or before T, downsampling must never delete a directory's last row before the horizon — it
+> would leave that directory answering from a *newer* measurement than it should. Retention is
+> therefore "keep the newest row per directory per bucket", not "delete rows older than X". Phase 4
+> work, flagged here because the schema was shaped around it.
 
 ## Diff engine
 
@@ -296,11 +314,12 @@ default: an explicit Kestrel `Listen` also overrides anything `ASPNETCORE_URLS` 
 
 Five things about it are decisions rather than details:
 
-- **`volume` and `snapshot` are different questions.** `/tree?volume=` reads current state from
-  `dir_totals`, every directory at full depth. `/tree?snapshot=` reads that snapshot's stored rollup,
-  bounded by the depth cap and size floor it was written with. The endpoint serves both and does not
-  blur them; a snapshot that recorded nothing returns nothing rather than quietly falling back to the
-  present.
+- **`volume` and `snapshot` are the same question at different times.** `/tree?volume=` reads
+  current state from `dir_totals`; `/tree?snapshot=` reads `dir_history` as it stood at that
+  snapshot's instant. Since Phase 3 both are unbounded, where the historical side used to be capped
+  by depth and by a size floor. Paths on the historical side resolve against `dir_names`, so a
+  directory that no longer exists still resolves — which is the point of history outliving its
+  directories.
 - **Tree nodes carry a parent id and a leaf name, not a path.** The caller already knows the path it
   asked for, and every other path is that plus the names on the way down. Sending materialised paths
   would have cost roughly 90 MB of strings on a full walk of C:, to send the caller something it can
