@@ -122,7 +122,9 @@ internal static class WatchCommand
               $"(meta {outcome.Metadata.TotalMilliseconds:F0}, " +
               $"store {outcome.Store.TotalMilliseconds:F0}, " +
               $"{outcome.DirectoryChanges} dirs changed) / " +
-              $"rollup {outcome.RollupMs} / events {outcome.EventMs} / commit {outcome.CommitMs} ms]"
+              $"rollup {outcome.RollupMs} / " +
+              $"snapshot_dirs {outcome.SnapshotDirsMs} ({outcome.SnapshotDirCount} rows) / " +
+              $"events {outcome.EventMs} / commit {outcome.CommitMs} ms]"
             : "";
 
         Line(

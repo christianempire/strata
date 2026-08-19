@@ -12,7 +12,7 @@ public static class DiffQueries
     /// <remarks>
     /// The scope is applied here rather than after loading, because comparing two whole snapshots to
     /// answer a question about one directory would read both rollups in full for no reason. The
-    /// prefix range is a seek on ix_snapshot_dirs_path.
+    /// prefix range reads only that snapshot's rows, which the primary key clusters together.
     /// </remarks>
     public static List<SnapshotDirectory> LoadSnapshotDirs(
         SqliteConnection connection,

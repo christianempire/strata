@@ -19,7 +19,11 @@ CREATE TABLE settings (
 -- bytes rather than indexing a column whose value is 0 for almost nothing.
 CREATE INDEX ix_dir_totals_root ON dir_totals (volume_id) WHERE depth = 0;
 
--- /tree in historical mode walks snapshot_dirs by path prefix. The primary key is
--- (snapshot_id, dir_id), so a prefix match had to scan the snapshot and compare strings. This makes
--- the prefix range a seek. Ordered by path so a sorted walk of a subtree is the index order.
+-- /tree in historical mode walks snapshot_dirs by path prefix, which the (snapshot_id, dir_id)
+-- primary key can only answer by scanning that snapshot's rows and comparing strings.
+--
+-- Dropped again in migration 004. Timed on the real database, the scan and the seek both took 21 ms,
+-- because one snapshot is only 5,740 rows and the primary key already clusters them. The index cost
+-- 87% of the table's own size on the one table that grows with the number of snapshots. Left here
+-- rather than edited out, because an applied migration is never edited.
 CREATE INDEX ix_snapshot_dirs_path ON snapshot_dirs (snapshot_id, path);

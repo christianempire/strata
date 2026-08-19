@@ -36,10 +36,15 @@ public static class TreeQueries
     /// Resolves a path to a directory id by walking it segment by segment from the root.
     /// </summary>
     /// <remarks>
-    /// One query per segment, each a range scan over one directory's children on
-    /// ix_dir_totals_parent. There is deliberately no index on name: it would cost tens of megabytes
-    /// across 571k rows to speed up a lookup that already reads only one directory's children.
-    /// Timed rather than reasoned about — see docs/MEASUREMENTS.md.
+    /// One query per segment, each a seek into one directory's children. There is deliberately no
+    /// index on name: it would cost tens of megabytes across 571k rows to speed up a lookup that
+    /// already reads only one directory's children, and the name is compared against the handful of
+    /// rows the parent lookup returns.
+    /// <para>
+    /// INDEXED BY, not by preference: without it the planner takes the primary key and reads the
+    /// whole volume, which measured at about 9 ms a segment — so 37 ms to resolve a four-segment
+    /// path against 2 ms with the index.
+    /// </para>
     /// </remarks>
     public static long? ResolvePath(SqliteConnection connection, long volumeId, string? path)
     {
@@ -54,7 +59,7 @@ public static class TreeQueries
 
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT dir_id FROM dir_totals
+            SELECT dir_id FROM dir_totals INDEXED BY ix_dir_totals_parent
             WHERE volume_id = $v AND parent_id = $p AND name = $n COLLATE NOCASE
             LIMIT 1;
             """;
@@ -80,15 +85,20 @@ public static class TreeQueries
     }
 
     /// <summary>
-    /// Streams the subtree under a directory, breadth first, largest first within each level.
+    /// Streams the subtree under a directory, breadth first, a directory's children largest first.
     /// </summary>
     /// <remarks>
-    /// Streamed rather than materialised because the honest worst case is the root of a system
-    /// volume at unbounded depth, which is 571k directories on the target machine. Buffering that to
-    /// serialise it would cost more memory than the scanner that produced it.
+    /// A level-at-a-time walk in code rather than the recursive CTE this obviously wants to be, and
+    /// the reason is the one this project keeps relearning: SQLite plans the recursive term as
+    /// SEARCH dir_totals USING PRIMARY KEY (volume_id=?), a range scan over every directory on the
+    /// volume once per level, and INDEXED BY does not move it. Timed on the real database, one level
+    /// under the root of C: took 1.5 s that way and 20 ms as a direct child lookup. The plan looked
+    /// reasonable; only the clock said otherwise.
     /// <para>
-    /// The recursive term excludes self-parented rows. The volume root is its own parent, which
-    /// without that guard joins the root to itself forever.
+    /// Streaming is not decoration here. The honest worst case is the root of a system volume at
+    /// unbounded depth, 571k directories, and yielding as the walk goes means a caller that stops
+    /// reading stops the walk — the limit is reached without having queried the rest of the tree,
+    /// which the CTE could not do because it had to finish before returning its first row.
     /// </para>
     /// </remarks>
     public static async IAsyncEnumerable<TreeNode> WalkCurrentAsync(
@@ -101,50 +111,114 @@ public static class TreeQueries
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        var root = await ReadDirectoryAsync(connection, volumeId, rootDirId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (root is null)
+        {
+            yield break;
+        }
+
+        yield return root.Value;
+
+        var emitted = 1;
+        var parents = new List<long> { rootDirId };
+
         using var command = connection.CreateCommand();
+
+        // INDEXED BY rather than trust: this project measured the same predicate planned as a
+        // 442 ms range scan in one shape and a 0.010 ms seek in another, and stopped reading plans.
         command.CommandText = """
-            WITH RECURSIVE walk(dir_id, parent_id, name, depth, subtree_bytes, subtree_on_disk,
-                                subtree_files, subtree_dirs, level) AS (
-                SELECT dir_id, parent_id, name, depth, subtree_bytes, subtree_on_disk,
-                       subtree_files, subtree_dirs, 0
-                FROM dir_totals
-                WHERE volume_id = $v AND dir_id = $root
-                UNION ALL
-                SELECT c.dir_id, c.parent_id, c.name, c.depth, c.subtree_bytes, c.subtree_on_disk,
-                       c.subtree_files, c.subtree_dirs, w.level + 1
-                FROM dir_totals c
-                JOIN walk w ON c.parent_id = w.dir_id
-                WHERE c.volume_id = $v AND c.dir_id <> c.parent_id AND w.level < $depth
-            )
             SELECT dir_id, parent_id, name, depth, subtree_bytes, subtree_on_disk,
                    subtree_files, subtree_dirs
-            FROM walk
-            ORDER BY level, subtree_bytes DESC
-            LIMIT $limit;
+            FROM dir_totals INDEXED BY ix_dir_totals_parent
+            WHERE volume_id = $v AND parent_id = $p AND dir_id <> parent_id
+            ORDER BY subtree_bytes DESC;
             """;
 
         command.Parameters.AddWithValue("$v", volumeId);
-        command.Parameters.AddWithValue("$root", rootDirId);
-        command.Parameters.AddWithValue("$depth", depth);
-        command.Parameters.AddWithValue("$limit", limit);
+        command.Parameters.Add("$p", SqliteType.Integer);
+
+        for (var level = 1; level <= depth && parents.Count > 0 && emitted < limit; level++)
+        {
+            var next = new List<long>();
+
+            foreach (var parent in parents)
+            {
+                if (emitted >= limit)
+                {
+                    break;
+                }
+
+                command.Parameters["$p"].Value = parent;
+
+                var children = new List<TreeNode>();
+
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        children.Add(Read(reader));
+                    }
+                }
+
+                foreach (var child in children)
+                {
+                    if (emitted >= limit)
+                    {
+                        break;
+                    }
+
+                    emitted++;
+                    yield return child;
+
+                    if (child.HasChildren && level < depth)
+                    {
+                        next.Add(child.DirId);
+                    }
+                }
+            }
+
+            parents = next;
+        }
+    }
+
+    /// <summary>One directory by id. A primary key seek.</summary>
+    private static async Task<TreeNode?> ReadDirectoryAsync(
+        SqliteConnection connection,
+        long volumeId,
+        long dirId,
+        CancellationToken cancellationToken)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT dir_id, parent_id, name, depth, subtree_bytes, subtree_on_disk,
+                   subtree_files, subtree_dirs
+            FROM dir_totals WHERE volume_id = $v AND dir_id = $d;
+            """;
+
+        command.Parameters.AddWithValue("$v", volumeId);
+        command.Parameters.AddWithValue("$d", dirId);
 
         using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            var subtreeDirs = reader.GetInt64(7);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? Read(reader) : null;
+    }
 
-            yield return new TreeNode(
-                reader.GetInt64(0),
-                reader.GetInt64(1),
-                reader.GetString(2),
-                reader.GetInt32(3),
-                reader.GetInt64(4),
-                reader.GetInt64(5),
-                reader.GetInt64(6),
-                subtreeDirs,
-                subtreeDirs > 0);
-        }
+    private static TreeNode Read(SqliteDataReader reader)
+    {
+        var subtreeDirs = reader.GetInt64(7);
+
+        return new TreeNode(
+            reader.GetInt64(0),
+            reader.GetInt64(1),
+            reader.GetString(2),
+            reader.GetInt32(3),
+            reader.GetInt64(4),
+            reader.GetInt64(5),
+            reader.GetInt64(6),
+            subtreeDirs,
+            subtreeDirs > 0);
     }
 
     /// <summary>
@@ -258,9 +332,13 @@ public static class TreeQueries
     {
         using var command = connection.CreateCommand();
 
-        // The prefix range is a seek on ix_snapshot_dirs_path. ']' is the code point immediately
-        // after '\', so [rootPath + '\', rootPath + ']') is exactly the set of descendants and
-        // nothing else — a sibling named "Programs" cannot fall inside the range for "Program".
+        // A range scan over this snapshot's rows, which the primary key already clusters together:
+        // 5,740 of them, measured at 21 ms. An index on the path was measured to be no faster while
+        // costing 87% of the table's own size, so it was dropped again in migration 004.
+        //
+        // ']' is the code point immediately after '\', so [rootPath + '\', rootPath + ']') is
+        // exactly the set of descendants and nothing else — a sibling named "Programs" cannot fall
+        // inside the range for "Program".
         command.CommandText = """
             SELECT dir_id, path, depth, subtree_bytes, subtree_on_disk, subtree_files
             FROM snapshot_dirs

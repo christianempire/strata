@@ -45,6 +45,12 @@ internal sealed record TickOutcome
 
     internal long RollupMs { get; init; }
 
+    /// <summary>Cost of materialising the historical directory rollup for this tick.</summary>
+    internal long SnapshotDirsMs { get; init; }
+
+    /// <summary>Directory rows the historical rollup recorded.</summary>
+    internal int SnapshotDirCount { get; init; }
+
     internal long EventMs { get; init; }
 
     internal long CommitMs { get; init; }
@@ -148,12 +154,31 @@ internal sealed class VolumeWatcher : IDisposable
         var phase = Stopwatch.StartNew();
         IncrementalRepository.ApplyDeltas(connection, transaction, volumeId, result.Deltas);
         var rollupMs = phase.ElapsedMilliseconds;
+        phase.Restart();
 
         // Every tick is a snapshot, so the timeline is a continuous series rather than a few points
         // wherever a baseline happened to run. Events hang off it.
         var snapshotId = IncrementalRepository.CreateIncrementalSnapshot(
             connection, transaction, volumeId, DateTime.UtcNow,
             (long)clock.Elapsed.TotalMilliseconds, Volume.FreeBytes);
+
+        // The historical rollup, which is what the Compare screen diffs and what the Timeline's
+        // stacked area is drawn from. Tier 1 wrote this from the rollup it had just built in memory;
+        // Tier 2 derives it from dir_totals, which it has been maintaining all along. Without it a
+        // tick's snapshot has totals and nothing to attribute them to.
+        var rolledUp = IncrementalRepository.WriteSnapshotRollup(
+            connection,
+            transaction,
+            volumeId,
+            snapshotId,
+            Volume.DriveLetter ?? Volume.GuidPath,
+            new SnapshotOptions
+            {
+                MaxDepth = settings.SnapshotMaxDepth,
+                SizeFloorBytes = settings.SnapshotSizeFloorBytes,
+            });
+
+        var snapshotDirsMs = phase.ElapsedMilliseconds;
 
         phase.Restart();
         var changes = Attribute(connection, volumeId, result, settings);
@@ -191,6 +216,8 @@ internal sealed class VolumeWatcher : IDisposable
             Metadata = result.MetadataDuration,
             Store = result.StoreDuration,
             RollupMs = rollupMs,
+            SnapshotDirsMs = snapshotDirsMs,
+            SnapshotDirCount = rolledUp,
             EventMs = eventMs,
             CommitMs = commitMs,
             Changes = changes,
