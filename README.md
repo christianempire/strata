@@ -20,9 +20,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 Phases 1 and 2 are done: volume enumeration, full baseline scanner, SQLite storage, the NTFS change
 journal incremental scanner, the diff engine, the resource guards, and a scheduler.
 
-Phase 3a is done: a localhost API on port 5177, hosted in the same process as the scanner by
-`strata serve`. `tools/api-probe.http` exercises every endpoint. Phase 3b, the Angular UI, is
-waiting on design mockups landing in `docs/design/`.
+Phase 3 is done: a localhost API on port 5177 and the Angular UI, both hosted in the same process
+as the scanner by `strata serve`. Five screens — Overview, Timeline, Explorer, Compare and Settings
+— built to the mockups in [docs/design/](docs/design/). `tools/api-probe.http` exercises every
+endpoint.
+
+Phase 4 is next: the tray icon, retention and downsampling.
 
 Strata runs unelevated. The one thing that needs administrator is creating a change journal on a
 volume that lacks one, which is a one-time `strata enable-journal` from an elevated prompt. See
@@ -36,6 +39,16 @@ dotnet build Strata.sln
 dotnet test
 ```
 
+The UI is a separate build, opt-in so that the .NET side works on a machine with no Node:
+
+```
+cd src/Strata.Web && npm ci && npm run build
+```
+
+or `dotnet build src/Strata.Host -p:BuildWebUi=true`. Whatever is in `src/Strata.Web/dist` gets
+copied next to `strata.exe` either way; with nothing there, `strata serve` serves the API alone and
+says so.
+
 ## Use
 
 ```
@@ -44,5 +57,7 @@ strata scan D:                 full baseline scan
 strata usn-probe               report what the change journal permits here
 strata enable-journal          create a journal on volumes lacking one (elevated)
 strata watch                   run the incremental scanner on a schedule
-strata serve                   run the scanner and the localhost API together
+strata serve                   run the scanner, the API and the UI together
 ```
+
+Then open <http://localhost:5177/>.

@@ -584,6 +584,33 @@ The rows now reconcile: attributed changes plus remainders sum to the change the
 what lets the Compare screen state an attribution percentage instead of hoping nobody adds the column
 up.
 
+## Phase 3b: what the UI costs
+
+Measured on this machine, production build, after the screens were built.
+
+| | Raw | Transferred (gzip) |
+|---|---:|---:|
+| Initial load | 310 kB | **88 kB** |
+| ECharts chunk, shared by Timeline and Explorer | 602 kB | 170 kB |
+| Settings | 41 kB | 11 kB |
+| Compare | 20 kB | 6 kB |
+| Timeline | 20 kB | 7 kB |
+| Overview | 18 kB | 5 kB |
+| Explorer | 14 kB | 4 kB |
+| Bundled fonts, both families, latin subsets | 77 kB | 77 kB |
+
+ECharts is registered piecewise rather than imported whole, and the screens are lazily loaded, so
+opening the tray icon to check Settings does not download a charting library. The 170 kB chart chunk
+arrives with Timeline or Explorer and is then shared between them.
+
+### One number rule was wrong, and only a test caught it
+
+The palette says "three significant figures minimum". The first implementation read that as exactly
+three and rounded to it, which turned the brief's own worked example — `−16.78 GB`, the real
+`PlayerDataCache` deletion — into `−16.8 GB`. The figures in `format.spec.ts` are taken verbatim from
+the design brief for exactly this reason: a rounding rule that is subtly wrong produces numbers that
+look entirely plausible.
+
 ## Still not measured
 
 Unchanged from Phase 2, plus one:
@@ -595,7 +622,13 @@ Unchanged from Phase 2, plus one:
 - **A journal that wraps or is reset while running.**
 - **API latency while a Tier 1 baseline is running.** The per-thread background I/O priority exists
   precisely so a scan cannot throttle a read in the same process, and that has never been shown end
-  to end. D: and E: have no baseline yet, so the run that would show it is still available.
+  to end. D: and E: have no baseline yet, so the run that would show it is still available — and
+  from Phase 3b there is a UI polling `/api/scan/status` during exactly that window, which makes it
+  the natural time to take the measurement.
+- **`/api/series` latency at a year of history.** Timed only against the current database, which
+  holds days rather than months. It is one clustered range read per top-level directory, so the cost
+  scales with rows in the window rather than with rows in the table — but that is reasoning about a
+  plan, which this project has a rule against.
 
 ---
 

@@ -83,8 +83,13 @@ Different, and only for developers:
   the resource behaviour gets judged — every deferral and every tick's phase breakdown prints, and
   its configuration comes from flags rather than from the settings table, so a measurement run is
   reproducible.
-- `ng serve` runs the Angular dev server on its own port with hot reload, proxying `/api` to
-  `localhost:5177`. This exists so a CSS change does not need a full rebuild.
+- `npm start` in `src/Strata.Web` runs the Angular dev server on its own port with hot reload,
+  proxying `/api` to `localhost:5177` — so `strata serve` has to be running alongside it. This exists
+  so a CSS change does not need a full rebuild.
+- `npm run build` writes `src/Strata.Web/dist`, which `Strata.Host` copies next to `strata.exe` as
+  `wwwroot`. Opt-in from MSBuild as `dotnet build src/Strata.Host -p:BuildWebUi=true`, because
+  `dotnet build` and `dotnet test` have to work on a machine with no Node. With nothing built,
+  `strata serve` serves the API alone and says so on startup.
 
 None of that is part of using the app.
 

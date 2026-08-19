@@ -293,7 +293,7 @@ in place.
 `strata volumes` and `strata scan`, so that real numbers — scan duration, file counts, resulting
 database size, directory histogram — exist before the rest is committed to.
 
-### API surface (Phase 3a, built)
+### API surface (built)
 
 All under `/api`, JSON, no wrapper envelope. The only shape anything is wrapped in is
 `{ "error": "..." }`, and only on a failure.
@@ -304,7 +304,10 @@ GET  /snapshots?volume=&from=&to=&limit=
 GET  /tree?volume=|snapshot=&path=&depth=&limit=
 GET  /diff?from=&to=&path=&minBytes=&limit=
 GET  /events?volume=&from=&to=&minBytes=&limit=
+GET  /series?volume=&from=&to=&buckets=&top=
+GET  /scan-log?volume=&from=&to=&result=&limit=
 POST /scan                     { "volume": "C:", "tier": "full" | "incremental" }
+GET  /scan/status
 GET|PUT /settings
 ```
 
@@ -334,22 +337,55 @@ Five things about it are decisions rather than details:
 - **`PUT /settings` applies the fields present and leaves the rest alone.** A strict replacement would
   mean a client omitting a field it does not know about silently resets it, and this record gains
   fields every phase.
+- **`/series` exists because the Timeline could not be built without it.** A stacked area of used
+  space by top-level directory, assembled from `/tree`, would need one tree walk per snapshot — 672
+  of them for a week at a fifteen-minute cadence. This is one clustered range read per top-level
+  directory over the whole window, which is the query `dir_history` was keyed for and the reason
+  migration 005 left it without a secondary index on time. It carries what the OS reported used at
+  each bucket edge as well, so the difference between that and the sum of the bands is drawable as a
+  hatched band rather than being quietly left out.
+- **`/scan-log` records the ticks that did not run.** Deferrals used to go to the console at Debug
+  and then nowhere, which left the project's first non-negotiable unverifiable after the fact. A
+  skipped tick is the row that proves the scanner is behaving, so it is written rather than being
+  the absence of a write. The endpoint returns the window's summary alongside the rows, because the
+  totals cover the whole window rather than the returned page and two endpoints could disagree.
+- **`/scan/status` reads process memory, not the database.** `POST /scan` answers 202 and a baseline
+  runs for 211 s, so something has to distinguish working from frozen — and the one moment that
+  matters is the moment the database is busiest. Its percentage names its own denominator: entries
+  against the last scan's count when there has been one, bytes against what Windows reports used
+  when there has not, which is exactly the first run.
 
 Settings live in a `settings` table rather than a config file, read at the start of every scheduler
 cycle so a change from the UI takes effect on the next tick. The console verbs deliberately ignore
 that table and use their flags, so a measurement run stays reproducible.
 
-### UI (Phase 3, gated on mockups)
+### UI (Phase 3b, built)
 
-Dark, dense, information-first. An instrument panel, not a marketing page. Five screens: Overview
-(per-volume capacity and 30-day sparkline), **Timeline** (the headline screen: stacked area of used
-space over time plus the `events` feed for the selected range), Explorer (ECharts treemap with
-drill-down, sunburst alternate), Compare (two snapshots, diff tree), Settings (intervals,
-exclusions, retention, thresholds, manual scan, and an auditable scan-history log).
+Dark, dense, information-first. An instrument panel, not a marketing page. Angular 19 standalone
+components in `src/Strata.Web`, compiled by `ng build` at build time and served as static files by
+the same host that serves the API.
 
-Visual direction is supplied separately as mockups in `docs/design/`. We build to those rather than
-inventing a palette or accepting a component library's defaults. If they are missing when Phase 3
-starts, stop and ask.
+Five screens: Overview (volumes grouped by physical disk, capacity reconciled against what Windows
+reports, 30-day sparkline), **Timeline** (the headline: a stacked area over `/series` with the
+`events` feed beneath it and a two-way link between them), Explorer (ECharts treemap, one level at a
+time), Compare (two snapshots, ranked attributed changes including the `elsewhere in …` remainder
+rows), Settings (intervals, exclusions, thresholds, manual scan, and the auditable scan-history log).
+
+Three things about it are decisions rather than details:
+
+- **Same origin is doing real access control.** The API sends no CORS header at all, so the
+  browser's own rule is what stops a page from anywhere else reading this machine's disk contents
+  through localhost — and that only holds because the app is served from here rather than from a dev
+  server or a `file://` page.
+- **Fonts are bundled rather than linked.** A `<link>` to `fonts.googleapis.com` is a network call,
+  and one that reports every time a disk-contents tool is opened. 77 KB for both families, latin
+  subsets, variable weight.
+- **The npm build is opt-in from MSBuild.** `dotnet build` and `dotnet test` have to work on a
+  machine with no Node; the backend is four projects and 170 tests that have nothing to do with the
+  UI. `-p:BuildWebUi=true` runs it when you want it.
+
+Visual direction came from mockups in `docs/design/`, which are the visual language rather than a
+starting point. Deviations are recorded in `docs/design/README.md`.
 
 ## Non-goals
 

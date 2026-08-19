@@ -27,13 +27,14 @@ Work proceeds one phase at a time, and each stops for review.
 | 1 | Volume enumeration, Tier 1 scanner, SQLite schema, snapshot writing, `strata scan` CLI | done |
 | 2 | USN incremental (Tier 2), scheduler, resource guards, diff engine + `events` | done |
 | 3a | Minimal API on `localhost:5177`, hosted with the scanner by `strata serve` | done |
-| 3b | Angular UI — **gated on mockups landing in `docs/design/`** | blocked |
+| 3b | Angular UI, built to the mockups in `docs/design/`, served by `strata serve` | done |
 | 4 | Tray icon, retention/downsampling, polish | not started |
 
-Phase 3a's brief is `docs/PHASE3-HANDOFF.md`; Phase 3b's is `docs/PHASE3B-HANDOFF.md`.
+Do not build ahead of the current phase.
 
-Do not build ahead of the current phase. Phase 3's UI is gated on design mockups landing in
-`docs/design/`; if they are absent, stop and ask rather than inventing a visual language.
+The UI is built to the mockups in `docs/design/`, which are the visual language rather than a
+starting point. Take colours from the tokens in `src/Strata.Web/src/styles.css` — never invent one —
+and record any deliberate divergence in `docs/design/README.md`, which has a section for it.
 
 ## Solution layout
 
