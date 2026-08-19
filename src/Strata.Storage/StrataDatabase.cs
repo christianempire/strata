@@ -53,6 +53,41 @@ public sealed class StrataDatabase
     }
 
     /// <summary>
+    /// A connection for the read side: the API, and anything else that only queries.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Open"/> for two reasons. It pools, because the API opens a
+    /// connection per request and a scan opens one for the whole scan, and paying the handle setup
+    /// on every /tree call is avoidable. And it skips the write-oriented pragmas: setting the
+    /// journal mode on a database already in WAL is a no-op that still takes a lock, which is not
+    /// something a read wants to do while a scan is committing.
+    /// <para>
+    /// Not <c>SqliteOpenMode.ReadOnly</c>: a read-only connection to a WAL database still needs to
+    /// write the shared-memory index, so it fails outright when no writer has created one. The mode
+    /// is <c>ReadWrite</c> rather than <c>ReadWriteCreate</c> so a mistyped path reports a missing
+    /// database instead of silently serving an empty one.
+    /// </para>
+    /// </remarks>
+    public SqliteConnection OpenRead()
+    {
+        var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = DatabasePath,
+            Mode = SqliteOpenMode.ReadWrite,
+            Cache = SqliteCacheMode.Private,
+            Pooling = true,
+        }.ToString());
+
+        connection.Open();
+
+        Execute(connection, "PRAGMA temp_store = MEMORY;");
+        Execute(connection, "PRAGMA cache_size = -32768;"); // 32 MB
+        Execute(connection, "PRAGMA busy_timeout = 5000;");
+
+        return connection;
+    }
+
+    /// <summary>
     /// Connection settings tuned for a write-heavy baseline scan followed by mostly-read use.
     /// </summary>
     /// <remarks>
