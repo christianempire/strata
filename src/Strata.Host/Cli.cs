@@ -29,6 +29,8 @@ internal static class Cli
                 "scan" => ScanCommand.Run(ParseOptions(args)),
                 "usn-probe" => UsnProbeCommand.Run(ParseOptions(args)),
                 "usn-tail" => UsnTailCommand.Run(ParseOptions(args)),
+                "watch" => WatchCommand.Run(ParseOptions(args)),
+                "enable-journal" => EnableJournalCommand.Run(ParseOptions(args)),
                 _ => UnknownVerb(args[0]),
             };
         }
@@ -126,6 +128,38 @@ internal static class Cli
                     options.TailLimit = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
+                case "--interval":
+                    options.IntervalSeconds = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
+                case "--cpu-threshold":
+                    options.CpuThreshold = double.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
+                case "--max-records":
+                    options.MaxRecordsPerTick = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
+                case "--event-floor-kb":
+                    options.EventFloorBytes = long.Parse(RequireValue(args, ref i), Culture) * 1024;
+                    break;
+
+                case "--no-fullscreen-detection":
+                    options.NoFullscreenDetection = true;
+                    break;
+
+                case "--verbose":
+                    options.Verbose = true;
+                    break;
+
+                case "--ignore-gate":
+                    options.IgnoreGate = true;
+                    break;
+
+                case "--once":
+                    options.RunOnce = true;
+                    break;
+
                 case "--quiet":
                     options.Quiet = true;
                     break;
@@ -168,6 +202,8 @@ internal static class Cli
               strata scan --all                  scan every eligible fixed volume
               strata usn-probe [<volume>...]     report what the change journal permits here
               strata usn-tail [<volume>]         print live change-journal records
+              strata watch [<volume>...]         run the incremental scanner on a schedule
+              strata enable-journal [<volume>]   create a change journal (needs elevation)
 
             SCAN OPTIONS
               --db <path>          database file (default: %LOCALAPPDATA%\Strata\strata.db)
@@ -183,10 +219,22 @@ internal static class Cli
               --no-compact         skip the post-scan VACUUM
               --quiet              suppress progress output
 
+            WATCH OPTIONS
+              --interval <s>       seconds between ticks (default: 900)
+              --cpu-threshold <n>  defer above this system CPU percent (default: 70)
+              --max-records <n>    journal records per tick (default: 50000)
+              --event-floor-kb <n> smallest change worth an event (default: 1024)
+              --once               run a single tick and exit
+              --ignore-gate        run even when the resource guards would defer (diagnostic)
+              --verbose            print a per-phase timing breakdown for each tick
+              --no-fullscreen-detection   disable the borderless-fullscreen check
+
             EXAMPLES
               strata scan D:
               strata scan --all --histogram
               strata scan C: --no-store --no-background-io --threads 8
+              strata watch --once
+              strata watch --interval 60
             """);
     }
 }
@@ -223,6 +271,22 @@ internal sealed class CliOptions
     internal int TailLimit { get; set; } = 40;
 
     internal bool FromStart { get; set; }
+
+    internal int IntervalSeconds { get; set; } = 900;
+
+    internal double CpuThreshold { get; set; } = 70;
+
+    internal int MaxRecordsPerTick { get; set; } = 50_000;
+
+    internal long EventFloorBytes { get; set; } = 1024 * 1024;
+
+    internal bool NoFullscreenDetection { get; set; }
+
+    internal bool Verbose { get; set; }
+
+    internal bool IgnoreGate { get; set; }
+
+    internal bool RunOnce { get; set; }
 
     internal bool SkipCompact { get; set; }
 

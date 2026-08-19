@@ -20,7 +20,7 @@ namespace Strata.Platform;
 /// a rename racing the read, and it works for files whose parent chain we have not resolved yet.
 /// </para>
 /// </remarks>
-public sealed class Win32FileMetadataReader : IFileMetadataReader, IDisposable
+public sealed class Win32FileMetadataReader : IFileMetadataReader, IFilePathResolver, IDisposable
 {
     private readonly SafeFileHandle _volumeHint;
     private bool _disposed;

@@ -186,6 +186,11 @@ public sealed class StrataDatabase
     {
         using var connection = Open();
         Execute(connection, "VACUUM;");
+
+        // Give the planner statistics. It cannot choose sensibly between an index seek and a table
+        // scan without them, and on a table this size that choice is worth several orders of
+        // magnitude.
+        Execute(connection, "ANALYZE;");
     }
 
     private static void Execute(SqliteConnection connection, string sql)

@@ -45,6 +45,16 @@ public sealed class Tier2Result
 
     public TimeSpan Duration { get; init; }
 
+    public TimeSpan JournalReadDuration { get; init; }
+
+    public TimeSpan ApplyDuration { get; init; }
+
+    public TimeSpan MetadataDuration { get; init; }
+
+    public TimeSpan StoreDuration { get; init; }
+
+    public int DirectoryChanges { get; init; }
+
     /// <summary>A baseline is the only way forward, because the journal cannot bridge the gap.</summary>
     public bool RequiresBaseline => Status is UsnReadStatus.JournalInvalidated or UsnReadStatus.JournalNotActive;
 }
@@ -71,6 +81,9 @@ public sealed class Tier2Scanner
     private readonly IUsnJournal _journal;
     private readonly IFileMetadataReader _metadata;
     private readonly Tier2Options _options;
+    private readonly System.Diagnostics.Stopwatch _metaClock = new();
+    private readonly System.Diagnostics.Stopwatch _storeClock = new();
+    private int _dirChanges;
 
     public Tier2Scanner(IUsnJournal journal, IFileMetadataReader metadata, Tier2Options? options = null)
     {
@@ -87,7 +100,9 @@ public sealed class Tier2Scanner
         ArgumentNullException.ThrowIfNull(store);
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
+        var readClock = System.Diagnostics.Stopwatch.StartNew();
         var read = _journal.Read(cursor, _options.MaxRecordsPerTick);
+        readClock.Stop();
 
         if (read.Status != UsnReadStatus.Ok)
         {
@@ -97,27 +112,38 @@ public sealed class Tier2Scanner
         var deltas = new Dictionary<long, DirectoryDelta>();
         var metadataReads = 0;
         var touched = 0;
+        _metaClock.Reset();
+        _storeClock.Reset();
+        _dirChanges = 0;
 
         // Coalesce first. A single file written in a loop produces hundreds of DATA_EXTEND records,
         // and reading its size once at the end is both cheaper and more correct than reading it
         // repeatedly and recording sizes that were true only momentarily.
+        var applyClock = System.Diagnostics.Stopwatch.StartNew();
+
         foreach (var target in Coalesce(read.Changes))
         {
             touched += Apply(target, store, deltas, ref metadataReads);
         }
 
+        applyClock.Stop();
         clock.Stop();
 
         return new Tier2Result
         {
             Status = UsnReadStatus.Ok,
-            Cursor = new UsnCursor(cursor.JournalId, read.NextUsn),
+            Cursor = new UsnCursor(read.JournalId, read.NextUsn),
             Deltas = deltas,
             RecordsRead = read.Changes.Count,
             EntriesTouched = touched,
             MetadataReads = metadataReads,
             CatchingUp = read.MoreAvailable,
             Duration = clock.Elapsed,
+            JournalReadDuration = readClock.Elapsed,
+            ApplyDuration = applyClock.Elapsed,
+            MetadataDuration = _metaClock.Elapsed,
+            StoreDuration = _storeClock.Elapsed,
+            DirectoryChanges = _dirChanges,
         };
     }
 
@@ -154,17 +180,28 @@ public sealed class Tier2Scanner
         // A new directory still has to be recorded so its children have somewhere to attach.
         if (change.IsDirectory)
         {
-            if (!store.DirectoryExists(change.FileId) && TryResolveName(change, out var dirName))
+            _dirChanges++;
+            _storeClock.Start();
+            var seen = store.DirectoryExists(change.FileId);
+            _storeClock.Stop();
+
+            if (!seen && TryResolveName(change, out var dirName))
             {
+                _storeClock.Start();
                 store.AddDirectory(change.FileId, change.ParentId, dirName);
+                _storeClock.Stop();
             }
 
             return 0;
         }
 
+        _storeClock.Start();
         var known = store.GetEntriesByFileId(change.FileId);
+        _storeClock.Stop();
 
+        _metaClock.Start();
         var exists = _metadata.TryReadById(change.FileId, out var current);
+        _metaClock.Stop();
         metadataReads++;
 
         if (!exists)

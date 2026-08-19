@@ -15,6 +15,7 @@ internal static class UsnProbeCommand
 {
     internal static int Run(CliOptions options)
     {
+
         var volumes = VolumeEnumerator.Enumerate()
             .Where(VolumesCommand.IsScannable)
             .Where(v => options.Targets.Count == 0 || options.Targets.Any(t => CliOptions.Matches(v, t)))
@@ -59,4 +60,5 @@ internal static class UsnProbeCommand
     }
 
     private static string Mark(bool value) => value ? "yes" : "-";
+
 }

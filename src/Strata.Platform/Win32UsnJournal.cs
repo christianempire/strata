@@ -126,6 +126,7 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
             Status = UsnReadStatus.Ok,
             Changes = changes,
             NextUsn = nextUsn,
+            JournalId = journal.UsnJournalID,
             MoreAvailable = changes.Count >= maxRecords && nextUsn < journal.NextUsn,
         };
     }

@@ -79,8 +79,13 @@ public static class DiffEngine
 
         var subtree = AccumulateToSubtrees(nodes, deltas);
 
+        // Index children once. Scanning the changed set for each node visited is quadratic, and the
+        // changed set is largest exactly when it matters most - a game install or a Windows update
+        // touching thousands of directories at once.
+        var childrenByParent = IndexChildren(nodes, subtree, options);
+
         var results = new List<AttributedChange>();
-        Descend(nodes, rootId, subtree, rootPrefix, options, results);
+        Descend(nodes, rootId, subtree, childrenByParent, rootPrefix, options, results);
 
         // Largest absolute change first: the point of the feed is that the top row is the answer.
         results.Sort(static (a, b) => b.AbsoluteDelta.CompareTo(a.AbsoluteDelta));
@@ -145,6 +150,7 @@ public static class DiffEngine
         IReadOnlyDictionary<long, DirectoryNode> nodes,
         long dirId,
         Dictionary<long, DirectoryDelta> subtree,
+        Dictionary<long, List<long>> childrenByParent,
         string rootPrefix,
         DiffOptions options,
         List<AttributedChange> results)
@@ -161,16 +167,14 @@ public static class DiffEngine
 
         if (node.Depth < options.MaxDepth)
         {
-            var children = NotableChildren(nodes, dirId, subtree, options);
-
-            if (children.Count > 0)
+            if (childrenByParent.TryGetValue(dirId, out var children) && children.Count > 0)
             {
                 // One child carries essentially all of it: this node is a corridor, keep going.
                 var dominant = FindDominantChild(children, subtree, delta, options);
 
                 if (dominant is not null)
                 {
-                    Descend(nodes, dominant.Value, subtree, rootPrefix, options, results);
+                    Descend(nodes, dominant.Value, subtree, childrenByParent, rootPrefix, options, results);
                     return;
                 }
 
@@ -182,7 +186,7 @@ public static class DiffEngine
                 {
                     foreach (var child in children)
                     {
-                        Descend(nodes, child, subtree, rootPrefix, options, results);
+                        Descend(nodes, child, subtree, childrenByParent, rootPrefix, options, results);
                     }
 
                     return;
@@ -265,31 +269,38 @@ public static class DiffEngine
         return null;
     }
 
-    /// <summary>Changed children of this node that are individually worth reporting.</summary>
+    /// <summary>
+    /// Groups the notable changed directories by their parent, in one pass.
+    /// </summary>
     /// <remarks>
-    /// Only nodes that changed appear in <paramref name="subtree"/>, so this scans the changed set
-    /// rather than the whole tree. On a quiet tick that is a few dozen nodes out of half a million.
+    /// Only nodes that changed appear in <paramref name="subtree"/>, so this walks the changed set
+    /// rather than the whole tree. Building it once turns the descent from quadratic in the size of
+    /// the changed set into linear.
     /// </remarks>
-    private static List<long> NotableChildren(
+    private static Dictionary<long, List<long>> IndexChildren(
         IReadOnlyDictionary<long, DirectoryNode> nodes,
-        long dirId,
         Dictionary<long, DirectoryDelta> subtree,
         DiffOptions options)
     {
-        var children = new List<long>();
+        var index = new Dictionary<long, List<long>>();
 
-        foreach (var (candidate, delta) in subtree)
+        foreach (var (dirId, delta) in subtree)
         {
-            if (candidate != dirId &&
-                IsNotable(delta, options) &&
-                nodes.TryGetValue(candidate, out var node) &&
-                node.ParentId == dirId)
+            if (!IsNotable(delta, options) || !nodes.TryGetValue(dirId, out var node) || node.ParentId == dirId)
             {
-                children.Add(candidate);
+                continue;
             }
+
+            if (!index.TryGetValue(node.ParentId, out var siblings))
+            {
+                siblings = [];
+                index[node.ParentId] = siblings;
+            }
+
+            siblings.Add(dirId);
         }
 
-        return children;
+        return index;
     }
 
     private static ChangeKind ClassifyKind(DirectoryDelta delta)

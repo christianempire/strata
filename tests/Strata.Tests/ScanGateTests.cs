@@ -80,8 +80,13 @@ public sealed class ScanGateTests
 
         var decision = gate.CanScan(ScanTier.Incremental);
 
+        // The reason is not pinned: the notification-state check runs first, and on a machine that
+        // happens to have something fullscreen it will deny for that instead. What matters is that
+        // an impossible CPU threshold is never simply allowed through.
         Assert.False(decision.Allowed);
-        Assert.Equal(DeferralReason.CpuBusy, decision.Reason);
+        Assert.True(
+            decision.Reason is DeferralReason.CpuBusy or DeferralReason.Fullscreen or DeferralReason.Presenting,
+            $"unexpected deferral reason {decision.Reason}");
     }
 
     [Fact]

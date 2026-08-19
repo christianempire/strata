@@ -274,6 +274,23 @@ public sealed class Tier2ScannerTests
         Assert.Equal(987_654, result.Cursor.NextUsn);
     }
 
+    /// <summary>
+    /// The first tick has no stored cursor, so the journal ID has to come from the journal itself.
+    /// Echoing the request's ID persisted a zero, which never registers as a set cursor, so every
+    /// subsequent tick restarted from the head and no change was ever seen - silently.
+    /// </summary>
+    [Fact]
+    public void TheSavedCursorCarriesTheJournalsOwnIdEvenOnAFirstRun()
+    {
+        var journal = new FakeUsnJournal { JournalId = 0xABCD, NextUsn = 500 };
+
+        var result = new Tier2Scanner(journal, new FakeMetadataReader())
+            .Run(UsnCursor.None, new FakeFileStateStore());
+
+        Assert.Equal(0xABCDul, result.Cursor.JournalId);
+        Assert.True(result.Cursor.IsSet);
+    }
+
     [Fact]
     public void AQuietTickDoesNothingAndCostsNothing()
     {

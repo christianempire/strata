@@ -40,6 +40,7 @@ internal sealed class FakeUsnJournal : IUsnJournal
             Status = UsnReadStatus.Ok,
             Changes = taken,
             NextUsn = NextUsn,
+            JournalId = JournalId,
             MoreAvailable = _changes.Count > maxRecords,
         };
     }

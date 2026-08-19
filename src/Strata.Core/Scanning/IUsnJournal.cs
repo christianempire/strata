@@ -35,6 +35,16 @@ public sealed class UsnReadResult
     /// <summary>Where the next read should start. Only meaningful when <see cref="Status"/> is Ok.</summary>
     public long NextUsn { get; init; }
 
+    /// <summary>
+    /// The journal this was read from.
+    /// </summary>
+    /// <remarks>
+    /// Carried out rather than assumed from the request, because the very first read has no cursor
+    /// and therefore no journal ID to echo back. Persisting a zero here produces a cursor that never
+    /// registers as set, so every tick silently restarts from the head and no change is ever seen.
+    /// </remarks>
+    public ulong JournalId { get; init; }
+
     /// <summary>True when the journal held more records than this read was allowed to return.</summary>
     public bool MoreAvailable { get; init; }
 

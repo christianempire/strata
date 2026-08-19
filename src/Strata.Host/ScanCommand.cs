@@ -147,6 +147,10 @@ internal static class ScanCommand
                 SizeFloorBytes = options.SizeFloorBytes,
             });
 
+            // Tier 2 refuses to run against a volume with no baseline, because an incremental
+            // delta applied to nothing is meaningless. This is what unblocks it.
+            IncrementalRepository.MarkBaseline(connection, volumeId, result.StartedUtc);
+
             writeClock.Stop();
             writeTime = writeClock.Elapsed;
         }
