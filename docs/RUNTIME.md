@@ -57,8 +57,13 @@ the executable, with no prompt.
 ### The one thing that does need administrator
 
 `FSCTL_CREATE_USN_JOURNAL` requires elevation, and it is needed once per volume on volumes where
-Windows has not already enabled a journal. On this machine that is D: and E:; C: always has one
+Windows has not already enabled a journal. On this machine that was D: and E:; C: always has one
 because Search and maintenance rely on it.
+
+**Done on 19 Aug 2026.** Both were created in one elevated run — `D: created (journal
+1DD2FE6835C7B28)`, `E: created (journal 1DD2FE683605825)` — and `strata usn-probe` then reports both
+readable on the **unprivileged** path, which is the point of the whole arrangement: one elevated
+command, once, and the resident scanner never elevates again. All three volumes now run Tier 2.
 
 Without a journal a volume falls back to Tier 3, a throttled full walk every few hours instead of a
 15-minute incremental tick. So this is worth doing once:

@@ -706,7 +706,9 @@ Unchanged from Phase 2, plus one:
 - **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
 - **Whether elevation closes the 29.6 GB gap on C:.**
 - **A journal that wraps or is reset while running.**
-- **`/api/series` latency at a year of history.** Timed only against the current database, which
+- **`/api/series` latency at a year of history.**
+- ~~**D: and E: have no change journal.**~~ Created 19 Aug 2026 in one elevated run; both now read
+  on the unprivileged path and tick like C:. Timed only against the current database, which
   holds days rather than months. It is one clustered range read per top-level directory, so the cost
   scales with rows in the window rather than with rows in the table — but that is reasoning about a
   plan, which this project has a rule against.
