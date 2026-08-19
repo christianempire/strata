@@ -65,6 +65,9 @@ internal sealed record TickOutcome
     /// <summary>Directory rows the historical rollup recorded.</summary>
     internal int SnapshotDirCount { get; init; }
 
+    /// <summary>Rows the sparse history recorded. The number the storage model turns on.</summary>
+    internal int HistoryRows { get; init; }
+
     internal long EventMs { get; init; }
 
     internal long CommitMs { get; init; }
@@ -192,6 +195,13 @@ internal sealed class VolumeWatcher : IDisposable
                 SizeFloorBytes = settings.SnapshotSizeFloorBytes,
             });
 
+        // The sparse history that replaces the per-snapshot rollup above. Only the directories the
+        // rollup just touched can have drifted, so only those are considered — everything else on
+        // the volume is unchanged by definition and costs nothing to skip.
+        var historyRows = DirectoryHistoryRepository.Record(
+            connection, transaction, volumeId, DateTime.UtcNow, fanOut.Touched.Keys,
+            settings.HistoryBandBytes);
+
         var snapshotDirsMs = phase.ElapsedMilliseconds;
 
         phase.Restart();
@@ -234,6 +244,7 @@ internal sealed class VolumeWatcher : IDisposable
             Seeds = result.Deltas,
             SnapshotDirsMs = snapshotDirsMs,
             SnapshotDirCount = rolledUp,
+            HistoryRows = historyRows,
             EventMs = eventMs,
             CommitMs = commitMs,
             Changes = changes,

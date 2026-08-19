@@ -140,6 +140,7 @@ internal static class WatchCommand
               $"{outcome.DirectoryChanges} dirs changed) / " +
               $"rollup {outcome.RollupMs} / " +
               $"snapshot_dirs {outcome.SnapshotDirsMs} ({outcome.SnapshotDirCount} rows) / " +
+              $"history {outcome.HistoryRows} rows / " +
               $"events {outcome.EventMs} / commit {outcome.CommitMs} ms]"
             : "";
 

@@ -37,6 +37,17 @@ public sealed record StrataSettings
     /// <summary>Size floor for the historical directory rollup.</summary>
     public long SnapshotSizeFloorBytes { get; init; } = 10L * 1024 * 1024;
 
+    /// <summary>
+    /// How far a directory's total may drift before history records it again.
+    /// </summary>
+    /// <remarks>
+    /// Zero records every change at any depth and any size, which is what makes growth in a deep
+    /// folder traceable. Measured on the target machine that costs 18.2 MiB a week on C:, against
+    /// 428.6 MiB for the per-snapshot rollup it replaces, so there is nothing to buy by raising it
+    /// and accuracy to lose. Raising it to 1 MiB would cost 4.0 MiB a week if that ever matters.
+    /// </remarks>
+    public long HistoryBandBytes { get; init; }
+
     /// <summary>Enumeration workers for a baseline scan. Null means the measured default.</summary>
     public int? ScanWorkers { get; init; }
 
@@ -98,6 +109,11 @@ public sealed record StrataSettings
         if (SnapshotSizeFloorBytes < 0)
         {
             errors.Add("snapshotSizeFloorBytes cannot be negative.");
+        }
+
+        if (HistoryBandBytes < 0)
+        {
+            errors.Add("historyBandBytes cannot be negative.");
         }
 
         if (ScanWorkers is < 1 or > 64)

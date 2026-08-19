@@ -27,6 +27,7 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
     private readonly SqliteCommand _delete;
     private readonly SqliteCommand _dirExists;
     private readonly SqliteCommand _addDir;
+    private readonly SqliteCommand _addDirName;
 
     private bool _disposed;
 
@@ -86,6 +87,18 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
                     COALESCE((SELECT depth + 1 FROM dir_totals WHERE volume_id = $v AND dir_id = $p), 1),
                     0, 0, 0, 0);
             """, Int("$d"), Int("$p"), Text("$n"));
+
+        // The same directory in the name dimension, which outlives dir_totals across a baseline and
+        // is what keeps old history nameable. Kept in step here rather than reconciled later,
+        // because a directory that changes and is deleted between two baselines would otherwise
+        // never be recorded at all.
+        _addDirName = Prepare(transaction, """
+            INSERT OR IGNORE INTO dir_names
+                (volume_id, dir_id, parent_id, name, depth, first_seen_utc)
+            VALUES ($v, $d, $p, $n,
+                    COALESCE((SELECT depth + 1 FROM dir_totals WHERE volume_id = $v AND dir_id = $p), 1),
+                    $t);
+            """, Int("$d"), Int("$p"), Text("$n"), Text("$t"));
     }
 
     private static SqliteParameter Int(string name) => new(name, SqliteType.Integer);
@@ -178,6 +191,12 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
         _addDir.Parameters["$p"].Value = parentId;
         _addDir.Parameters["$n"].Value = name;
         _addDir.ExecuteNonQuery();
+
+        _addDirName.Parameters["$d"].Value = directoryId;
+        _addDirName.Parameters["$p"].Value = parentId;
+        _addDirName.Parameters["$n"].Value = name;
+        _addDirName.Parameters["$t"].Value = DateTime.UtcNow.ToString("O");
+        _addDirName.ExecuteNonQuery();
     }
 
     private static StoredEntry Read(SqliteDataReader reader)
@@ -204,5 +223,6 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
         _delete.Dispose();
         _dirExists.Dispose();
         _addDir.Dispose();
+        _addDirName.Dispose();
     }
 }

@@ -81,6 +81,14 @@ internal static class BaselineScan
 
         var snapshotId = SnapshotWriter.Write(connection, volumeId, result, snapshotOptions);
 
+        // A baseline rebuilds dir_totals wholesale, which is exactly why the name dimension is a
+        // separate table: merged into here so that history older than this scan keeps its paths.
+        // The anchor then gives every directory an opening measurement, including the small ones
+        // that may never change — without it, drilling into one would look as though it had never
+        // existed rather than as though it had simply been quiet.
+        DirectoryHistoryRepository.MergeNames(connection, null, volumeId, result.StartedUtc);
+        DirectoryHistoryRepository.WriteAnchor(connection, null, volumeId, result.StartedUtc);
+
         // Tier 2 refuses to run against a volume with no baseline, because an incremental delta
         // applied to nothing is meaningless. This is what unblocks it.
         IncrementalRepository.MarkBaseline(connection, volumeId, result.StartedUtc);

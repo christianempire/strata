@@ -120,6 +120,8 @@ internal sealed record SettingsPatch
 
     public long? SnapshotSizeFloorBytes { get; init; }
 
+    public long? HistoryBandBytes { get; init; }
+
     public int? ScanWorkers { get; init; }
 
     public bool? BackgroundIo { get; init; }
@@ -146,6 +148,7 @@ internal sealed record SettingsPatch
             EventFloorBytes = EventFloorBytes ?? current.EventFloorBytes,
             SnapshotMaxDepth = SnapshotMaxDepth ?? current.SnapshotMaxDepth,
             SnapshotSizeFloorBytes = SnapshotSizeFloorBytes ?? current.SnapshotSizeFloorBytes,
+            HistoryBandBytes = HistoryBandBytes ?? current.HistoryBandBytes,
             ScanWorkers = ScanWorkers ?? current.ScanWorkers,
             BackgroundIo = BackgroundIo ?? current.BackgroundIo,
             DetectBorderlessFullscreen = DetectBorderlessFullscreen ?? current.DetectBorderlessFullscreen,
