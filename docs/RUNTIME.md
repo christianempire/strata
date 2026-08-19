@@ -40,28 +40,97 @@ choice and it is what the brief's stack implies: it avoids bundling a browser en
 Angular app is the same code whether you open it from the tray or type the URL, and it costs nothing
 at rest.
 
-## Starting at login
+## Installing it, and starting at login
 
-Strata runs **unelevated**, so this is simple: a plain scheduled task at logon, or a Run key entry,
-or a shortcut in the Startup folder. No UAC prompt, ever, at login or otherwise.
+Two commands. The first needs the repository, the SDK and Node; the second needs neither, only the
+folder the first produced.
+
+```
+tools\publish.ps1
+```
+
+That builds the Angular UI, publishes the host complete into `artifacts\publish`, and then runs
+`strata install` from there, which:
+
+1. stops any Strata that is already running, by asking rather than killing;
+2. copies the whole publish to `%LOCALAPPDATA%\Programs\Strata`;
+3. registers a logon task pointing at that copy;
+4. starts it through the task, so what runs now is exactly what will run at logon.
+
+Undo it with `strata uninstall`, which stops the process, removes the task, removes the program
+directory and **leaves the database alone**. `--purge-data` deletes that too, and is the only way
+to.
+
+### Why a copy at all
+
+`strata.exe` lived in `src\Strata.Hostin\Release
+et9.0-windows\` throughout development, which
+is not a home. `dotnet clean`, a branch switch or moving the repository silently breaks anything
+pointing at it, and a rebuild while it is running fails on the file lock — which happened, twice,
+and is why install stops the running copy before it writes.
+
+The program directory and the data directory are separate and not nested. Install replaces the
+program directory wholesale; the database is somewhere a recursive delete cannot reach it.
+
+```
+%LOCALAPPDATA%\Programs\Strata\strata.exe    the program — replaced by install, deleted by uninstall
+%LOCALAPPDATA%\Strata\strata.db               the data — untouched by both
+```
+
+### The task
 
 ```
 Task:     Strata
-Trigger:  At log on (current user)
-Action:   C:\...\strata.exe tray
+Trigger:  At log on (current user), delayed 30 seconds
+Action:   %LOCALAPPDATA%\Programs\Strata\strata.exe tray
+Run as:   the current user, InteractiveToken, LeastPrivilege
 ```
 
 `tray` rather than `serve`: same process, same port, same UI, but it puts an icon in the
 notification area and runs without a console. `serve` stays as the developer's shape — a console
 attached, `--verbose` printing a line per request. Neither elevates.
 
-**Windows 11 hides new notification icons.** The first time it runs, the icon goes into the overflow
-flyout rather than onto the taskbar; click the `^` and drag Strata out to keep it visible. The
-process says so on startup rather than leaving you to wonder, because a hidden icon and a failed one
-look identical.
+**Verified unelevated.** `strata install` registered the task from an ordinary prompt with
+`IsInRole(Administrator)` false, and Task Scheduler accepted it: a per-user task in the current
+user's own name needs no privilege, and the executable's manifest is `asInvoker`, so there is
+nothing to prompt about at logon or at registration. The two alternatives named below would also
+have worked; the task was chosen because only it can express the two settings this process wants.
 
-Whenever an installer exists it will register that. Until then, starting it by hand is just running
-the executable, with no prompt.
+**Four settings that are not the default**, each of which would otherwise be a bug:
+
+| Setting | Default | Here | Why |
+|---|---|---|---|
+| `ExecutionTimeLimit` | 3 days | `PT0S` (none) | Task Scheduler stops a task after three days. A resident scanner has to opt out. |
+| `DisallowStartIfOnBatteries` | true | false | Would mean Strata never runs on an unplugged laptop. |
+| `StopIfGoingOnBatteries` | true | false | Same, mid-session. |
+| `Priority` | 7 (below normal) | 6 (normal) | Strata depresses its *scan threads*, not its process — see `docs/DESIGN-REVIEW.md`. The same process serves the UI somebody is looking at. |
+
+**Delayed 30 seconds.** "At log on" fires while the shell is still starting, the notification area
+among it. Thirty seconds costs nothing for a process that then sits still for fifteen minutes, and
+it keeps Strata out of the part of logon the user is watching. `--delay 0` turns it off.
+
+**No console window.** `strata.exe` is a console-subsystem executable, because most of its verbs are
+console verbs and a Windows-subsystem build would hand the shell its prompt back before a scan had
+printed a line. The subsystem is a property of the file, not of the verb, so a `tray` started
+without a console gets a window nobody asked for. The first statement in `Main` hides and releases
+it — and only when the console belongs to this process alone, so `strata tray` typed into PowerShell
+still prints where you can see it. Measured after starting the task: no `conhost` child process, no
+visible top-level window, `MainWindowHandle` zero.
+
+**Only one at a time.** Two instances fight: the second fails to bind `localhost:5177`, and both
+would run schedulers against one SQLite file. A named mutex per logon session makes the second one
+say `Strata is already running in this session` and exit, and a named event alongside it is how
+`strata install` asks a running copy to stop rather than killing it.
+
+### Why not a Run key or a Startup shortcut
+
+Both were on the table and both are equally unelevated — this document named them as the fallbacks
+if the task turned out to need administrator, and it did not. Neither can express a delay
+after logon, and neither has anything to say about execution time limits or batteries, because
+neither is supervising anything. The task is a supervisor; the other two are a spawn and a shrug.
+
+**Explicitly not done:** no Start Menu entry, no desktop shortcut, no MSI, no auto-update, nothing
+under `HKLM`, nothing touching another user's account.
 
 ### The one thing that does need administrator
 
@@ -129,9 +198,13 @@ For a read-only tool that watches disks, that trade is clearly worth making.
 ## Where things live
 
 ```
-%LOCALAPPDATA%\Strata\strata.db        the database
-%LOCALAPPDATA%\Strata\strata.db-wal    write-ahead log
+%LOCALAPPDATA%\Programs\Strata\      the program: strata.exe, wwwroot, icons
+%LOCALAPPDATA%\Strata\strata.db      the database
+%LOCALAPPDATA%\Strata\strata.db-wal  write-ahead log
 ```
+
+Two directories, and keeping them apart is the point. The first is disposable — install replaces it
+wholesale, uninstall deletes it. The second is months of history and neither verb touches it.
 
 Settings live in the database too, in a `settings` table, rather than in a config file. They were
 command line flags through Phases 1 and 2, which suits a console verb and does not suit a process

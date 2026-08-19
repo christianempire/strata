@@ -392,3 +392,9 @@ starting point. Deviations are recorded in `docs/design/README.md`.
 Not building, and pushing back on requests to: file deletion or cleanup actions (Strata is
 read-only), cloud sync, multi-machine support, duplicate-file detection, authentication, an
 installer, a plugin system, or a Linux/macOS port.
+
+**"An installer" still means an installer.** Phase 4 added `strata install`, which copies a publish
+output to `%LOCALAPPDATA%\Programs\Strata` and registers a logon task — forty-two files and one
+scheduled task, in a CLI verb, in the shape of `strata enable-journal`. No MSI, no bundle, no
+elevation, no `HKLM`, no Start Menu entry, no auto-update, no uninstall entry in Settings. Those are
+what the non-goal is about and they remain out.

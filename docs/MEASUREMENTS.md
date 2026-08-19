@@ -750,3 +750,48 @@ rows against **5,751**, and the database went from **545 MiB to 438 MiB** after 
 storage for history that is complete instead of capped at depth 8 and 10 MB. All 29 directories that
 changed between the last two rolled-up snapshots agreed exactly between the two models before the old
 table was dropped. Full figures in docs/STORAGE-MODEL.md.
+
+---
+
+# Phase 4 addendum: what an installed Strata costs on disk
+
+`strata install` copies a publish output to `%LOCALAPPDATA%\Programs\Strata`, so the size of that
+publish is the whole footprint of the program. Three shapes, published from the same commit with
+the same Angular build, measured with `Get-ChildItem -Recurse | Measure-Object -Sum Length`:
+
+| Publish | Files | Size | Needs .NET installed |
+|---|---:|---:|---|
+| Framework-dependent, no RID | 62 | 30.6 MB | yes |
+| **Framework-dependent, `-r win-x64`** | **42** | **3.8 MB** | **yes** |
+| Self-contained, `-r win-x64` | 367 | 105.5 MB | no |
+
+Of which the Angular UI is 21 files and 1.10 MB in every case, and the tray's icons are 5 files.
+
+**The RID-less publish is a trap worth naming.** 28.5 MB of its 30.6 MB is
+`runtimes\<platform>\native\`, SQLitePCLRaw's SQLite binary built for twenty platforms — ppc64le,
+maccatalyst-arm64, musl-s390x — of which exactly one will ever be loaded. `-r win-x64` with
+`--self-contained false` keeps the framework-dependent deployment and drops the other nineteen.
+That is an 8× saving for a flag.
+
+**Chosen: framework-dependent, RID-specific, `RollForward=Major`.** 3.8 MB against 105.5 MB is 28×,
+on a tool whose entire subject is what is filling up a disk; shipping a hundred megabytes of runtime
+to report on disk usage would be hard to defend in the app's own treemap.
+
+The one thing self-contained buys is that it cannot fail to find a runtime, and that mattered more
+than usual here: a logon task starts this with no console, so `You must install .NET` would go
+nowhere anybody reads and Strata would simply never appear. `RollForward=Major` buys the same
+insurance for nothing — Strata runs on .NET 9 while it is installed, and on the lowest higher major
+if it is ever removed. `Major` rather than `LatestMajor`, which would jump straight to the .NET 10
+runtime that is also on this machine and quietly run the shipped process on a runtime the tests
+never saw.
+
+`tools\publish.ps1 -SelfContained` remains, for a machine that will have no runtime at all.
+
+## For scale
+
+| | |
+|---|---:|
+| The installed program | 3.8 MB |
+| The database it maintains, C:, D: and E: after a week | 648.5 MB |
+
+The program is 0.6% of its own data directory, and 0.0004% of the 2.2 TB it is watching.

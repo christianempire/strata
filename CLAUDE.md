@@ -28,7 +28,7 @@ Work proceeds one phase at a time, and each stops for review.
 | 2 | USN incremental (Tier 2), scheduler, resource guards, diff engine + `events` | done |
 | 3a | Minimal API on `localhost:5177`, hosted with the scanner by `strata serve` | done |
 | 3b | Angular UI, built to the mockups in `docs/design/`, served by `strata serve` | done |
-| 4 | Tray icon **(done)**, retention/downsampling, polish | in progress |
+| 4 | Tray icon **(done)**, install + logon task **(done)**, retention/downsampling, polish | in progress |
 
 Do not build ahead of the current phase.
 

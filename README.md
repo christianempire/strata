@@ -25,12 +25,24 @@ as the scanner by `strata serve`. Five screens — Overview, Timeline, Explorer,
 — built to the mockups in [docs/design/](docs/design/). `tools/api-probe.http` exercises every
 endpoint.
 
-Phase 4 is next: the tray icon, retention and downsampling.
+Phase 4 is in progress: the tray icon and the logon task are done, retention and downsampling are
+next.
 
-Strata runs unelevated. The one thing that needs administrator is creating a change journal on a
-volume that lacks one, which is a one-time `strata enable-journal` from an elevated prompt. See
+Strata runs unelevated - including installing itself and registering the task that starts it at
+logon. The one thing that needs administrator is creating a change journal on a volume that lacks
+one, which is a one-time `strata enable-journal` from an elevated prompt. See
 [docs/RUNTIME.md](docs/RUNTIME.md) for how this looks once installed - short version: it lives in the
 tray and you never run anything from a console.
+
+## Install
+
+```
+tools\publish.ps1
+```
+
+Builds the UI, publishes to `artifacts\publish`, copies that to `%LOCALAPPDATA%\Programs\Strata`
+and registers a logon task against it. `strata uninstall` reverses all three and leaves the database
+alone; only `--purge-data` removes that.
 
 ## Build
 
@@ -59,6 +71,8 @@ strata enable-journal          create a journal on volumes lacking one (elevated
 strata watch                   run the incremental scanner on a schedule
 strata serve                   run the scanner, the API and the UI together
 strata tray                    the same, from the notification area, with no console
+strata install                 copy this build somewhere stable, start it at logon
+strata uninstall               undo that, keeping the database
 ```
 
 Then open <http://localhost:5177/>, or click the tray icon.
