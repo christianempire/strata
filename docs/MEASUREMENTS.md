@@ -575,3 +575,34 @@ Unchanged from Phase 2, plus one:
 - **API latency while a Tier 1 baseline is running.** The per-thread background I/O priority exists
   precisely so a scan cannot throttle a read in the same process, and that has never been shown end
   to end. D: and E: have no baseline yet, so the run that would show it is still available.
+
+---
+
+# Phase 3a addendum: sizing a sparse directory history
+
+The Phase 3a numbers showed `snapshot_dirs` costing more than estimated for less coverage than
+assumed. `strata watch --rollup-log` was added to size the alternative against real activity; the
+analysis and the proposal live in **docs/STORAGE-MODEL.md**, and `tools/replay-rollup-log.py`
+reproduces it.
+
+Headline, from 37 ticks over 35 minutes on C: including two clean rebuilds and a 2.2 GB
+install-and-delete cycle:
+
+| | |
+|---|---:|
+| Directories touched per tick, mean | **68** |
+| …that `snapshot_dirs` writes per tick regardless | **5,740** |
+| Ancestor fan-out per directly-changed directory | 2.3× |
+| Touched directories below depth 8, invisible to today's cap | **55%** |
+| Proposed row size, measured with `dbstat` on real ids | **26.5 B** vs today's 116.5 B |
+| Per week on C:, recording every change at unbounded depth | **18.2 MiB** vs today's 428.6 MiB |
+
+**24× less storage for complete depth coverage**, before any dead-band is applied. A dead-band takes
+it further — 4.0 MiB a week at 1 MiB — but turns out to be a tuning knob rather than a necessity.
+
+Reproduce with:
+
+```
+strata watch --interval 900 --rollup-log rollup.csv
+python tools/replay-rollup-log.py rollup.csv %LOCALAPPDATA%\Strata\strata.db
+```
