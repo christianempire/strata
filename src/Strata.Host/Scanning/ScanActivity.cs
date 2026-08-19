@@ -2,6 +2,28 @@ using Strata.Core.Scanning;
 
 namespace Strata.Host.Scanning;
 
+/// <summary>
+/// Which part of a baseline is running.
+/// </summary>
+/// <remarks>
+/// A baseline is not one long read, and treating it as one made it look broken. Measured on C:,
+/// clearing the previous scan's 3.1 million rows takes about nineteen seconds before a single
+/// directory is enumerated — during which the enumeration counters are all legitimately zero,
+/// because enumeration has not begun. Reporting that as "0%, 0 entries/s, no path" for the first
+/// sixth of the scan is the exact impression the first-run screen exists to prevent.
+/// </remarks>
+public enum ScanPhase
+{
+    /// <summary>Clearing the previous scan of this volume. No enumeration counter means anything yet.</summary>
+    Preparing = 0,
+
+    /// <summary>Walking the volume. The phase the progress figures describe.</summary>
+    Reading = 1,
+
+    /// <summary>Draining the writer and recording the snapshot. Enumeration is finished.</summary>
+    Writing = 2,
+}
+
 /// <summary>What the percentage is a percentage of.</summary>
 /// <remarks>
 /// Named rather than implied. A baseline's progress has two possible denominators and they are not
@@ -42,6 +64,9 @@ public sealed record ScanActivitySnapshot
     public required ScanTier Tier { get; init; }
 
     public required string StartedUtc { get; init; }
+
+    /// <summary>Which part of the baseline is running. Only <c>reading</c> has meaningful counters.</summary>
+    public ScanPhase Phase { get; init; }
 
     public long ElapsedMs { get; init; }
 
@@ -94,11 +119,24 @@ internal sealed class ScanActivity
     private long _files;
     private long _bytes;
     private string _currentPath = "";
+    private int _phase;
 
-    internal ScanActivity(string volume, ScanTier tier, long? expectedEntries, long expectedBytes)
+    /// <param name="phase">
+    /// Where this scan starts. Defaults to reading, which is the whole of an incremental tick — it
+    /// has no clear-then-walk-then-write split and reporting one would be a lie. A baseline passes
+    /// <see cref="ScanPhase.Preparing"/>, because it spends its first seconds deleting the previous
+    /// scan and a caller polling in that window needs to be told so rather than shown a zero.
+    /// </param>
+    internal ScanActivity(
+        string volume,
+        ScanTier tier,
+        long? expectedEntries,
+        long expectedBytes,
+        ScanPhase phase = ScanPhase.Reading)
     {
         Volume = volume;
         Tier = tier;
+        _phase = (int)phase;
         StartedUtc = DateTime.UtcNow;
         ExpectedEntries = expectedEntries;
         ExpectedBytes = expectedBytes;
@@ -115,6 +153,9 @@ internal sealed class ScanActivity
 
     /// <summary>What Windows reports used on the volume. Always available, so a first run has a basis.</summary>
     internal long ExpectedBytes { get; }
+
+    /// <summary>Moves to the next part of the baseline. Called from the scheduler thread.</summary>
+    internal void SetPhase(ScanPhase phase) => Volatile.Write(ref _phase, (int)phase);
 
     internal void Record(ScanProgress progress)
     {
@@ -139,10 +180,13 @@ internal sealed class ScanActivity
 
         var (basis, fraction, expected) = Measure(entries, bytes);
 
+        var phase = (ScanPhase)Volatile.Read(ref _phase);
+
         return new ScanActivitySnapshot
         {
             Volume = Volume,
             Tier = Tier,
+            Phase = phase,
             StartedUtc = StartedUtc.ToString("O"),
             ElapsedMs = elapsedMs,
             DirectoriesCompleted = directories,
@@ -151,10 +195,15 @@ internal sealed class ScanActivity
             CurrentPath = path,
             CurrentDepth = Depth(path),
             EntriesPerSecond = elapsedMs > 0 ? entries * 1000 / elapsedMs : 0,
-            Basis = basis,
-            Percent = fraction is null ? null : Math.Round(fraction.Value * 100, 1),
-            Expected = expected,
-            RemainingMs = Remaining(elapsedMs, fraction),
+            // Outside the reading phase these describe nothing. A percentage of an enumeration
+            // that has not started is not 0%, it is not applicable, and the difference is what
+            // separates "clearing the previous scan" from "stuck at zero".
+            Basis = phase == ScanPhase.Reading ? basis : ProgressBasis.None,
+            Percent = phase == ScanPhase.Reading && fraction is not null
+                ? Math.Round(fraction.Value * 100, 1)
+                : null,
+            Expected = phase == ScanPhase.Reading ? expected : null,
+            RemainingMs = phase == ScanPhase.Reading ? Remaining(elapsedMs, fraction) : null,
         };
     }
 

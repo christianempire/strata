@@ -22,6 +22,15 @@ export type ScanOutcome = 'ran' | 'deferred' | 'failed';
 /** How a running scan's percentage is measured. `none` means there is no percentage. */
 export type ProgressBasis = 'none' | 'entries' | 'bytes';
 
+/**
+ * Which part of a baseline is running.
+ *
+ * A baseline is three pieces of work and only the middle one has progress counters. Clearing the
+ * previous scan of C: takes about nineteen seconds before a single directory is enumerated, so a
+ * display that assumed one long read showed "0%, 0 entries/s" for the first sixth of it.
+ */
+export type ScanPhase = 'preparing' | 'reading' | 'writing';
+
 export interface Volume {
   id: number | null;
   guidPath: string;
@@ -140,6 +149,9 @@ export interface Settings {
 export interface ScanActivity {
   volume: string;
   tier: ScanTier;
+
+  /** Only `reading` has meaningful counters; the others report null percent and basis `none`. */
+  phase: ScanPhase;
   startedUtc: string;
   elapsedMs: number;
   directoriesCompleted: number;

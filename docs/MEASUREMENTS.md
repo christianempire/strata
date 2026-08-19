@@ -611,6 +611,92 @@ three and rounded to it, which turned the brief's own worked example — `−16.
 the design brief for exactly this reason: a rounding rule that is subtly wrong produces numbers that
 look entirely plausible.
 
+## API latency during a Tier 1 baseline — measured at last
+
+Outstanding since Phase 2, and the claim per-thread background I/O priority was chosen to support:
+a scan must not throttle a read in the same process. Taken by driving a full baseline of all three
+volumes through `POST /api/scan` with `strata serve` up, sampling four read endpoints every six
+seconds throughout.
+
+| Endpoint | Idle | **During a Tier 1 baseline** | After |
+|---|---:|---:|---:|
+| `/api/volumes` | 12.9 ms | **2.5 ms** | 1.7 ms |
+| `/api/snapshots` | 1.9 ms | **2.0 ms** | 1.7 ms |
+| `/api/scan-log` | 2.1 ms | **2.0 ms** | 2.1 ms |
+| `/api/scan/status` | 1.5 ms | **1.6 ms** | 1.2 ms |
+
+Medians; n=25 during, n=3 either side. **The scan costs the API nothing measurable.** The idle
+figures look worse only because the first sample of a cold process pays JIT — 34 ms, 17 ms, 13 ms,
+19 ms on the very first pass — which three samples cannot dilute and twenty-five can.
+
+Worst cases during the scan were 13–14 ms, but ~11 ms outliers appear in the idle and after passes
+too, so they are not the scan: they track GC and SQLite page-cache misses, not disk contention.
+
+`/api/tree` is deliberately absent. A Tier 1 baseline rebuilds `dir_totals` wholesale, so timing it
+would measure a table being replaced rather than a read being served.
+
+### The scan itself
+
+| Volume | Duration | Files | Directories |
+|---|---:|---:|---:|
+| C: | **125.4 s** | 3,120,923 | 579,196 |
+| D: | 1.3 s | 190,369 | 10,514 |
+| E: | 3.3 s | 423,063 | 24,525 |
+
+C: warm, at a peak of 26,600 entries/s. The 211 s figure elsewhere in this document is cold, and
+remains the number first-run UX has to be designed against.
+
+Database: **438 MB to 604 MB**, the growth being D: and E: gaining a baseline rather than C: gaining
+a second one.
+
+### Two defects this run exposed
+
+**A wrapped journal could never recover.** `JournalInvalidated` tells the user a full baseline is
+needed; the baseline set `volumes.baseline_utc` and left the dead row in `usn_cursors`, so the next
+tick failed identically and asked again. C: was in that loop. A baseline now clears the cursor, and
+an absent cursor is already the "start from the journal's current position" signal. After the fix,
+C: went from deferring every tick to `ran 0.6 s, 194 journal records`.
+
+**Progress was silent for the first twenty seconds**, and the first diagnosis of why was wrong.
+
+The symptom: `/api/scan/status` reported 0%, zero entries per second and no path for nineteen
+seconds of a 125-second scan, then jumped to 3,370 directories in the twentieth. The obvious reading
+is that progress was throttled — it fires every 2,000 completed directories — so the trigger also
+gained a 500 ms timer. That changed nothing, which is what showed the reading was wrong.
+
+Nothing was being throttled, because nothing was being reported. `SqliteFileSink`'s constructor runs
+`DELETE FROM files WHERE volume_id = ?` before enumeration begins — a Tier 1 scan replaces the
+volume wholesale — and on C: that is **3.1 million rows and about nineteen seconds**. The progress
+counters were zero because the walk had not started, and a callback that only fires on directory
+completion cannot report a phase in which no directory completes.
+
+A baseline is therefore three pieces of work and only the middle one has a denominator:
+
+| Phase | On C: | Has progress? |
+|---|---:|---|
+| Clearing the previous scan | 12–19 s across runs | no |
+| Reading the volume | ~106 s | yes |
+| Draining the writer, writing the snapshot | seconds | no |
+
+Verified by sampling `/api/scan/status` once a second through a rescan:
+
+```
+  1s  phase=preparing     —    basis=none     dirs=      0
+ 12s  phase=preparing     —    basis=none     dirs=      0
+ 13s  phase=reading     0.0%   basis=entries  dirs=      0
+ 14s  phase=reading     0.7%   basis=entries  dirs=  1,386
+ 26s  phase=reading     7.8%   basis=entries  dirs= 39,372
+```
+
+The 14-second sample is the 500 ms timer earning its keep: 1,386 directories is below the 2,000
+threshold, so a count-only trigger would have shown nothing for another second.
+
+`/api/scan/status` now carries a `phase`, and reports `percent: null` with `basis: "none"` outside
+the reading phase rather than a zero that looks like a stall. The first-run screen says "Clearing the
+previous scan of this volume" and runs its indeterminate sweep. The 500 ms timer was kept — it costs
+a tick count read per directory and guarantees the current-path display refreshes twice a second on
+a slow cold branch — but it is not what fixed this.
+
 ## Still not measured
 
 Unchanged from Phase 2, plus one:
@@ -620,11 +706,6 @@ Unchanged from Phase 2, plus one:
 - **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
 - **Whether elevation closes the 29.6 GB gap on C:.**
 - **A journal that wraps or is reset while running.**
-- **API latency while a Tier 1 baseline is running.** The per-thread background I/O priority exists
-  precisely so a scan cannot throttle a read in the same process, and that has never been shown end
-  to end. D: and E: have no baseline yet, so the run that would show it is still available — and
-  from Phase 3b there is a UI polling `/api/scan/status` during exactly that window, which makes it
-  the natural time to take the measurement.
 - **`/api/series` latency at a year of history.** Timed only against the current database, which
   holds days rather than months. It is one clustered range read per top-level directory, so the cost
   scales with rows in the window rather than with rows in the table — but that is reasoning about a

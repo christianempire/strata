@@ -135,6 +135,77 @@ public sealed class ScanActivityTests
         Assert.Equal(expected, activity.Snapshot().CurrentDepth);
     }
 
+    /// <summary>
+    /// An incremental tick reads; it does not prepare or write.
+    /// </summary>
+    /// <remarks>
+    /// The phase split exists for a baseline, which spends its first seconds deleting the previous
+    /// scan of the volume. A Tier 2 tick has no such split, so defaulting it into the preparing
+    /// phase would both mislabel it and suppress figures that are perfectly real.
+    /// </remarks>
+    [Fact]
+    public void AnIncrementalTickIsInTheReadingPhaseFromTheStart()
+    {
+        var activity = new ScanActivity("C:", ScanTier.Incremental, 1_000, 800 * GB);
+
+        activity.Record(new ScanProgress(100, 400, GB, @"\\?\C:\Users"));
+
+        var snapshot = activity.Snapshot();
+
+        Assert.Equal(ScanPhase.Reading, snapshot.Phase);
+        Assert.Equal(ProgressBasis.Entries, snapshot.Basis);
+        Assert.Equal(50.0, snapshot.Percent);
+    }
+
+    /// <summary>
+    /// While a baseline is clearing the previous scan there is no percentage, and none is invented.
+    /// </summary>
+    /// <remarks>
+    /// Measured: <c>DELETE FROM files WHERE volume_id = ?</c> on C: is 3.1 million rows and twelve
+    /// to nineteen seconds, during which no directory has been enumerated. Reporting that as 0% is
+    /// what made a working scan look hung for the first sixth of its life.
+    /// </remarks>
+    [Fact]
+    public void APreparingBaselineReportsNoProgressRatherThanZero()
+    {
+        var activity = new ScanActivity(
+            "C:", ScanTier.Full, 3_000_000, 800 * GB, ScanPhase.Preparing);
+
+        var snapshot = activity.Snapshot();
+
+        Assert.Equal(ScanPhase.Preparing, snapshot.Phase);
+        Assert.Null(snapshot.Percent);
+        Assert.Null(snapshot.RemainingMs);
+        Assert.Equal(ProgressBasis.None, snapshot.Basis);
+
+        // And once the walk starts, the same activity reports normally.
+        activity.SetPhase(ScanPhase.Reading);
+        activity.Record(new ScanProgress(500_000, 1_000_000, 100 * GB, @"\\?\C:\Users"));
+
+        var reading = activity.Snapshot();
+
+        Assert.Equal(ScanPhase.Reading, reading.Phase);
+        Assert.Equal(50.0, reading.Percent);
+    }
+
+    [Fact]
+    public void AWritingBaselineAlsoWithholdsAPercentage()
+    {
+        var activity = new ScanActivity("C:", ScanTier.Full, 1_000, 800 * GB);
+
+        activity.Record(new ScanProgress(0, 1_000, GB, @"\\?\C:\Users"));
+        activity.SetPhase(ScanPhase.Writing);
+
+        var snapshot = activity.Snapshot();
+
+        Assert.Equal(ScanPhase.Writing, snapshot.Phase);
+        Assert.Null(snapshot.Percent);
+
+        // The raw counts are still what the walk found; it is the fraction that stops meaning
+        // anything once the walk is over.
+        Assert.Equal(1_000, snapshot.FilesSeen);
+    }
+
     [Fact]
     public void TheLatestSampleReplacesTheOneBeforeIt()
     {

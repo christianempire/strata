@@ -273,7 +273,11 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             request.Volume.Display,
             ScanTier.Full,
             LastEntryCount(request.Volume),
-            request.Volume.UsedBytes);
+            request.Volume.UsedBytes,
+
+            // A baseline's first seconds are spent clearing the previous scan, so it starts here
+            // rather than in the reading phase whose counters would all read zero.
+            ScanPhase.Preparing);
 
         Volatile.Write(ref _current, activity);
 
@@ -286,7 +290,8 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                 _database,
                 BaselineScan.OptionsFrom(settings, activity.Record),
                 BaselineScan.SnapshotOptionsFrom(settings),
-                _stopping.Token);
+                _stopping.Token,
+                activity.SetPhase);
         }
         finally
         {

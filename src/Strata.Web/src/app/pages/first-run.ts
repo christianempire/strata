@@ -59,9 +59,30 @@ export class FirstRun {
       case 'bytes':
         return 'of what Windows reports used — there is no previous scan to count entries against';
       default:
-        return 'no denominator yet';
+        return '';
     }
   });
+
+  /**
+   * What the scan is doing, when it is not the part with a percentage.
+   *
+   * Both of these are real work with no denominator: clearing C:'s previous 3.1 million rows takes
+   * about nineteen seconds, and draining the writer takes several more. Saying so beats a bar
+   * sitting at zero, which is the difference between "working" and "frozen" that this whole screen
+   * exists to hold.
+   */
+  protected readonly phaseNote = computed(() => {
+    switch (this.activity()?.phase) {
+      case 'preparing':
+        return 'Clearing the previous scan of this volume';
+      case 'writing':
+        return 'Writing the snapshot';
+      default:
+        return 'Reading';
+    }
+  });
+
+  protected readonly reading = computed(() => this.activity()?.phase === 'reading');
 
   /** What already works while the first scan runs, and what is still waiting. */
   protected readonly readiness = computed(() => {

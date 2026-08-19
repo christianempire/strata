@@ -15,11 +15,23 @@
           @if (scan.percent !== null) {
             <div class="t-num-hero pos">{{ scan.percent.toFixed(0) }}%</div>
           } @else {
-            <div class="t-num-hero faint">—</div>
+            <!-- No percentage outside the reading phase, because there is nothing to be a
+                 percentage of yet. The phase says what is happening instead. -->
+            <div class="t-num-lg dim phase-word">{{ phaseNote() }}…</div>
           }
 
           <div class="pct-detail">
-            @if (scan.expected !== null && scan.basis === 'entries') {
+            @if (!reading()) {
+              <div class="t-body-lg">
+                @if (scan.phase === 'preparing') {
+                  A rescan replaces the previous one wholesale, so its rows are cleared first. On a
+                  system volume that is a few million rows and about twenty seconds.
+                } @else {
+                  Enumeration is finished. The writer is draining and the snapshot is being recorded.
+                }
+              </div>
+              <div class="t-meta faint">no progress figure until the walk starts</div>
+            } @else if (scan.expected !== null && scan.basis === 'entries') {
               <div class="t-body-lg">
                 {{ scan.directoriesCompleted + scan.filesSeen | grouped }} of
                 {{ scan.expected | grouped }} entries
@@ -49,6 +61,7 @@
           @if (scan.percent !== null) {
             <div class="bar-fill" [style.width.%]="scan.percent"></div>
           } @else {
+            <!-- A sweep, not a bar at zero. It says "running", which is all it knows. -->
             <div class="bar-fill indeterminate"></div>
           }
         </div>
@@ -80,10 +93,12 @@
           The path being read. More than a bar and a percentage, this is what says the thing is
           alive: it changes every second and it names something recognisable.
         -->
-        <div class="reading">
-          <div class="t-micro">Reading now</div>
-          <div class="t-path reading-path" [title]="scan.currentPath">{{ scan.currentPath }}</div>
-        </div>
+        @if (reading() && scan.currentPath) {
+          <div class="reading">
+            <div class="t-micro">Reading now</div>
+            <div class="t-path reading-path" [title]="scan.currentPath">{{ scan.currentPath }}</div>
+          </div>
+        }
       </div>
     </div>
 

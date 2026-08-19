@@ -43,18 +43,25 @@ internal static class BaselineScan
     /// Scans a volume, and writes it if a database is supplied.
     /// </summary>
     /// <param name="database">Null to scan and measure without persisting anything.</param>
+    /// <param name="onPhase">
+    /// Told which part of the baseline is running. A baseline is three distinct pieces of work and
+    /// only the middle one has progress counters, so a caller showing a bar needs to know which.
+    /// </param>
     internal static BaselineOutcome Run(
         VolumeIdentity volume,
         StrataDatabase? database,
         ScanOptions scanOptions,
         SnapshotOptions snapshotOptions,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<ScanPhase>? onPhase = null)
     {
         ArgumentNullException.ThrowIfNull(volume);
         ArgumentNullException.ThrowIfNull(scanOptions);
         ArgumentNullException.ThrowIfNull(snapshotOptions);
 
         var scanner = new Tier1Scanner(new Win32DirectoryEnumerator(), scanOptions);
+
+        onPhase?.Invoke(ScanPhase.Reading);
 
         if (database is null)
         {
@@ -68,9 +75,19 @@ internal static class BaselineScan
         using var connection = database.Open();
         var volumeId = VolumeRepository.Upsert(connection, volume);
 
+        // Constructing the sink clears the previous scan of this volume, which on C: is 3.1 million
+        // rows and about nineteen seconds. Enumeration has not started, so every progress counter is
+        // zero and will stay zero until it does — say which phase this is rather than let a caller
+        // draw a stalled bar.
+        onPhase?.Invoke(ScanPhase.Preparing);
+
         using var sink = new SqliteFileSink(connection, volumeId);
 
+        onPhase?.Invoke(ScanPhase.Reading);
+
         var result = scanner.Scan(volume, sink, cancellationToken);
+
+        onPhase?.Invoke(ScanPhase.Writing);
 
         // Enumeration is finished but the writer may still be draining its queue. The time that
         // takes is reported separately, because it is storage cost rather than scan cost and
