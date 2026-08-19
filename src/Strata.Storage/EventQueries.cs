@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Strata.Core.Diffing;
 
 namespace Strata.Storage;
 
@@ -62,7 +63,7 @@ public static class EventQueries
                 DeltaBytes = reader.GetInt64(6),
                 ChurnBytes = reader.GetInt64(7),
                 FileDelta = reader.GetInt32(8),
-                Kind = reader.GetInt32(9),
+                Kind = (ChangeKind)reader.GetInt32(9),
             });
         }
 

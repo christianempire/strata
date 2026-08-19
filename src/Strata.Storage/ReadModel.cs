@@ -1,3 +1,7 @@
+using Strata.Core.Diffing;
+using Strata.Core.Model;
+using Strata.Core.Scanning;
+
 namespace Strata.Storage;
 
 /// <summary>A volume as recorded, with what the read side needs to describe its state.</summary>
@@ -13,7 +17,7 @@ public sealed record VolumeRow
 
     public string FileSystem { get; init; } = "";
 
-    public int Kind { get; init; }
+    public VolumeKind Kind { get; init; }
 
     public long TotalBytes { get; init; }
 
@@ -56,8 +60,8 @@ public sealed record SnapshotRow
 
     public required string TakenUtc { get; init; }
 
-    /// <summary>1 full baseline, 2 incremental, 3 throttled fallback.</summary>
-    public int ScanTier { get; init; }
+    /// <summary>Which strategy produced this snapshot.</summary>
+    public ScanTier Tier { get; init; }
 
     public long DurationMs { get; init; }
 
@@ -126,6 +130,6 @@ public sealed record EventRow
 
     public int FileDelta { get; init; }
 
-    /// <summary>1 grew, 2 shrank, 3 appeared, 4 vanished, 5 moved.</summary>
-    public int Kind { get; init; }
+    /// <summary>How the change is described to a human.</summary>
+    public ChangeKind Kind { get; init; }
 }

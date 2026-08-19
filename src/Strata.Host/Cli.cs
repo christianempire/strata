@@ -30,6 +30,7 @@ internal static class Cli
                 "usn-probe" => UsnProbeCommand.Run(ParseOptions(args)),
                 "usn-tail" => UsnTailCommand.Run(ParseOptions(args)),
                 "watch" => WatchCommand.Run(ParseOptions(args)),
+                "serve" => ServeCommand.Run(ParseOptions(args)),
                 "enable-journal" => EnableJournalCommand.Run(ParseOptions(args)),
                 _ => UnknownVerb(args[0]),
             };
@@ -128,6 +129,10 @@ internal static class Cli
                     options.TailLimit = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
+                case "--port":
+                    options.Port = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
                 case "--interval":
                     options.IntervalSeconds = int.Parse(RequireValue(args, ref i), Culture);
                     break;
@@ -211,6 +216,7 @@ internal static class Cli
               strata usn-probe [<volume>...]     report what the change journal permits here
               strata usn-tail [<volume>]         print live change-journal records
               strata watch [<volume>...]         run the incremental scanner on a schedule
+              strata serve                       run the scanner and the localhost API together
               strata enable-journal [<volume>]   create a change journal (needs elevation)
 
             SCAN OPTIONS
@@ -239,12 +245,17 @@ internal static class Cli
               --verbose            print a per-phase timing breakdown for each tick
               --no-fullscreen-detection   disable the borderless-fullscreen check
 
+            SERVE OPTIONS
+              --port <n>           API port on localhost (default: 5177)
+              --verbose            log a line per HTTP request with its duration
+
             EXAMPLES
               strata scan D:
               strata scan --all --histogram
               strata scan C: --no-store --no-background-io --threads 8
               strata watch --once
               strata watch --interval 60
+              strata serve --verbose
             """);
     }
 }
@@ -285,6 +296,8 @@ internal sealed class CliOptions
     internal int IntervalSeconds { get; set; } = 900;
 
     internal double CpuThreshold { get; set; } = 70;
+
+    internal int Port { get; set; } = 5177;
 
     internal int MaxRecordsPerTick { get; set; } = 50_000;
 

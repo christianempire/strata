@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Strata.Core.Model;
 
 namespace Strata.Storage;
 
@@ -43,7 +44,7 @@ public static class VolumeQueries
                 DriveLetter = reader.IsDBNull(2) ? null : reader.GetString(2),
                 Label = reader.IsDBNull(3) ? "" : reader.GetString(3),
                 FileSystem = reader.IsDBNull(4) ? "" : reader.GetString(4),
-                Kind = reader.GetInt32(5),
+                Kind = (VolumeKind)reader.GetInt32(5),
                 TotalBytes = reader.GetInt64(6),
                 FreeBytes = reader.GetInt64(7),
                 DiskNumber = reader.IsDBNull(8) ? null : reader.GetInt32(8),

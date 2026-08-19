@@ -22,4 +22,13 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      A framework reference rather than the Web SDK. This project is a console executable that
+      happens to host a listener; switching to Microsoft.NET.Sdk.Web would bring wwwroot conventions,
+      launch profiles and appsettings binding that nothing here uses.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>

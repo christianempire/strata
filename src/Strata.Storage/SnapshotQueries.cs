@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 
+using Strata.Core.Scanning;
+
 namespace Strata.Storage;
 
 /// <summary>Read side of <c>snapshots</c>.</summary>
@@ -73,7 +75,7 @@ public static class SnapshotQueries
         Id = reader.GetInt64(0),
         VolumeId = reader.GetInt64(1),
         TakenUtc = reader.GetString(2),
-        ScanTier = reader.GetInt32(3),
+        Tier = (ScanTier)reader.GetInt32(3),
         DurationMs = reader.GetInt64(4),
         TotalBytes = reader.GetInt64(5),
         TotalOnDisk = reader.GetInt64(6),
