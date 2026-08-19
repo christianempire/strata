@@ -169,11 +169,25 @@ public sealed class SqliteFileSink : IScanSink, IDisposable
         var command = _connection.CreateCommand();
         command.Transaction = transaction;
 
+        // A file with several hardlinks arrives once per link but shares one file ID, so the rows
+        // collide. The conflict clause makes the winner deterministic: the row that owns the bytes
+        // always survives, whichever order the scan threads happened to reach the links in. With
+        // INSERT OR REPLACE the last writer won, which meant the surviving row could be one flagged
+        // as a link to bytes counted at a path that no longer had a row.
         command.CommandText = """
-            INSERT OR REPLACE INTO files
+            INSERT INTO files
                 (volume_id, file_id, parent_id, name, logical_size, size_on_disk,
-                 attributes, modified_utc, is_hard_link)
-            VALUES ($volume, $file, $parent, $name, $logical, $ondisk, $attr, $modified, $link);
+                 attributes, modified_unix, is_hard_link)
+            VALUES ($volume, $file, $parent, $name, $logical, $ondisk, $attr, $modified, $link)
+            ON CONFLICT (volume_id, file_id) DO UPDATE SET
+                parent_id     = excluded.parent_id,
+                name          = excluded.name,
+                logical_size  = excluded.logical_size,
+                size_on_disk  = excluded.size_on_disk,
+                attributes    = excluded.attributes,
+                modified_unix = excluded.modified_unix,
+                is_hard_link  = excluded.is_hard_link
+            WHERE excluded.is_hard_link = 0;
             """;
 
         // Parameters are created once and their values reassigned per row. Building parameter
@@ -185,7 +199,7 @@ public sealed class SqliteFileSink : IScanSink, IDisposable
         command.Parameters.Add("$logical", SqliteType.Integer);
         command.Parameters.Add("$ondisk", SqliteType.Integer);
         command.Parameters.Add("$attr", SqliteType.Integer);
-        command.Parameters.Add("$modified", SqliteType.Text);
+        command.Parameters.Add("$modified", SqliteType.Integer);
         command.Parameters.Add("$link", SqliteType.Integer);
 
         command.Prepare();
@@ -201,9 +215,19 @@ public sealed class SqliteFileSink : IScanSink, IDisposable
         parameters[4].Value = record.LogicalSize;
         parameters[5].Value = record.SizeOnDisk;
         parameters[6].Value = record.RawAttributes;
-        parameters[7].Value = record.LastWriteUtc.ToString("O");
+        parameters[7].Value = ToUnixSeconds(record.LastWriteUtc);
         parameters[8].Value = record.IsHardLink ? 1 : 0;
     }
+
+    /// <summary>
+    /// Converts to Unix seconds, clamping timestamps that predate the epoch.
+    /// </summary>
+    /// <remarks>
+    /// Real volumes carry a handful of files with nonsense timestamps. Second resolution is ample
+    /// here: this field answers "when did this last change", not "in what order within a second".
+    /// </remarks>
+    private static long ToUnixSeconds(DateTime value)
+        => value <= DateTime.UnixEpoch ? 0 : new DateTimeOffset(value, TimeSpan.Zero).ToUnixTimeSeconds();
 
     private void ClearVolume()
     {

@@ -37,9 +37,18 @@ CREATE TABLE files (
     logical_size  INTEGER NOT NULL,
     size_on_disk  INTEGER NOT NULL,
     attributes    INTEGER NOT NULL,
-    modified_utc  TEXT    NOT NULL,
+    -- Unix seconds, not ISO-8601. Timestamps are stored as text elsewhere for legibility in a
+    -- SQLite browser, but this table has millions of rows and an ISO-8601 string costs 28 bytes
+    -- against 8 for an integer. Measured at ~70 MB across three volumes on the target machine.
+    modified_unix INTEGER NOT NULL,
     -- An additional link to bytes already counted at another path. Counts zero toward rollups so
     -- that directory totals sum exactly to the volume total.
+    --
+    -- Known limitation: a file with several hardlinks occupies one row, holding the path that owns
+    -- the bytes, so the other paths are not currently browsable. The primary key cannot represent
+    -- them. On the target machine that is 135k of 3.5M rows, nearly all inside WinSxS. Widening the
+    -- key to include (parent_id, name) would fix it at the cost of making a rename a delete plus an
+    -- insert; deferred until the UI shows whether those paths are worth listing.
     is_hard_link  INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (volume_id, file_id)
 ) WITHOUT ROWID;

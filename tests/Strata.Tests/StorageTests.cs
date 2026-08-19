@@ -177,6 +177,53 @@ public sealed class StorageTests : IDisposable
             QueryLong(connection, "SELECT COUNT(*) FROM files;"));
     }
 
+    /// <summary>
+    /// Hardlinks share a file ID, so their rows collide on the primary key. Whichever order the scan
+    /// threads reach the links in, the surviving row must be the one that owns the bytes — otherwise
+    /// the table can end up holding a row flagged as a link to bytes counted at a path that has no
+    /// row at all.
+    /// </summary>
+    [Theory]
+    [InlineData(false)] // owner written first
+    [InlineData(true)]  // link written first
+    public void TheByteOwningRowSurvivesAHardLinkCollision(bool linkFirst)
+    {
+        using var connection = _database.Open();
+        var volumeId = VolumeRepository.Upsert(connection, Volume());
+
+        var owner = new FileRecord(77, 5, "owner.dll", 4_096, 4_096, 0x80, DateTime.UnixEpoch, IsHardLink: false);
+        var link = new FileRecord(77, 9, "link.dll", 4_096, 4_096, 0x80, DateTime.UnixEpoch, IsHardLink: true);
+
+        using (var sink = new SqliteFileSink(connection, volumeId))
+        {
+            sink.Write(linkFirst ? [link, owner] : [owner, link]);
+            sink.Complete();
+        }
+
+        Assert.Equal(1, QueryLong(connection, "SELECT COUNT(*) FROM files;"));
+        Assert.Equal(0, QueryLong(connection, "SELECT is_hard_link FROM files;"));
+        Assert.Equal("owner.dll", QueryStrings(connection, "SELECT name FROM files;").Single());
+    }
+
+    [Fact]
+    public void TimestampsRoundTripAsUnixSeconds()
+    {
+        using var connection = _database.Open();
+        var volumeId = VolumeRepository.Upsert(connection, Volume());
+
+        var when = new DateTime(2024, 3, 1, 8, 15, 30, DateTimeKind.Utc);
+
+        using (var sink = new SqliteFileSink(connection, volumeId))
+        {
+            sink.Write([new FileRecord(1, 5, "a.bin", 1, 1, 0x80, when, IsHardLink: false)]);
+            sink.Complete();
+        }
+
+        var stored = QueryLong(connection, "SELECT modified_unix FROM files;");
+
+        Assert.Equal(new DateTimeOffset(when, TimeSpan.Zero).ToUnixTimeSeconds(), stored);
+    }
+
     [Fact]
     public void SnapshotWriterRecordsTheScanAndItsRollup()
     {
