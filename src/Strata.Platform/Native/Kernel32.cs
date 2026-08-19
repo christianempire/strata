@@ -16,6 +16,7 @@ internal static partial class Kernel32
 
     // --- Access rights and flags -------------------------------------------------------------
 
+    internal const uint GENERIC_READ = 0x80000000;
     internal const uint FILE_LIST_DIRECTORY = 0x0001;
     internal const uint FILE_READ_ATTRIBUTES = 0x0080;
     internal const uint SYNCHRONIZE = 0x00100000;
@@ -44,6 +45,16 @@ internal static partial class Kernel32
     internal const int ERROR_NO_MORE_ITEMS = 259;
     internal const int ERROR_DIRECTORY = 267;
     internal const int ERROR_FILENAME_EXCED_RANGE = 206;
+    internal const int ERROR_INVALID_FUNCTION = 1;
+
+    /// <summary>The volume has no active change journal. Creating one needs elevation.</summary>
+    internal const int ERROR_JOURNAL_NOT_ACTIVE = 1179;
+
+    /// <summary>The journal was deleted and recreated; any stored cursor is meaningless.</summary>
+    internal const int ERROR_JOURNAL_DELETE_IN_PROGRESS = 1178;
+
+    /// <summary>The requested USN has already been trimmed from the journal.</summary>
+    internal const int ERROR_JOURNAL_ENTRY_DELETED = 1181;
 
     // --- Drive types, as returned by GetDriveTypeW --------------------------------------------
 

@@ -27,6 +27,7 @@ internal static class Cli
             {
                 "volumes" => VolumesCommand.Run(ParseOptions(args)),
                 "scan" => ScanCommand.Run(ParseOptions(args)),
+                "usn-probe" => UsnProbeCommand.Run(ParseOptions(args)),
                 _ => UnknownVerb(args[0]),
             };
         }
@@ -148,6 +149,7 @@ internal static class Cli
               strata volumes                     list volumes and whether Strata will scan them
               strata scan [<volume>...]          run a full baseline scan
               strata scan --all                  scan every eligible fixed volume
+              strata usn-probe [<volume>...]     report what the change journal permits here
 
             SCAN OPTIONS
               --db <path>          database file (default: %LOCALAPPDATA%\Strata\strata.db)
