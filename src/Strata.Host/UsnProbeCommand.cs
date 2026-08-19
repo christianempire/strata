@@ -38,6 +38,12 @@ internal static class UsnProbeCommand
 
             Console.WriteLine($"  {"HANDLE",-22} {"OPEN",5} {"QUERY",6} {"READ",6} {"UNPRIV",7}  DETAIL");
 
+            using (var journal = new Win32UsnJournal(volume))
+            {
+                Console.WriteLine(
+                    $"  read path: {(journal.IsPrivileged ? "privileged (names inline)" : "unprivileged (names redacted, resolved by file id)")}");
+            }
+
             foreach (var attempt in UsnAccessProbe.Probe(volume))
             {
                 var detail = attempt switch

@@ -4,6 +4,14 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>strata</AssemblyName>
     <RootNamespace>Strata.Host</RootNamespace>
+
+    <!--
+      Strata ships elevated. Build with -p:RequireAdministrator=false for an asInvoker binary,
+      which is what development and any automated run needs: a requireAdministrator executable
+      cannot be launched without an interactive UAC consent prompt.
+    -->
+    <RequireAdministrator Condition="'$(RequireAdministrator)' == ''">true</RequireAdministrator>
+    <ApplicationManifest Condition="'$(RequireAdministrator)' == 'true'">app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

@@ -17,8 +17,13 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 
 ## Status
 
-Phase 1 — volume enumeration, full baseline scanner, SQLite storage, and a CLI that reports real
-numbers. No API, no UI, no background agent yet.
+Phases 1 and 2 are done: volume enumeration, full baseline scanner, SQLite storage, the NTFS change
+journal incremental scanner, the diff engine, the resource guards, and a scheduler. No API or UI yet.
+
+Strata runs elevated. Reading the journal does not require it, but creating one on a volume that
+lacks it does, and elevation also lets a baseline read ACL'd directories. See
+[docs/RUNTIME.md](docs/RUNTIME.md) for how this looks once it is installed - short version: it lives
+in the tray and you never run anything from a console.
 
 ## Build
 
@@ -30,6 +35,13 @@ dotnet test
 ## Use
 
 ```
-dotnet run --project src/Strata.Host -- volumes
-dotnet run --project src/Strata.Host -- scan D:
+strata volumes                 list volumes and what Strata will do with each
+strata scan D:                 full baseline scan
+strata usn-probe               report what the change journal permits here
+strata enable-journal          create a journal on volumes lacking one (elevated)
+strata watch                   run the incremental scanner on a schedule
 ```
+
+Build an unelevated binary for development with
+`dotnet build -c Release -p:RequireAdministrator=false`; a `requireAdministrator` executable cannot
+be launched from a script.

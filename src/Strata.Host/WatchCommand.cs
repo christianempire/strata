@@ -240,11 +240,26 @@ internal static class WatchCommand
             }
 
             var rootId = tree.Values.FirstOrDefault(n => n.Depth == 0)?.Id ?? 5;
+            var prefix = _volume.DriveLetter ?? _volume.GuidPath;
+
+            // Strata's own database sits on a watched volume and is rewritten by every tick, so
+            // without this it is permanently the loudest thing in its own feed - a 435 MB file
+            // churning on a fifteen-minute cycle drowns out whatever the user actually did.
+            //
+            // Filtered from attribution only, not from the rollup: the database occupies real disk
+            // and should still appear in totals and in the treemap. It is noise in the change log,
+            // not a lie in the accounting.
+            var reportable = PathExclusions.Filter(result.Deltas, tree, prefix, options.ExcludedEventPaths);
+
+            if (reportable.Count == 0)
+            {
+                return 0;
+            }
 
             var changes = DiffEngine.Attribute(
                 tree,
                 rootId,
-                result.Deltas,
+                reportable,
                 _volume.DriveLetter ?? _volume.GuidPath,
                 new DiffOptions { MinimumDeltaBytes = options.EventFloorBytes });
 

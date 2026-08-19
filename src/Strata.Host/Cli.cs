@@ -148,6 +148,14 @@ internal static class Cli
                     options.NoFullscreenDetection = true;
                     break;
 
+                case "--exclude-events":
+                    options.ExtraEventExclusions.Add(RequireValue(args, ref i));
+                    break;
+
+                case "--include-strata-db":
+                    options.IncludeStrataDatabase = true;
+                    break;
+
                 case "--verbose":
                     options.Verbose = true;
                     break;
@@ -224,6 +232,8 @@ internal static class Cli
               --cpu-threshold <n>  defer above this system CPU percent (default: 70)
               --max-records <n>    journal records per tick (default: 50000)
               --event-floor-kb <n> smallest change worth an event (default: 1024)
+              --exclude-events <path>      keep a path out of the change log, repeatable
+              --include-strata-db         do not exclude Strata's own database
               --once               run a single tick and exit
               --ignore-gate        run even when the resource guards would defer (diagnostic)
               --verbose            print a per-phase timing breakdown for each tick
@@ -283,6 +293,14 @@ internal sealed class CliOptions
     internal bool NoFullscreenDetection { get; set; }
 
     internal bool Verbose { get; set; }
+
+    internal List<string> ExtraEventExclusions { get; } = [];
+
+    internal bool IncludeStrataDatabase { get; set; }
+
+    /// <summary>Paths whose changes are kept out of the event feed, but not out of the totals.</summary>
+    internal IReadOnlyList<string> ExcludedEventPaths =>
+        [.. IncludeStrataDatabase ? [] : Exclusions.Defaults, .. ExtraEventExclusions];
 
     internal bool IgnoreGate { get; set; }
 

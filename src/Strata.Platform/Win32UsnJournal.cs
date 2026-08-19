@@ -32,12 +32,7 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
 
     private readonly VolumeIdentity _volume;
     private readonly SafeFileHandle _handle;
-
-    /// <summary>
-    /// Set once the privileged FSCTL has been seen to work, so we stop paying for a failed
-    /// unprivileged attempt on every read.
-    /// </summary>
-    private uint _readControlCode = Usn.FSCTL_READ_UNPRIVILEGED_USN_JOURNAL;
+    private uint _readControlCode;
 
     private bool _disposed;
 
@@ -46,8 +41,37 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
         ArgumentNullException.ThrowIfNull(volume);
 
         _volume = volume;
+
+        // Take the most capable handle this process is allowed to have, rather than branching on
+        // whether we think we are elevated. Opening the volume device with GENERIC_READ succeeds
+        // only with administrator rights, and it is what the privileged FSCTL needs - which in turn
+        // is the read that returns file names inline instead of redacting them. Failing that, a
+        // directory handle on the volume root works for any user with the unprivileged FSCTL.
+        //
+        // Self-configuring: no elevation check, and the same code is correct either way.
+        _handle = OpenVolumeDevice(volume);
+
+        if (!_handle.IsInvalid)
+        {
+            IsPrivileged = true;
+            _readControlCode = Usn.FSCTL_READ_USN_JOURNAL;
+            return;
+        }
+
+        _handle.Dispose();
         _handle = OpenRoot(volume);
+        _readControlCode = Usn.FSCTL_READ_UNPRIVILEGED_USN_JOURNAL;
     }
+
+    /// <summary>
+    /// Whether the journal is being read through the privileged path, which returns file names.
+    /// </summary>
+    /// <remarks>
+    /// Reported so the CLI can say what fidelity is actually in effect. Under the unprivileged read
+    /// every record's name is redacted and has to be resolved from the file ID, which works but
+    /// costs an extra call per changed file and cannot recover the name of a deleted file.
+    /// </remarks>
+    public bool IsPrivileged { get; }
 
     /// <summary>Whether the volume could be opened at all.</summary>
     public bool IsOpen => !_handle.IsInvalid;
@@ -173,16 +197,15 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
                     output, BufferSize,
                     out var returned, 0);
 
-                // Only retry privileged when the failure looks like "this FSCTL is not available
-                // to you". Falling back on an unrelated error (no journal, bad cursor) would
-                // permanently abandon the unprivileged path for no reason.
+                // Swap FSCTLs once if this one is not available on this handle. Only on errors that
+                // mean exactly that: falling back on an unrelated failure (no journal, stale cursor)
+                // would abandon a working path for no reason.
                 if (!ok &&
-                    _readControlCode == Usn.FSCTL_READ_UNPRIVILEGED_USN_JOURNAL &&
                     Marshal.GetLastPInvokeError() is Kernel32.ERROR_INVALID_FUNCTION or Kernel32.ERROR_ACCESS_DENIED)
                 {
-                    // Fall back to the privileged FSCTL once, in case this volume or Windows build
-                    // does not support the unprivileged form.
-                    _readControlCode = Usn.FSCTL_READ_USN_JOURNAL;
+                    _readControlCode = _readControlCode == Usn.FSCTL_READ_UNPRIVILEGED_USN_JOURNAL
+                        ? Usn.FSCTL_READ_USN_JOURNAL
+                        : Usn.FSCTL_READ_UNPRIVILEGED_USN_JOURNAL;
 
                     ok = Kernel32.DeviceIoControl(
                         _handle, _readControlCode,
@@ -398,6 +421,24 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
                 output, (uint)sizeof(USN_JOURNAL_DATA_V0),
                 out _, 0);
         }
+    }
+
+    /// <summary>Opens the volume device with GENERIC_READ. Succeeds only when elevated.</summary>
+    private static SafeFileHandle OpenVolumeDevice(VolumeIdentity volume)
+    {
+        // The device path takes no trailing separator, unlike the root path.
+        var device = volume.DriveLetter is not null
+            ? @"\\.\" + volume.DriveLetter
+            : volume.GuidPath.TrimEnd('\\');
+
+        return Kernel32.CreateFile(
+            device,
+            Kernel32.GENERIC_READ,
+            Kernel32.FILE_SHARE_READ | Kernel32.FILE_SHARE_WRITE,
+            0,
+            Kernel32.OPEN_EXISTING,
+            0,
+            0);
     }
 
     private static SafeFileHandle OpenRoot(VolumeIdentity volume)

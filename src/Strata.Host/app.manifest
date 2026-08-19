@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="Strata" />
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <!--
+          Strata runs elevated.
+
+          Reading the change journal does not require it: a directory handle on the volume root plus
+          FSCTL_READ_UNPRIVILEGED_USN_JOURNAL is enough, and that path is kept working. Elevation
+          buys three things that unprivileged operation cannot:
+
+            1. FSCTL_CREATE_USN_JOURNAL, needed one time per volume. On the target machine D: and E:
+               have no journal at all, so without this they are stuck on full rescans.
+            2. Journal records that carry file names. The unprivileged read redacts them, forcing a
+               path resolution per changed file.
+            3. A baseline scan that can read ACL'd directories. Unelevated, 557 directories on C:
+               were unreadable and the volume total came out 29.6 GB short of what the OS reports.
+
+          Consequence worth knowing: an executable marked requireAdministrator cannot be started from
+          the Run key or the Startup folder without a UAC prompt at every login. Auto-start has to go
+          through Task Scheduler with "Run with highest privileges", which elevates silently. See
+          docs/RUNTIME.md.
+
+          Build with -p:RequireAdministrator=false to produce an asInvoker binary for development,
+          which is otherwise identical and degrades to the unprivileged paths.
+        -->
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- Paths on this machine routinely exceed MAX_PATH; the scanner also uses \\?\ prefixes. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>
