@@ -49,8 +49,30 @@ internal static class VolumesCommand
         return 0;
     }
 
+    /// <summary>
+    /// Whether Strata would scan this volume unprompted.
+    /// </summary>
+    /// <remarks>
+    /// A volume with no drive letter is left alone. Windows keeps the EFI system partition and the
+    /// WinRE recovery partition unmounted on purpose, and neither is something a person is looking
+    /// for: File Explorer does not show them, they hold a few hundred megabytes that never move, and
+    /// nothing in this tool can point at a path inside one.
+    /// <para>
+    /// The cost of not excluding them is not the scan — it is the log. The scheduler attempts every
+    /// watchable volume on every tick, so two partitions nobody will ever baseline were writing two
+    /// "no baseline yet" rows into <c>scan_log</c> every fifteen minutes, forever, on the one table
+    /// that exists to be read by a person auditing the scanner's behaviour.
+    /// </para>
+    /// <para>
+    /// This gates the unprompted path only. An explicit <c>strata scan</c> or <c>POST /api/scan</c>
+    /// naming one by GUID still runs: it is a read-only tool and there is no reason to refuse
+    /// somebody who asked.
+    /// </para>
+    /// </remarks>
     internal static bool IsScannable(VolumeIdentity volume)
-        => volume.Kind is VolumeKind.Fixed or VolumeKind.RamDisk && volume.TotalBytes > 0;
+        => volume.Kind is VolumeKind.Fixed or VolumeKind.RamDisk
+           && volume.TotalBytes > 0
+           && volume.DriveLetter is not null;
 
     /// <summary>
     /// What Strata would do with this volume, so the eventual scan strategy is visible before any
@@ -66,6 +88,11 @@ internal static class VolumesCommand
         if (volume.TotalBytes == 0)
         {
             return "skip (no media)";
+        }
+
+        if (volume.DriveLetter is null)
+        {
+            return "skip (no mount point; scan by GUID to override)";
         }
 
         if (!IsScannable(volume))

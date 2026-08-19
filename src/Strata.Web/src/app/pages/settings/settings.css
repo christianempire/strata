@@ -37,6 +37,13 @@
   gap: 7px;
 }
 
+/* One rule between settings. The mockups separate them rather than relying on whitespace, which at
+   this density leaves a column of controls reading as one control. */
+.knob + .knob {
+  padding-top: 16px;
+  border-top: 1px solid var(--grid);
+}
+
 .knob-label {
   display: flex;
   justify-content: space-between;
