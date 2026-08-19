@@ -156,6 +156,26 @@ public sealed class ScanLogTests : IDisposable
         Assert.Equal(42_800, summary.TotalMs);
     }
 
+    /// <summary>
+    /// A day of nothing but deferrals names no worst volume.
+    /// </summary>
+    /// <remarks>
+    /// Every deferral has a duration of zero, so "the longest tick" has no meaningful answer — and
+    /// reporting one would invent a culprit out of whichever row the ordering happened to reach
+    /// first. A gaming afternoon is exactly this case.
+    /// </remarks>
+    [Fact]
+    public void AWindowWithNoRunsNamesNoWorstVolume()
+    {
+        Append(minutes: 0, ScanOutcome.Deferred, "fullscreen exclusive app");
+        Append(minutes: 15, ScanOutcome.Deferred, "fullscreen exclusive app");
+
+        var summary = ScanLogQueries.Summarise(_connection, null, null, null);
+
+        Assert.Equal(0, summary.WorstMs);
+        Assert.Equal("", summary.WorstVolume);
+    }
+
     [Fact]
     public void AnEmptyWindowSummarisesToZeroesRatherThanThrowing()
     {

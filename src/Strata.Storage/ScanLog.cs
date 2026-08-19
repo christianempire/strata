@@ -204,7 +204,11 @@ public static class ScanLogQueries
                     LIMIT 2 - (SELECT COUNT(*) FROM ran) % 2
                     OFFSET (SELECT (COUNT(*) - 1) / 2 FROM ran))),
                 (SELECT COALESCE(MAX(duration_ms), 0) FROM scoped),
-                (SELECT volume FROM scoped ORDER BY duration_ms DESC LIMIT 1),
+
+                -- Only when something actually took time. A window of nothing but deferrals has a
+                -- maximum duration of zero, and naming a "worst volume" for it would invent a
+                -- culprit out of whichever row the ordering happened to reach first.
+                (SELECT volume FROM scoped WHERE duration_ms > 0 ORDER BY duration_ms DESC LIMIT 1),
                 (SELECT COALESCE(SUM(duration_ms), 0) FROM scoped);
             """;
 
