@@ -1,0 +1,259 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1700px;
+  margin: 0 auto;
+  padding: 14px var(--gutter) 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* --- knobs ------------------------------------------------------------------------------------ */
+
+.knobs {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.knob {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.knob-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.knob-note {
+  max-width: 78ch;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type='range'] {
+  flex: 1;
+  appearance: none;
+  height: 4px;
+  background: var(--rule);
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 16px;
+  background: var(--pos);
+  cursor: pointer;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 10px;
+  height: 16px;
+  border: none;
+  border-radius: 0;
+  background: var(--pos);
+  cursor: pointer;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--fg-3);
+  background: transparent;
+  border: 1px solid var(--rule);
+}
+
+.toggle.on {
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border-color: var(--rule-strong);
+}
+
+.mark {
+  color: var(--pos);
+}
+
+.text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 7px;
+  font-size: 11px;
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border: 1px solid var(--rule-strong);
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--pos);
+}
+
+/* --- volumes ---------------------------------------------------------------------------------- */
+
+.vol-head,
+.vol-row {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) 130px 70px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--pad);
+}
+
+.vol-head {
+  height: 24px;
+}
+
+.vol-row {
+  min-height: 32px;
+  border-bottom: 1px solid var(--grid);
+}
+
+.vol-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.vol-note {
+  padding: 8px var(--pad) 8px 74px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  border-bottom: 1px solid var(--grid);
+  text-wrap: pretty;
+}
+
+.alert-note {
+  color: var(--fg-2);
+  box-shadow: inset 2px 0 0 var(--alert);
+}
+
+/* --- exclusions ------------------------------------------------------------------------------- */
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--grid);
+}
+
+.rule:last-child {
+  border-bottom: none;
+}
+
+.rule-pattern {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.rule.add {
+  padding-top: 10px;
+}
+
+/* --- the scan log ----------------------------------------------------------------------------- */
+
+.log-head,
+.log-row {
+  display: grid;
+  grid-template-columns: 66px 120px 92px minmax(0, 1fr) 90px 70px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--pad);
+}
+
+.log-head {
+  height: 24px;
+}
+
+.log {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.log-row {
+  min-height: var(--row);
+  border-bottom: 1px solid var(--grid);
+}
+
+.log-row:hover {
+  background: var(--bg-2);
+}
+
+.reason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.log-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px var(--pad);
+  font-size: 11px;
+  color: var(--fg-2);
+  border-top: 1px solid var(--rule);
+}
+
+.failure {
+  padding: 8px 12px;
+  color: var(--alert);
+  border: 1px solid var(--alert);
+  background: var(--bg-1);
+}
+
+.ok {
+  padding: 8px 12px;
+  color: var(--pos);
+  border: 1px solid var(--rule-strong);
+  background: var(--bg-1);
+}

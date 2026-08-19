@@ -1,0 +1,317 @@
+<div class="page">
+  <div class="screen-head">
+    <span class="t-title">Compare</span>
+
+    <div class="btn-group">
+      @for (v of shell.listed(); track v.guidPath) {
+        <button
+          class="btn"
+          [class.on]="shell.selected() === keyOf(v)"
+          (click)="selectVolume(keyOf(v))"
+        >
+          {{ v.driveLetter ?? v.label }}
+        </button>
+      }
+    </div>
+
+    <div class="spacer"></div>
+
+    <span class="t-micro">From</span>
+    <select class="picker" [value]="fromId()" (change)="setFrom($any($event.target).value)">
+      @for (s of snapshots(); track s.id) {
+        <option [value]="s.id">{{ s.takenUtc | stamp }} · #{{ s.id }}</option>
+      }
+    </select>
+
+    <span class="faint">→</span>
+
+    <span class="t-micro">To</span>
+    <select class="picker" [value]="toId()" (change)="setTo($any($event.target).value)">
+      @for (s of snapshots(); track s.id) {
+        <option [value]="s.id">{{ s.takenUtc | stamp }} · #{{ s.id }}</option>
+      }
+    </select>
+
+    @if (span(); as s) {
+      <span class="t-meta faint">{{ s.label }} · {{ s.between | grouped }} snapshots between</span>
+    }
+  </div>
+
+  @if (snapshots().length < 2) {
+    <div class="panel">
+      <div class="panel-body dim">
+        {{ volume()?.driveLetter }} has
+        {{ snapshots().length }} snapshot{{ snapshots().length === 1 ? '' : 's' }}. Comparing needs
+        two moments, so this screen starts working one tick after the next scan lands.
+        <a routerLink="/settings">Scan now</a>.
+      </div>
+    </div>
+  } @else {
+    <!-- The four figures that describe the whole window, and the attribution claim. -->
+    <div class="summary">
+      <div class="summary-cell">
+        <div class="t-micro">Net</div>
+        <div class="t-num-hero" [class]="totals().net | deltaClass">
+          {{ totals().net | deltaBytes }}
+        </div>
+      </div>
+
+      <div class="summary-cell">
+        <div class="t-micro">Written</div>
+        <div class="t-num-lg pos">{{ totals().written | deltaBytes }}</div>
+        <div class="t-meta faint">{{ totals().filesAdded | deltaFiles }}</div>
+      </div>
+
+      <div class="summary-cell">
+        <div class="t-micro">Deleted</div>
+        <div class="t-num-lg neg">{{ totals().deleted | deltaBytes }}</div>
+        <div class="t-meta faint">{{ -totals().filesRemoved | deltaFiles }}</div>
+      </div>
+
+      <div class="summary-cell">
+        <div class="t-micro">Churn · invisible in net</div>
+        <div class="t-num-lg dim">{{ totals().churn | bytes }}</div>
+        <div class="t-meta faint">{{ churners().length }} directories cycled bytes</div>
+      </div>
+
+      <!--
+        The claim the remainder rows make possible. Before them the engine could not say what share
+        of a change it had actually attributed, because the unattributable part was silently folded
+        into whichever ancestor happened to be reported.
+      -->
+      <div class="summary-note">
+        <div class="t-micro">Attribution</div>
+        <div class="t-body-lg">
+          <strong>{{ totals().attributionShare | percent1 }}</strong> of the change is attributed to
+          a specific path. The remaining
+          <strong class="mono">{{ totals().unattributed | bytes }}</strong> is real but spread too
+          thin to name, and is shown as an <span class="mono">elsewhere in</span> row at the level
+          where it stops being attributable — never folded into a parent, never dropped.
+        </div>
+      </div>
+    </div>
+
+    <div class="lower">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="t-panel">Attributed changes</span>
+          <span class="t-meta faint">{{ rows().length | grouped }} rows</span>
+
+          <div class="spacer"></div>
+
+          <span class="t-micro">Rank by</span>
+          <div class="btn-group">
+            @for (s of sorts; track s.key) {
+              <button class="btn" [class.on]="sort() === s.key" (click)="setSort(s.key)">
+                {{ s.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="row-head grid-head">
+          <span>Path · aggregated</span>
+          <span class="num">Net</span>
+          <span class="num">Δ files</span>
+          <span class="num">Churn</span>
+        </div>
+
+        <div class="rows">
+          @for (row of rows(); track row.change.directoryId) {
+            <div
+              class="row"
+              [class.picked]="picked()?.directoryId === row.change.directoryId"
+              [class.remainder]="row.change.kind === 'remainder'"
+              (click)="pick(row.change)"
+            >
+              <span class="path-cell">
+                @if (row.change.kind === 'remainder') {
+                  <span class="swatch hatched"></span>
+                } @else {
+                  <button class="twisty" (click)="toggle(row.change); $event.stopPropagation()">
+                    {{ row.expanded ? '▾' : '▸' }}
+                  </button>
+                  <span class="swatch" [style.background]="row.colour"></span>
+                }
+
+                @if (row.change.kind === 'remainder') {
+                  <span class="mono elsewhere">elsewhere in {{ row.change.path }}</span>
+                } @else {
+                  <strata-path [path]="row.change.path" [tail]="2" />
+                }
+
+                <strata-kind [kind]="row.change.kind" />
+              </span>
+
+              <span class="num" [class]="row.change.deltaBytes | deltaClass"
+                [title]="row.change.deltaBytes | exactBytes">
+                {{ row.change.deltaBytes | deltaBytes }}
+              </span>
+
+              <span class="num faint">{{ row.change.fileCountDelta | deltaFiles }}</span>
+
+              <span class="num dim">{{ row.change.churnBytes | bytes }}</span>
+            </div>
+
+            @if (row.expanded) {
+              @if (row.loadingChildren) {
+                <div class="child faint">Reading how that total was reached…</div>
+              } @else {
+                @for (child of row.children ?? []; track child.directoryId) {
+                  <div class="row child" (click)="pick(child)">
+                    <span class="path-cell">
+                      <span class="indent"></span>
+                      @if (child.kind === 'remainder') {
+                        <span class="swatch hatched"></span>
+                        <span class="mono elsewhere">elsewhere in {{ child.path }}</span>
+                      } @else {
+                        <span class="swatch" [style.background]="row.colour"></span>
+                        <strata-path [path]="child.path" [tail]="2" />
+                      }
+                      <strata-kind [kind]="child.kind" />
+                    </span>
+
+                    <span class="num" [class]="child.deltaBytes | deltaClass">
+                      {{ child.deltaBytes | deltaBytes }}
+                    </span>
+                    <span class="num faint">{{ child.fileCountDelta | deltaFiles }}</span>
+                    <span class="num dim">{{ child.churnBytes | bytes }}</span>
+                  </div>
+                } @empty {
+                  <div class="child faint">
+                    Nothing inside this directory clears the reporting floor on its own — this row is
+                    already the shallowest honest answer.
+                  </div>
+                }
+              }
+            }
+          } @empty {
+            <div class="panel-body dim">
+              @if (loading()) {
+                Comparing…
+              } @else if (failure()) {
+                <span class="alert">{{ failure() }}</span>
+              } @else {
+                Nothing above 1 MB changed between these two moments. Widen the range with the
+                pickers above.
+              }
+            </div>
+          }
+        </div>
+
+        <div class="rows-foot">
+          One row per change, not one row per file. Rows collapse at the shallowest directory that
+          accounts for 90% of its subtree's change; expanding runs the same diff scoped to that path,
+          which is how the total was reached.
+        </div>
+      </div>
+
+      <div class="rail">
+        <div class="panel">
+          <div class="panel-head"><span class="t-micro">Detail</span></div>
+
+          @if (picked(); as change) {
+            <div class="panel-body detail">
+              <div class="t-path detail-path">
+                @if (change.kind === 'remainder') {
+                  elsewhere in {{ change.path }}
+                } @else {
+                  {{ change.path }}
+                }
+              </div>
+
+              <div class="fact">
+                <span class="faint">Net</span>
+                <span class="mono" [class]="change.deltaBytes | deltaClass">
+                  {{ change.deltaBytes | deltaBytes }}
+                </span>
+              </div>
+              <div class="fact">
+                <span class="faint">Churn</span>
+                <span class="mono">{{ change.churnBytes | bytes }}</span>
+              </div>
+              <div class="fact">
+                <span class="faint">Files</span>
+                <span class="mono">{{ change.fileCountDelta | deltaFiles }}</span>
+              </div>
+              <div class="fact">
+                <span class="faint">Depth</span>
+                <span class="mono">{{ change.depth }}</span>
+              </div>
+              @if (change.movedFrom) {
+                <div class="fact">
+                  <span class="faint">Moved from</span>
+                  <span class="mono">{{ change.movedFrom }}</span>
+                </div>
+              }
+
+              <div class="note faint">
+                @if (change.kind === 'remainder') {
+                  The part of {{ change.path }} that no single directory explains: bytes held
+                  directly here, plus every child whose own change stayed under the reporting floor.
+                  Attributing it further would invent precision that is not in the data.
+                } @else if (change.churnBytes > change.absoluteDelta * 2) {
+                  This directory wrote and deleted far more than it ended up keeping. Net change
+                  answers "is it bigger"; churn answers "how much did it write to get there" — and
+                  the SSD only cares about the second.
+                } @else {
+                  Net change across this whole subtree, aggregated at the shallowest directory that
+                  explains it.
+                }
+              </div>
+
+              <div class="links">
+                <a routerLink="/explorer" [queryParams]="{ volume: shell.selected(), path: change.path }">
+                  Open in Explorer
+                </a>
+                <a routerLink="/timeline" [queryParams]="{ volume: shell.selected() }">
+                  See it on the timeline
+                </a>
+              </div>
+            </div>
+          } @else {
+            <div class="panel-body faint">
+              Select a row. Net change answers "is it bigger"; churn answers "how much did it write
+              to get there". A build directory that cycled 41 GB and ended 800 MB larger looks almost
+              unchanged in every other tool.
+            </div>
+          }
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="t-micro">Highest churn, near-zero net</span>
+          </div>
+
+          <div class="panel-body churn-list">
+            @for (c of churners(); track c.directoryId) {
+              <div class="churner" (click)="pick(c)">
+                <div class="churn-figure">
+                  <span class="mono">{{ c.churnBytes | bytes }}</span>
+                  <span class="faint"> cycled for </span>
+                  <span class="mono" [class]="c.deltaBytes | deltaClass">
+                    {{ c.deltaBytes | deltaBytes }}
+                  </span>
+                  <span class="faint"> net</span>
+                </div>
+                <strata-path [path]="c.path" [tail]="2" />
+              </div>
+            } @empty {
+              <div class="faint">
+                No directory in this window wrote substantially more than it kept.
+              </div>
+            }
+          </div>
+
+          @if (churners().length) {
+            <div class="rows-foot">
+              Churn costs SSD endurance and shows up nowhere in the net figure. A build directory
+              that cycles tens of gigabytes a week is the largest write source on a machine and looks
+              unchanged in every other tool.
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>

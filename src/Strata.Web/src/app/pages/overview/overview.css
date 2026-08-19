@@ -1,0 +1,216 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter);
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px var(--gutter) 0;
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.disk {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disk-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.volume {
+  padding: var(--pad);
+}
+
+.volume-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* --- capacity bar ----------------------------------------------------------------------------- */
+
+.capacity {
+  display: flex;
+  height: 14px;
+  margin: 12px 0 6px;
+  background: var(--bg-0);
+  border: 1px solid var(--rule-strong);
+}
+
+.cap-attributed,
+.cap-unaccounted {
+  height: 100%;
+}
+
+.cap-unaccounted {
+  background-color: var(--bg-2);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: var(--bg-2);
+}
+
+/* --- facts row -------------------------------------------------------------------------------- */
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(80px, 1fr)) minmax(180px, 2fr);
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--grid);
+}
+
+.facts .mono {
+  font-size: 13px;
+}
+
+.spark-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* --- notes ------------------------------------------------------------------------------------ */
+
+.note {
+  margin-top: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border-left: 2px solid var(--rule-strong);
+  text-wrap: pretty;
+}
+
+.alert-note {
+  border-left-color: var(--alert);
+}
+
+.warn-note {
+  border-left-color: var(--warn);
+}
+
+.links {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+/* --- the two lower panels --------------------------------------------------------------------- */
+
+.two-up {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: var(--gutter);
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gutter);
+}
+
+.changes {
+  display: flex;
+  flex-direction: column;
+}
+
+.change {
+  display: grid;
+  grid-template-columns: 110px 108px 90px minmax(0, 1fr) 190px;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--row);
+  padding: 4px var(--pad);
+  border-bottom: 1px solid var(--grid);
+}
+
+.change:hover {
+  background: var(--bg-2);
+}
+
+.change-delta {
+  text-align: right;
+  font-size: 13px;
+}
+
+.change-path {
+  min-width: 0;
+}
+
+.change-files {
+  text-align: right;
+}
+
+.panel-foot,
+.panel-foot-inline {
+  padding: 9px var(--pad);
+  font-size: 11px;
+  color: var(--fg-2);
+  border-top: 1px solid var(--rule);
+}
+
+.panel-foot-inline {
+  margin: 6px calc(-1 * var(--pad)) calc(-1 * var(--pad));
+}
+
+.facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.detached-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+/* Dashed rather than dimmed. The history is not stale; it is finished. */
+.detached {
+  border-style: dashed;
+}

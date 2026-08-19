@@ -1,0 +1,215 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 2200px;
+  margin: 0 auto;
+  padding: 14px var(--gutter) 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+/* --- headline --------------------------------------------------------------------------------- */
+
+.headline {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 4px 0 8px;
+}
+
+.headline-text {
+  flex: 1;
+  max-width: 82ch;
+  color: var(--fg-2);
+  text-wrap: pretty;
+}
+
+.headline-text strong {
+  font-weight: 500;
+  color: var(--fg-1);
+}
+
+.headline-text .t-path {
+  color: var(--fg-1);
+}
+
+.headline-capacity {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* --- chart ------------------------------------------------------------------------------------ */
+
+.chart-panel .panel-head {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+}
+
+.swatch.other {
+  background: var(--other);
+}
+
+.chart {
+  height: 320px;
+  background: var(--bg-0);
+}
+
+.chart-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px var(--pad);
+  font-size: 11px;
+  border-top: 1px solid var(--rule);
+}
+
+/* --- lower half ------------------------------------------------------------------------------- */
+
+.lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feed-head,
+.feed-row {
+  display: grid;
+  grid-template-columns: 96px 108px minmax(0, 1fr) 120px 110px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--pad);
+}
+
+.feed-head {
+  height: 24px;
+}
+
+.feed {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.feed-row {
+  min-height: var(--row);
+  cursor: pointer;
+  border-bottom: 1px solid var(--grid);
+}
+
+.feed-row:hover {
+  background: var(--bg-2);
+}
+
+/* The selected row takes --bg-3 and a 2px amber left edge, matching its marker on the chart. */
+.feed-row.picked {
+  background: var(--bg-3);
+  box-shadow: inset 2px 0 0 var(--pos);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-wrap: pretty;
+}
+
+/* --- rail ------------------------------------------------------------------------------------- */
+
+.sel {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.sel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sel-path {
+  color: var(--fg-1);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.bullet {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--fg-2);
+  text-wrap: pretty;
+}
+
+.note {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--grid);
+  text-wrap: pretty;
+}
+
+.links {
+  display: flex;
+  gap: 14px;
+  padding-top: 4px;
+  font-size: 11px;
+}
+
+.failure {
+  padding: 8px 12px;
+  color: var(--alert);
+  border: 1px solid var(--alert);
+  background: var(--bg-1);
+}

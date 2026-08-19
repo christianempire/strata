@@ -1,0 +1,195 @@
+<div class="page">
+  <div class="screen-head">
+    <span class="t-title">Explorer</span>
+
+    <div class="btn-group">
+      @for (v of shell.listed(); track v.guidPath) {
+        <button
+          class="btn"
+          [class.on]="shell.selected() === keyOf(v)"
+          (click)="selectVolume(keyOf(v))"
+        >
+          {{ v.driveLetter ?? v.label }}
+        </button>
+      }
+    </div>
+
+    <!-- Breadcrumb. Every segment is a level you can go back to. -->
+    <nav class="crumbs">
+      @for (crumb of crumbs(); track crumb.path; let last = $last) {
+        <button class="crumb" [class.here]="last" (click)="go(crumb.path)">{{ crumb.label }}</button>
+        @if (!last) {
+          <span class="faint">\</span>
+        }
+      }
+    </nav>
+
+    <div class="spacer"></div>
+
+    @if (parentPath() !== null) {
+      <button class="btn" (click)="go(parentPath()!)">↑ Up one level</button>
+    }
+    <button class="btn" [disabled]="!path()" (click)="go('')">Reset to {{ root() }}\</button>
+  </div>
+
+  <!-- You are here. -->
+  <div class="here">
+    <div class="here-path">
+      <div class="t-micro">You are here</div>
+      <div class="t-num-lg">{{ path() || root() + '\\' }}</div>
+
+      @if (selected(); as child) {
+        @if (child.linked) {
+          <!--
+            State 06. A link is a fact about the filesystem, not a failure, so it gets the calm blue
+            of the series ramp rather than a warning colour — and it is stated plainly, with the
+            consequence for deleting.
+          -->
+          <div class="t-meta neg">
+            ⇄ largely links to bytes counted at another path · deleting this frees nothing
+          </div>
+        }
+      }
+    </div>
+
+    @if (here(); as node) {
+      <div class="here-facts">
+        <div>
+          <div class="t-micro">Size</div>
+          <div class="t-num-lg" [title]="node.subtreeBytes | exactBytes">
+            {{ node.subtreeBytes | bytes }}
+          </div>
+        </div>
+        <div>
+          <div class="t-micro">Files</div>
+          <div class="t-num-lg">{{ node.subtreeFiles | grouped }}</div>
+        </div>
+        <div>
+          <div class="t-micro">Children</div>
+          <div class="t-num-lg">{{ sorted().length | grouped }}</div>
+        </div>
+        <div>
+          <div class="t-micro">Held directly here</div>
+          <div class="t-num-lg" [title]="ownBytes() | exactBytes">{{ ownBytes() | bytes }}</div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="t-micro">Treemap · area is bytes</span>
+        <div class="spacer"></div>
+        <span class="t-meta faint">
+          {{ sorted().length | grouped }} children ·
+          @if (merged() > 0) {
+            {{ drawn() }} largest drawn, the rest merged
+          } @else {
+            all drawn and labelled
+          }
+        </span>
+      </div>
+
+      <div
+        class="treemap"
+        [strataChart]="chart()"
+        [strataChartReplace]="true"
+        (chartClick)="onTileClick($event)"
+      ></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="t-panel">Children</span>
+        <span class="t-meta faint">
+          {{ sorted().length | grouped }} children · sorted by size
+        </span>
+      </div>
+
+      <div class="list-head grid-head">
+        <span>Name</span>
+        <span class="num">Bytes</span>
+        <span class="num">Files</span>
+        <span>Share</span>
+      </div>
+
+      <div class="list">
+        @for (child of sorted(); track child.node.dirId) {
+          <div
+            class="list-row"
+            [class.picked]="picked() === child.path"
+            (click)="pick(child)"
+            (dblclick)="go(child.path)"
+          >
+            <span class="name">
+              <span class="swatch" [style.background]="child.colour"></span>
+              <span class="mono name-text">{{ child.node.name }}</span>
+              @if (child.linked) {
+                <span class="neg" title="Bytes counted at another path">⇄</span>
+              }
+              @if (child.node.hasChildren) {
+                <button class="drill" title="Drill in" (click)="go(child.path); $event.stopPropagation()">
+                  ›
+                </button>
+              }
+            </span>
+
+            <span class="num" [title]="child.node.subtreeBytes | exactBytes">
+              {{ child.node.subtreeBytes | bytes }}
+            </span>
+
+            <span class="num faint">{{ child.node.subtreeFiles | grouped }}</span>
+
+            <span class="share">
+              <span class="share-track">
+                <span
+                  class="share-fill"
+                  [style.width.%]="child.share * 100"
+                  [style.background]="child.colour"
+                ></span>
+              </span>
+              <span class="mono share-pct">{{ child.share | percent1 }}</span>
+            </span>
+          </div>
+        } @empty {
+          <div class="panel-body dim">
+            @if (loading()) {
+              Reading…
+            } @else if (failure()) {
+              <span class="alert">{{ failure() }}</span>
+            } @else {
+              This directory has no subdirectories. Its
+              <span class="mono">{{ here()?.subtreeBytes | bytes }}</span> is held in files directly
+              inside it.
+            }
+          </div>
+        }
+      </div>
+
+      @if (sorted().length) {
+        <div class="list-foot">
+          @if (ownBytes() > 0) {
+            <span class="mono">{{ ownBytes() | bytes }}</span> is held in files directly in this
+            directory rather than in any child.
+          } @else {
+            Every child is listed. Share is of
+            <span class="mono">{{ here()?.subtreeBytes | bytes }}</span> in this directory.
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (volume(); as v) {
+    @if (!v.attached) {
+      <!-- State 07. The header is dated rather than live, and nothing is greyed out. -->
+      <div class="note">
+        <span class="chip">◌ not connected</span>
+        {{ v.driveLetter }} is not attached. This is its last recorded state, from
+        <span class="mono">{{ v.lastSnapshotUtc | stamp }}</span>. It is not stale, it is finished —
+        no scan is scheduled and nothing here will change.
+      </div>
+    }
+  }
+</div>

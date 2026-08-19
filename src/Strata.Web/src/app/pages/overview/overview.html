@@ -1,0 +1,289 @@
+<div class="page">
+  <div class="page-head">
+    <div>
+      <div class="t-title">Overview</div>
+      <div class="t-meta faint">
+        {{ totals().volumes }} volumes · {{ totals().disks }} physical disks ·
+        {{ totals().files | grouped }} files tracked in {{ totals().directories | grouped }}
+        directories
+      </div>
+    </div>
+  </div>
+
+  @for (disk of disks(); track disk.label) {
+    <section class="disk">
+      <div class="disk-head">
+        <span class="t-panel">{{ disk.label }}</span>
+        <span class="t-meta faint">
+          {{ disk.cards.length }} volume{{ disk.cards.length === 1 ? '' : 's' }}
+        </span>
+        <div class="spacer"></div>
+        <span class="t-meta" [class]="disk.badge.cls">{{ disk.badge.text }}</span>
+      </div>
+
+      @for (card of disk.cards; track card.key) {
+        <div class="panel volume">
+          <div class="volume-head">
+            <span class="t-num-lg">{{ card.volume.driveLetter ?? '—' }}</span>
+            <span class="t-panel dim">{{ card.volume.label || 'unlabelled' }}</span>
+            <span class="t-meta faint">
+              {{ card.volume.fileSystem }} · <span [class]="card.fidelity.cls">{{ card.fidelity.text }}</span>
+            </span>
+
+            <div class="spacer"></div>
+
+            <span class="t-body-lg" [class.alert]="card.lowSpace">
+              <span class="mono">{{ card.volume.freeBytes | bytes }}</span> free ·
+              {{ card.freeShareOfCapacity | percent1 }}
+            </span>
+          </div>
+
+          <!--
+            The capacity bar, in three parts. Attributed bytes solid, unaccounted bytes hatched, free
+            space empty. The hatching is the point: an estimate is never rendered in the same ink as
+            a measurement, and a 30 GB discrepancy with no explanation reads as a bug.
+          -->
+          <div class="capacity" [title]="card.volume.usedBytes | exactBytes">
+            <div
+              class="cap-attributed"
+              [style.width.%]="card.accountedShare"
+              [style.background]="card.colour"
+            ></div>
+            @if (card.unaccountedShare > 0) {
+              <div class="cap-unaccounted hatched" [style.width.%]="card.unaccountedShare"></div>
+            }
+          </div>
+
+          <div class="legend">
+            <span class="key">
+              <span class="swatch" [style.background]="card.colour"></span>
+              attributed <span class="mono">{{ card.volume.accountedBytes | bytes }}</span>
+            </span>
+
+            @if (card.unaccounted > 0) {
+              <span class="key">
+                <span class="swatch hatched"></span>
+                unreadable, estimated <span class="mono">{{ card.unaccounted | bytes }}</span>
+              </span>
+            }
+
+            <span class="key faint">
+              free <span class="mono">{{ card.volume.freeBytes | bytes }}</span>
+            </span>
+
+            <div class="spacer"></div>
+
+            <span class="faint t-meta">
+              Windows reports <span class="mono">{{ card.volume.usedBytes | bytes }}</span> used ·
+              Strata accounts for {{ card.coverage | percent1 }}
+            </span>
+          </div>
+
+          <div class="facts">
+            <div>
+              <div class="t-micro">Capacity</div>
+              <div class="mono" [title]="card.volume.totalBytes | exactBytes">
+                {{ card.volume.totalBytes | bytes }}
+              </div>
+            </div>
+            <div>
+              <div class="t-micro">Files</div>
+              <div class="mono">{{ card.snapshot?.fileCount | grouped }}</div>
+            </div>
+            <div>
+              <div class="t-micro">Directories</div>
+              <div class="mono">{{ card.snapshot?.dirCount | grouped }}</div>
+            </div>
+            <div>
+              <div class="t-micro">30-day change</div>
+              <div class="mono" [class]="card.thirtyDayChange | deltaClass">
+                {{ card.thirtyDayChange | deltaBytes }}
+              </div>
+            </div>
+            <div>
+              <div class="t-micro">Snapshots</div>
+              <div class="mono">{{ card.volume.snapshotCount | grouped }}</div>
+            </div>
+            <div>
+              <div class="t-micro">Last scan</div>
+              <div class="mono" [title]="card.volume.lastSnapshotUtc | stamp">
+                {{ card.volume.lastSnapshotUtc | clock }}
+              </div>
+            </div>
+
+            <div class="spark-cell">
+              <div class="t-micro">Used, 30 days</div>
+              <strata-sparkline [points]="card.spark" [colour]="card.colour" />
+            </div>
+          </div>
+
+          <!--
+            State 05, on the volume it applies to. The arithmetic that reconciles Strata's total
+            with the operating system's is on screen rather than in a tooltip.
+          -->
+          @if (card.unaccounted > 1024 * 1024 * 1024) {
+            <div class="note alert-note">
+              <span class="mono">{{ card.snapshot?.inaccessibleCount | grouped }}</span> directories
+              could not be read without elevation. Strata's total is about
+              <span class="mono">{{ card.unaccounted | bytes }}</span> under what Windows reports,
+              and that gap is drawn hatched rather than folded into a directory. One elevated
+              <span class="mono">strata scan</span> closes it; Strata does not stay elevated.
+            </div>
+          }
+
+          @if (!card.volume.supportsUsnJournal && card.volume.baselineUtc) {
+            <!-- State 04. The fix sits next to the label rather than in Settings. -->
+            <div class="note warn-note">
+              No NTFS change journal on this volume, so history comes from a periodic walk. Events
+              are attributed to the walk rather than to the minute, and anything created and deleted
+              between walks is invisible. One elevated
+              <span class="mono">strata enable-journal</span> fixes it permanently, with no reformat.
+            </div>
+          }
+
+          @if (!card.volume.baselineUtc) {
+            <div class="note">
+              No baseline yet, so there is nothing to diff against. Incremental scanning cannot start
+              on this volume until one full pass has run.
+            </div>
+          }
+
+          <div class="links">
+            <a routerLink="/timeline" [queryParams]="{ volume: card.key }">Timeline</a>
+            <a routerLink="/explorer" [queryParams]="{ volume: card.key }">Explorer</a>
+            <a routerLink="/compare" [queryParams]="{ volume: card.key }">Compare</a>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <div class="two-up">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="t-panel">Largest changes</span>
+        <span class="t-meta faint">last 24 hours, all volumes</span>
+      </div>
+
+      <div class="changes">
+        @for (event of recent(); track event.id) {
+          <div class="change">
+            <span class="mono change-delta" [class]="event.deltaBytes | deltaClass"
+              [title]="event.deltaBytes | exactBytes">
+              {{ event.deltaBytes | deltaBytes }}
+            </span>
+
+            <strata-kind [kind]="event.kind" />
+
+            <span class="t-meta faint change-time" [title]="event.whenUtc | stamp">
+              {{ event.whenUtc | feedStamp }}
+            </span>
+
+            <strata-path class="change-path" [path]="event.path" />
+
+            <span class="t-meta faint change-files">
+              {{ event.fileDelta | deltaFiles }} · {{ event.driveLetter ?? '' }}
+            </span>
+          </div>
+        } @empty {
+          <div class="panel-body dim">
+            @if (loading()) {
+              Reading the change log…
+            } @else {
+              <!-- State 08, scoped to a day. An empty range is an answer, so it is phrased as one. -->
+              Nothing above 100 MB changed on any volume in the last 24 hours.
+              <a routerLink="/timeline">Widen the range on the timeline</a> to see smaller movements.
+            }
+          </div>
+        }
+      </div>
+
+      @if (recent().length) {
+        <div class="panel-foot">
+          Net across all volumes in 24 hours:
+          <span class="mono" [class]="recentNet() | deltaClass">{{ recentNet() | deltaBytes }}</span>.
+          <a routerLink="/timeline">Open the timeline</a> for the full feed.
+        </div>
+      }
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <div class="panel-head"><span class="t-micro">Scanner</span></div>
+        <div class="panel-body facts-list">
+          <div class="fact">
+            <span class="faint">State</span>
+            <span class="mono">{{ scanner()?.state ?? 'unknown' }}</span>
+          </div>
+          <div class="fact">
+            <span class="faint">Last tick</span>
+            <span class="mono" [title]="scanner()?.lastTickUtc | stamp">
+              {{ scanner()?.lastTickUtc | clock }}
+            </span>
+          </div>
+          <div class="fact">
+            <span class="faint">Next tick</span>
+            <span class="mono">
+              {{ scanner()?.nextTickUtc ? (scanner()?.nextTickUtc | clock) : '—' }}
+            </span>
+          </div>
+          @if (scanner()?.deferral) {
+            <div class="fact">
+              <span class="faint">Deferred</span>
+              <span class="warn">{{ scanner()?.deferral }}</span>
+            </div>
+          }
+          <div class="panel-foot-inline">
+            <a routerLink="/settings">Scan history log</a>
+          </div>
+        </div>
+      </div>
+
+      @for (volume of detached(); track volume.guidPath) {
+        <!--
+          State 07. Absent hardware never removes data: the header is dated rather than live, no
+          scan is scheduled, and nothing is greyed out. It is not stale, it is finished.
+        -->
+        <div class="panel detached">
+          <div class="panel-head">
+            <span class="t-micro">Detached volume</span>
+          </div>
+          <div class="panel-body">
+            <div class="volume-head">
+              <span class="t-num-lg faint">{{ volume.driveLetter ?? '—' }}</span>
+              <span class="t-panel dim">{{ volume.label || 'unlabelled' }}</span>
+              <div class="spacer"></div>
+              <span class="chip">◌ not connected</span>
+            </div>
+
+            <div class="detached-facts">
+              <div class="fact">
+                <span class="faint">Last seen</span>
+                <span class="mono" [title]="volume.lastSnapshotUtc | stamp">
+                  {{ volume.lastSnapshotUtc | stamp }} · {{ volume.lastSnapshotUtc | ago }}
+                </span>
+              </div>
+              <div class="fact">
+                <span class="faint">Last known</span>
+                <span class="mono">
+                  {{ volume.usedBytes | bytes }} of {{ volume.totalBytes | bytes }} used
+                </span>
+              </div>
+              <div class="fact">
+                <span class="faint">Snapshots kept</span>
+                <span class="mono">{{ volume.snapshotCount | grouped }}</span>
+              </div>
+            </div>
+
+            <div class="links">
+              <a routerLink="/explorer" [queryParams]="{ volume: keyOf(volume) }">
+                Browse last snapshot
+              </a>
+              <a routerLink="/compare" [queryParams]="{ volume: keyOf(volume) }">Compare</a>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>

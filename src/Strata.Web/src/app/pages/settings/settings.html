@@ -1,0 +1,357 @@
+<div class="page">
+  <div class="screen-head">
+    <div>
+      <div class="t-title">Settings</div>
+      <div class="t-meta faint">what this thing is doing to your machine</div>
+    </div>
+
+    <div class="spacer"></div>
+
+    @if (saving()) {
+      <span class="t-meta faint">saving…</span>
+    } @else if (saved()) {
+      <span class="t-meta pos">saved · takes effect on the next tick</span>
+    }
+
+    @if (settings(); as s) {
+      <button class="btn" [class.on]="s.paused" (click)="togglePause()">
+        {{ s.paused ? 'Resume scanning' : 'Pause scanning' }}
+      </button>
+    }
+  </div>
+
+  @if (failure(); as text) {
+    <div class="failure">{{ text }}</div>
+  }
+
+  @if (queued(); as text) {
+    <div class="ok">{{ text }}</div>
+  }
+
+  @if (settings(); as s) {
+    <div class="columns">
+      <div class="col">
+        <div class="panel">
+          <div class="panel-head"><span class="t-panel">Scanning</span></div>
+
+          <div class="panel-body knobs">
+            <div class="knob">
+              <div class="knob-label">
+                <span>Scan interval</span>
+                <span class="faint mono">
+                  {{ (86400 / s.intervalSeconds).toFixed(0) }} ticks/day
+                </span>
+              </div>
+              <div class="btn-group">
+                @for (i of intervals; track i.seconds) {
+                  <button
+                    class="btn"
+                    [class.on]="s.intervalSeconds === i.seconds"
+                    (click)="setInterval(i.seconds)"
+                  >
+                    {{ i.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label">
+                <span>CPU threshold</span>
+                <span class="mono pos">{{ cpu() }}%</span>
+              </div>
+              <div class="slider-row">
+                <span class="faint t-meta">10%</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="5"
+                  [ngModel]="cpu()"
+                  (ngModelChange)="cpu.set($event)"
+                  (change)="commitCpu()"
+                />
+                <span class="faint t-meta">100%</span>
+              </div>
+              <div class="knob-note faint">
+                A tick defers if system CPU is above this when it fires. The scan itself runs at very
+                low I/O priority and yields regularly, so this is about not adding to a load that is
+                already there.
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label"><span>Also defer when</span></div>
+
+              <button class="toggle" [class.on]="s.detectBorderlessFullscreen" (click)="toggleBorderless()">
+                <span class="mark">{{ s.detectBorderlessFullscreen ? '■' : '□' }}</span>
+                A borderless fullscreen app is running
+              </button>
+
+              <div class="knob-note faint">
+                Deferred ticks are recorded with their reason and never skipped silently — the log
+                below is the evidence. The change journal keeps recording while Strata sleeps, so a
+                deferral costs resolution in the timeline rather than data.
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label"><span>I/O priority</span></div>
+
+              <button class="toggle" [class.on]="s.backgroundIo" (click)="toggleBackgroundIo()">
+                <span class="mark">{{ s.backgroundIo ? '■' : '□' }}</span>
+                Run scan threads at background I/O priority
+              </button>
+
+              <div class="knob-note faint">
+                Per-thread rather than per-process, so a scan cannot throttle the API serving this
+                page. Turn it off only to measure what it costs.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="t-panel">Volumes</span>
+            <span class="t-meta faint">fidelity, and scanning by hand</span>
+          </div>
+
+          <div class="vol-head grid-head">
+            <span>Volume</span>
+            <span>Label</span>
+            <span>Fidelity</span>
+            <span>Last scan</span>
+            <span></span>
+          </div>
+
+          @for (v of shell.volumes(); track v.guidPath) {
+            <div class="vol-row">
+              <span class="mono">{{ v.driveLetter ?? '—' }}</span>
+              <span class="dim">{{ v.label || 'unlabelled' }}</span>
+
+              <span>
+                @if (!v.attached) {
+                  <span class="chip">◌ detached</span>
+                } @else if (!v.baselineUtc) {
+                  <span class="chip">○ no baseline</span>
+                } @else if (!v.supportsUsnJournal) {
+                  <span class="chip chip-warn">▲ no journal</span>
+                } @else {
+                  <span class="chip chip-ok">● journal live</span>
+                }
+              </span>
+
+              <span class="mono faint" [title]="v.lastSnapshotUtc | stamp">
+                {{ v.lastSnapshotUtc | clock }}
+              </span>
+
+              <span class="vol-actions">
+                @if (v.attached && v.scannable) {
+                  @if (v.supportsUsnJournal && v.baselineUtc) {
+                    <button class="btn" (click)="scan(keyOf(v), 'incremental')">Tick now</button>
+                  }
+                  <button class="btn" (click)="scan(keyOf(v), 'full')">Full rescan</button>
+                }
+              </span>
+            </div>
+
+            @if (v.attached && !v.supportsUsnJournal) {
+              <!-- State 04's fix, offered where the fidelity is stated. -->
+              <div class="vol-note">
+                {{ v.driveLetter }} has no NTFS change journal, so history comes from a periodic walk
+                and anything created and deleted between walks is invisible. Enabling it is one
+                elevated command and needs no reformat:
+                <span class="mono">strata enable-journal</span>. Strata does not stay elevated.
+              </div>
+            }
+
+            @if (v.attached && v.baselineUtc && v.usedBytes - v.accountedBytes > 1073741824) {
+              <!-- State 05, with the arithmetic rather than a bare number. -->
+              <div class="vol-note alert-note">
+                Strata accounts for {{ v.accountedBytes | bytes }} of the
+                {{ v.usedBytes | bytes }} Windows reports used on {{ v.driveLetter }} — about
+                {{ v.usedBytes - v.accountedBytes | bytes }} short. Directories that cannot be read
+                without elevation are the bulk of it, and the gap is drawn hatched everywhere rather
+                than folded into a directory. One elevated
+                <span class="mono">strata scan</span> closes it.
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="t-panel">Exclusions</span>
+            <span class="t-meta faint">{{ s.excludedEventPaths.length }} rules</span>
+          </div>
+
+          <div class="panel-body">
+            @for (pattern of s.excludedEventPaths; track pattern) {
+              <div class="rule">
+                <span class="mono rule-pattern">{{ pattern }}</span>
+                <button class="btn" (click)="removeExclusion(pattern)">remove</button>
+              </div>
+            } @empty {
+              <div class="faint">
+                No paths are excluded from the change feed.
+              </div>
+            }
+
+            <div class="rule add">
+              <input
+                class="text-input mono"
+                placeholder="C:\path\to\exclude"
+                [ngModel]="newExclusion()"
+                (ngModelChange)="newExclusion.set($event)"
+                (keydown.enter)="addExclusion()"
+              />
+              <button class="btn" (click)="addExclusion()">Add rule</button>
+            </div>
+
+            <div class="knob-note faint">
+              Excluded bytes are still counted in the volume total — they are only left out of the
+              change feed. An exclusion never makes the headline number wrong.
+            </div>
+
+            <div class="rule">
+              <button class="toggle" [class.on]="s.includeStrataDatabase" (click)="toggleStrataDb()">
+                <span class="mark">{{ s.includeStrataDatabase ? '■' : '□' }}</span>
+                Include Strata's own database in the change feed
+              </button>
+            </div>
+
+            <div class="knob-note faint">
+              It is rewritten by every tick, so left in it would permanently be the loudest thing in
+              its own report. It is never excluded from totals or the treemap: the database occupies
+              real disk and should be visible as such.
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="t-panel">Units and time</span></div>
+          <div class="panel-body knob-note faint">
+            Sizes are binary and labelled the way Windows labels them:
+            <span class="mono">1 GB = 1024³ bytes</span>, written GB rather than GiB so Strata and
+            File Explorer agree on screen. Snapshot times are stored UTC and displayed in this
+            machine's local zone. Range boundaries snap to local midnight.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--
+      The audit log. The reason this screen exists: every tick, whether it ran or deferred, why, and
+      how long it took. Deferred rows are the point — a log of successes alone is evidence of
+      nothing.
+    -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="t-panel">Scan history</span>
+        <span class="t-meta faint">
+          {{ ticks().length | grouped }} ticks today · every tick recorded, nothing skipped silently
+        </span>
+
+        <div class="spacer"></div>
+
+        <div class="btn-group">
+          @for (f of logFilters; track f) {
+            <button class="btn" [class.on]="filter() === f" (click)="setFilter(f)">{{ f }}</button>
+          }
+        </div>
+      </div>
+
+      <div class="log-head grid-head">
+        <span>Tick</span>
+        <span>Volume</span>
+        <span>Result</span>
+        <span>Reason / detail</span>
+        <span class="num">Duration</span>
+        <span class="num">Events</span>
+      </div>
+
+      <div class="log">
+        @for (tick of ticks(); track tick.id) {
+          <div class="log-row">
+            <span class="mono faint" [title]="tick.whenUtc | stamp">{{ tick.whenUtc | clock }}</span>
+            <span class="mono">{{ tick.volume }}</span>
+
+            <span>
+              @switch (tick.result) {
+                @case ('ran') {
+                  <span class="chip chip-ok">ran</span>
+                }
+                @case ('deferred') {
+                  <span class="chip chip-warn">deferred</span>
+                }
+                @default {
+                  <span class="chip chip-alert">failed</span>
+                }
+              }
+            </span>
+
+            <span
+              class="reason"
+              [class.warn]="tick.result === 'deferred'"
+              [class.alert]="tick.result === 'failed'"
+              [title]="tick.reason"
+            >
+              {{ tick.reason }}
+            </span>
+
+            <span class="num" [class.warn]="tick.durationMs > 30000">
+              {{ tick.durationMs ? (tick.durationMs | duration) : '—' }}
+            </span>
+
+            <span class="num faint">{{ tick.events ? tick.events : '—' }}</span>
+          </div>
+        } @empty {
+          <div class="panel-body dim">
+            No ticks recorded today
+            @if (filter() !== 'all') {
+              with result "{{ filter() }}"
+            }.
+            @if (status()?.nextTickUtc; as next) {
+              The next one is due at {{ next | clock }}.
+            }
+          </div>
+        }
+      </div>
+
+      @if (summary(); as sum) {
+        <div class="log-foot">
+          <span>
+            Today: <span class="mono pos">{{ sum.ran | grouped }} ran</span>,
+            <span class="mono warn">{{ sum.deferred | grouped }} deferred</span>,
+            <span class="mono" [class.alert]="sum.failed > 0">{{ sum.failed | grouped }} failed</span>
+          </span>
+
+          <span class="faint">·</span>
+
+          <span>
+            Median tick <span class="mono">{{ sum.medianMs | duration }}</span> · worst
+            <span class="mono">{{ sum.worstMs | duration }}</span>
+            @if (sum.worstVolume) {
+              <span class="faint">({{ sum.worstVolume }})</span>
+            }
+          </span>
+
+          @if (cpuShare(); as share) {
+            <span class="faint">·</span>
+            <span>
+              Scanning time <span class="mono">{{ sum.totalMs | duration }}</span> ·
+              <span class="mono">{{ (share * 100).toFixed(2) }}%</span> of one core
+            </span>
+          }
+        </div>
+      }
+    </div>
+  } @else if (!failure()) {
+    <div class="panel">
+      <div class="panel-body dim">Reading settings…</div>
+    </div>
+  }
+</div>

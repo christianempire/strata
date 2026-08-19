@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using Strata.Host.Scanning;
 using Strata.Storage;
@@ -130,8 +131,96 @@ internal static partial class ApiHost
         }
 
         ApiEndpoints.MapAll(app);
+        MapUserInterface(app);
 
         return app;
+    }
+
+    /// <summary>Whether a built Angular app was found next to the executable.</summary>
+    internal static bool HasUserInterface => Directory.Exists(WebRoot) &&
+                                            File.Exists(Path.Combine(WebRoot, "index.html"));
+
+    /// <summary>
+    /// Where the built UI lives.
+    /// </summary>
+    /// <remarks>
+    /// Next to the executable rather than under the current directory: the shipped shape is a
+    /// scheduled task started at logon, whose working directory is whatever Windows felt like.
+    /// </remarks>
+    internal static string WebRoot { get; } =
+        Path.Combine(AppContext.BaseDirectory, "wwwroot");
+
+    /// <summary>
+    /// Serves the compiled Angular app from the same origin as the API.
+    /// </summary>
+    /// <remarks>
+    /// Same origin is doing real work here. The API sends no CORS header at all, so the browser's
+    /// own rule is what stops a page from anywhere else reading this machine's disk contents through
+    /// localhost — and it only holds because the app is served from here rather than from a dev
+    /// server or a file:// page.
+    /// <para>
+    /// Absent when nobody has run <c>ng build</c>, which is a normal state for a backend-only
+    /// checkout. The API still works; the root just says so instead of 404ing at someone.
+    /// </para>
+    /// </remarks>
+    private static void MapUserInterface(WebApplication app)
+    {
+        if (!HasUserInterface)
+        {
+            app.MapGet("/", () => Results.Text(
+                "Strata is running, but no UI has been built.\n\n" +
+                "Build it with:  cd src/Strata.Web && npm ci && npm run build\n" +
+                "or:             dotnet build src/Strata.Host -p:BuildWebUi=true\n\n" +
+                "The API is at /api. See tools/api-probe.http.\n",
+                "text/plain"));
+
+            return;
+        }
+
+        var files = new PhysicalFileProvider(WebRoot);
+
+        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
+
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = files,
+
+            // Every asset except index.html carries a content hash in its name, so it can be
+            // cached hard. index.html is the one file that must not be, or a rebuilt UI would be
+            // invisible until someone thought to force-reload.
+            OnPrepareResponse = context =>
+            {
+                var name = context.File.Name;
+
+                context.Context.Response.Headers.CacheControl =
+                    name.Equals("index.html", StringComparison.OrdinalIgnoreCase)
+                        ? "no-cache, no-store, must-revalidate"
+                        : "public, max-age=31536000, immutable";
+            },
+        });
+
+        // The app routes client-side, so /timeline is a real URL that the server has no file for.
+        // Anything not under /api and not a file falls back to the app, which then reads the path
+        // itself. Scoped away from /api so a mistyped endpoint still answers with the JSON error
+        // shape rather than with a page.
+        app.MapFallback(async context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api"))
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+
+                await context.Response.WriteAsJsonAsync(new ApiError("No such endpoint."))
+                    .ConfigureAwait(false);
+
+                return;
+            }
+
+            context.Response.ContentType = "text/html";
+            context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+
+            await context.Response.SendFileAsync(Path.Combine(WebRoot, "index.html"))
+                .ConfigureAwait(false);
+        });
     }
 
     private static string Explain(int statusCode) => statusCode switch

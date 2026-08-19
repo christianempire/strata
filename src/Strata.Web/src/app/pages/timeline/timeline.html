@@ -1,0 +1,290 @@
+<div class="page">
+  <!-- Screen head: what you are looking at, which volume, over what window. -->
+  <div class="screen-head">
+    <span class="t-title">Timeline</span>
+
+    <div class="btn-group">
+      @for (v of shell.listed(); track v.guidPath) {
+        <button
+          class="btn"
+          [class.on]="shell.selected() === keyOf(v)"
+          (click)="selectVolume(keyOf(v))"
+        >
+          {{ v.driveLetter ?? v.label }}
+        </button>
+      }
+    </div>
+
+    <span class="dim">{{ volume()?.label }}</span>
+
+    <div class="spacer"></div>
+
+    <span class="t-micro">Range</span>
+    <div class="btn-group">
+      @for (r of ranges; track r.key) {
+        <button class="btn" [class.on]="range() === r.key" (click)="setRange(r.key)">
+          {{ r.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- The headline sentence. This is the product's whole claim in one line. -->
+  @if (headline(); as head) {
+    <div class="headline">
+      <span class="t-num-hero" [class]="head.net | deltaClass">{{ head.net | deltaBytes }}</span>
+
+      <div class="headline-text t-body-lg">
+        @if (head.empty) {
+          <!-- State 08. An empty range is an answer, so it is phrased as one. -->
+          Nothing above the reporting floor happened on
+          <strong>{{ volume()?.driveLetter }}</strong> since {{ head.since }}. The line below is
+          still drawn, because the window was measured rather than missed.
+        } @else {
+          Your <strong>{{ volume()?.driveLetter }}</strong> drive {{ head.verb }}
+          <strong>{{ head.net | deltaBytes }}</strong> since {{ head.since }}@if (head.topPath) {
+            , and <strong>{{ head.topShare }}</strong> of it landed in
+            <span class="t-path">{{ head.topPath }}</span>
+          }.
+        }
+      </div>
+
+      @if (volume(); as v) {
+        <div class="headline-capacity">
+          <div class="t-micro">Used now · free</div>
+          <div>
+            <span class="t-num-lg">{{ v.usedBytes | bytes }}</span>
+            <span class="dim"> / {{ v.totalBytes | bytes }}</span>
+            <span class="dim"> · </span>
+            <span class="mono" [class.alert]="v.freeBytes / v.totalBytes < 0.08">
+              {{ v.freeBytes | bytes }} free
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- The stacked area. -->
+  <div class="panel chart-panel">
+    <div class="panel-head">
+      <span class="t-micro">Used space by top-level directory</span>
+
+      <div class="legend">
+        @for (s of series()?.series ?? []; track s.dirId) {
+          <span class="key">
+            <span class="swatch" [style.background]="colourOf(s.name)"></span>
+            {{ s.name }} <span class="dim mono">{{ s.latest | bytes }}</span>
+          </span>
+        }
+        @if (hasOther()) {
+          <span class="key">
+            <span class="swatch other"></span>
+            other
+          </span>
+        }
+        @if (unaccounted() > 0) {
+          <span class="key" title="Bytes Windows reports that Strata could not read or attribute.">
+            <span class="swatch hatched"></span>
+            unaccounted <span class="dim mono">{{ unaccounted() | bytes }}</span>
+          </span>
+        }
+      </div>
+    </div>
+
+    <div class="chart" [strataChart]="chart()" [strataChartReplace]="true" (chartBrush)="onBrush($event)"></div>
+
+    <div class="chart-foot">
+      <span class="faint">
+        Drag across the plot to brush a sub-range — the feed below filters to it. Click a feed row to
+        mark it on the chart.
+      </span>
+
+      <div class="spacer"></div>
+
+      @if (brushLabel(); as label) {
+        <span class="mono pos">{{ label }}</span>
+        <button class="btn" (click)="clearBrush()">Clear brush</button>
+      } @else {
+        <span class="faint">No brush · full range</span>
+      }
+    </div>
+  </div>
+
+  <div class="lower">
+    <!-- The events feed. -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="t-panel">Events</span>
+        <span class="t-meta faint">
+          {{ feed().length | grouped }} of {{ events().length | grouped }} in range
+        </span>
+
+        <div class="spacer"></div>
+
+        @for (k of kindCounts(); track k.kind) {
+          <strata-kind [kind]="k.kind" /><span class="t-meta faint">{{ k.count }}</span>
+        }
+      </div>
+
+      <div class="feed-head grid-head">
+        <span>Local time</span>
+        <span>Kind</span>
+        <span>Path</span>
+        <span class="num">Δ bytes</span>
+        <span class="num">Δ files</span>
+      </div>
+
+      <div class="feed">
+        @for (event of feed(); track event.id) {
+          <div class="feed-row" [class.picked]="selected()?.id === event.id" (click)="select(event)">
+            <span class="mono faint" [title]="event.whenUtc | stamp">
+              {{ event.whenUtc | feedStamp }}
+            </span>
+
+            <strata-kind [kind]="event.kind" />
+
+            <strata-path [path]="event.path" />
+
+            <span class="num" [class]="event.deltaBytes | deltaClass"
+              [title]="event.deltaBytes | exactBytes">
+              {{ event.deltaBytes | deltaBytes }}
+            </span>
+
+            <span class="num faint">{{ event.fileDelta | deltaFiles }}</span>
+          </div>
+        } @empty {
+          <div class="panel-body dim empty">
+            @if (loading()) {
+              Reading the change log…
+            } @else if (brush()) {
+              Nothing happened in the brushed window.
+              <button class="btn" (click)="clearBrush()">Clear the brush</button>
+            } @else {
+              <!--
+                State 08 again, in the feed. The two offers are always the nearest range with
+                content and the timestamp of the last change — never a generic "no data".
+              -->
+              Nothing happened on {{ volume()?.driveLetter }} in this range.
+              @if (wider(); as next) {
+                <button class="btn" (click)="setRange(next)">Widen to {{ next }}</button>
+              }
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- The right rail: selection, totals, fidelity. -->
+    <div class="rail">
+      <div class="panel">
+        <div class="panel-head"><span class="t-micro">Selected event</span></div>
+
+        @if (selected(); as event) {
+          <div class="panel-body sel">
+            <div class="sel-head">
+              <span class="t-num-lg" [class]="event.deltaBytes | deltaClass">
+                {{ event.deltaBytes | deltaBytes }}
+              </span>
+              <strata-kind [kind]="event.kind" />
+            </div>
+
+            <div class="t-meta faint">
+              {{ event.deltaBytes | exactBytes }} · {{ event.fileDelta | deltaFiles }}
+            </div>
+
+            <div>
+              <div class="t-micro">Full path</div>
+              <div class="t-path sel-path">{{ event.path }}</div>
+            </div>
+
+            <div class="fact">
+              <span class="faint">Detected</span>
+              <span class="mono" [title]="event.whenUtc | stamp">{{ event.whenUtc | stamp }}</span>
+            </div>
+            <div class="fact">
+              <span class="faint">Churn</span>
+              <span class="mono">{{ event.churnBytes | bytes }}</span>
+            </div>
+            <div class="fact">
+              <span class="faint">Snapshot</span>
+              <span class="mono">#{{ event.snapshotId }}</span>
+            </div>
+
+            <div class="links">
+              <a routerLink="/explorer" [queryParams]="explorerLink(event)">Open in Explorer</a>
+              <a routerLink="/compare" [queryParams]="{ volume: shell.selected() }">Compare around it</a>
+            </div>
+          </div>
+        } @else {
+          <div class="panel-body faint">
+            No event selected. Click a row in the feed — Strata drops a marker on the chart at that
+            timestamp and keeps it there while you change range.
+          </div>
+        }
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="t-micro">Range totals</span></div>
+        <div class="panel-body facts">
+          <div class="fact">
+            <span>Written</span>
+            <span class="mono pos">{{ totals().written | deltaBytes }}</span>
+          </div>
+          <div class="fact">
+            <span>Deleted</span>
+            <span class="mono neg">{{ totals().deleted | deltaBytes }}</span>
+          </div>
+          <div class="fact">
+            <span>Net</span>
+            <span class="mono" [class]="totals().net | deltaClass">{{ totals().net | deltaBytes }}</span>
+          </div>
+          <div class="fact">
+            <span>Churn</span>
+            <span class="mono dim">{{ totals().churn | bytes }} cycled</span>
+          </div>
+
+          <div class="note faint">
+            Churn is the smaller of written and deleted — bytes that came and went. It costs SSD
+            endurance and shows up nowhere in the net figure.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="t-micro">Fidelity</span></div>
+        <div class="panel-body facts">
+          @if (volume(); as v) {
+            <div class="bullet">
+              <span [class]="v.supportsUsnJournal ? 'pos' : 'warn'">●</span>
+              @if (v.supportsUsnJournal) {
+                NTFS change journal live. Events are attributed to the minute.
+              } @else {
+                <!-- State 04, stated where it changes how the chart should be read. -->
+                No change journal on this volume. History comes from a periodic walk, so bands are
+                stepped rather than smoothed and anything created and deleted between walks is
+                invisible. Never interpolated to look finer than it is.
+              }
+            </div>
+
+            <div class="bullet">
+              <span [class]="unaccounted() > 0 ? 'alert' : 'pos'">●</span>
+              @if (unaccounted() > 0) {
+                <!-- State 05 on the chart: the gap is drawn, and the arithmetic is on screen. -->
+                {{ unaccounted() | bytes }} is unaccounted for and drawn as the hatched top band.
+                Strata's total is {{ (v.accountedBytes / v.usedBytes) | percent1 }} of what Windows
+                reports used.
+              } @else {
+                Fully accounted. Strata's total matches what Windows reports.
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (failure(); as text) {
+    <div class="failure">{{ text }}</div>
+  }
+</div>

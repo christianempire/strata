@@ -1,0 +1,237 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 2200px;
+  margin: 0 auto;
+  padding: 14px var(--gutter) 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.picker {
+  padding: 3px 6px;
+  font: 400 11px/16px var(--mono);
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border: 1px solid var(--rule-strong);
+}
+
+/* --- summary ---------------------------------------------------------------------------------- */
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, auto)) minmax(0, 1fr);
+  gap: var(--gutter);
+  align-items: start;
+  padding: 4px 0 10px;
+}
+
+.summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-note {
+  max-width: 78ch;
+  color: var(--fg-2);
+  text-wrap: pretty;
+}
+
+.summary-note strong {
+  font-weight: 500;
+  color: var(--fg-1);
+}
+
+/* --- ranked rows ------------------------------------------------------------------------------ */
+
+.lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 14px;
+  align-items: start;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.row-head,
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 110px 100px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--pad);
+}
+
+.row-head {
+  height: 24px;
+}
+
+.rows {
+  max-height: 540px;
+  overflow-y: auto;
+}
+
+.row {
+  min-height: var(--row);
+  cursor: pointer;
+  border-bottom: 1px solid var(--grid);
+}
+
+.row:hover {
+  background: var(--bg-2);
+}
+
+.row.picked {
+  background: var(--bg-3);
+  box-shadow: inset 2px 0 0 var(--pos);
+}
+
+/* A remainder is not a directory's own change, so it is drawn quieter than one that is. */
+.row.remainder {
+  color: var(--fg-2);
+}
+
+.path-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.path-cell strata-path {
+  min-width: 0;
+  flex: 1;
+}
+
+.elsewhere {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-3);
+}
+
+.twisty {
+  flex: none;
+  width: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.twisty:hover {
+  color: var(--pos);
+}
+
+.swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--bg-2);
+}
+
+.indent {
+  flex: none;
+  width: 20px;
+}
+
+.child {
+  padding-left: var(--pad);
+  font-size: 11px;
+  background: var(--bg-0);
+}
+
+.child.faint {
+  padding: 6px var(--pad) 6px 40px;
+  border-bottom: 1px solid var(--grid);
+  text-wrap: pretty;
+}
+
+.rows-foot {
+  padding: 9px var(--pad);
+  font-size: 11px;
+  color: var(--fg-3);
+  border-top: 1px solid var(--rule);
+  text-wrap: pretty;
+}
+
+/* --- rail ------------------------------------------------------------------------------------- */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-path {
+  color: var(--fg-1);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.note {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--grid);
+  text-wrap: pretty;
+  line-height: 1.6;
+}
+
+.links {
+  display: flex;
+  gap: 14px;
+  padding-top: 4px;
+  font-size: 11px;
+}
+
+.churn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.churner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--grid);
+}
+
+.churner:last-child {
+  border-bottom: none;
+}
+
+.churner:hover {
+  background: var(--bg-2);
+}
+
+.churn-figure {
+  font-size: 12px;
+}

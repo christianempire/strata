@@ -1,0 +1,74 @@
+<header class="bar">
+  <span class="wordmark">STRATA</span>
+
+  <nav class="nav">
+    <a routerLink="/overview" routerLinkActive="on">Overview</a>
+    <a routerLink="/timeline" routerLinkActive="on">Timeline</a>
+    <a routerLink="/explorer" routerLinkActive="on">Explorer</a>
+    <a routerLink="/compare" routerLinkActive="on">Compare</a>
+    <a routerLink="/settings" routerLinkActive="on">Settings</a>
+  </nav>
+
+  <div class="spacer"></div>
+
+  <!--
+    Status, then the zone. A running scan is a status pill and a 2px line, never a spinner and never
+    a dimmed screen: figures that are a few minutes old with their timestamp beat a placeholder.
+  -->
+  <span class="state">
+    <span class="dot" [class]="pill().cls">●</span>
+    <span [class]="pill().cls">{{ pill().text }}</span>
+
+    @if (status()?.lastTickUtc; as tick) {
+      <span class="faint">· last scan {{ tick | clock }}</span>
+    }
+  </span>
+
+  <span class="faint zone" [title]="'All times are local. ' + zone">{{ zone }} · local</span>
+</header>
+
+<!--
+  The scan line. Two pixels, under the bar, spanning the width — enough to say "something is
+  happening" without taking a pixel of content. Indeterminate when the scan has no denominator yet.
+-->
+@if (shell.scanning()) {
+  <div class="scanline" [class.indeterminate]="progress() === null">
+    @if (progress(); as pct) {
+      <div class="scanline-fill" [style.width.%]="pct"></div>
+    }
+  </div>
+}
+
+@if (deferral()) {
+  <!--
+    State 03. The only state with a coloured border on the whole panel, because it is the one the
+    product exists to honour: a deferral is stated as a decision with a reason and a next attempt,
+    never as an error and never as silence.
+  -->
+  <div class="deferred-banner">
+    <span class="chip chip-warn">▲ paused</span>
+    <span>Scanning is deferred: <strong>{{ deferral() }}</strong></span>
+
+    @if (status()?.nextTickUtc; as next) {
+      <span class="faint">Next attempt {{ next | clock }}, or when the cause clears.</span>
+    }
+
+    <div class="spacer"></div>
+    <a routerLink="/settings" class="btn">Scan anyway</a>
+  </div>
+}
+
+@if (shell.failure(); as failure) {
+  <div class="failure-banner">
+    <span class="chip chip-alert">▲ no answer</span>
+    <span>{{ failure }}</span>
+  </div>
+}
+
+<main class="content">
+  @if (firstRun()) {
+    <strata-first-run />
+  } @else {
+    <router-outlet />
+  }
+</main>

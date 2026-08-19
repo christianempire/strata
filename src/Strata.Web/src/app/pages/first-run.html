@@ -1,0 +1,175 @@
+<div class="wrap">
+  @if (activity(); as scan) {
+    <!-- Reading now. Everything on this screen exists to say "working" rather than "frozen". -->
+    <div class="head">
+      <div class="t-title">Reading {{ scan.volume }} for the first time</div>
+      <div class="t-body-lg dim">
+        One pass over the whole volume. Strata has no history to diff against until it finishes, and
+        it will not pretend otherwise.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-body">
+        <div class="pct-row">
+          @if (scan.percent !== null) {
+            <div class="t-num-hero pos">{{ scan.percent.toFixed(0) }}%</div>
+          } @else {
+            <div class="t-num-hero faint">—</div>
+          }
+
+          <div class="pct-detail">
+            @if (scan.expected !== null && scan.basis === 'entries') {
+              <div class="t-body-lg">
+                {{ scan.directoriesCompleted + scan.filesSeen | grouped }} of
+                {{ scan.expected | grouped }} entries
+              </div>
+            } @else {
+              <div class="t-body-lg">
+                {{ scan.bytesSeen | bytes }} of {{ scan.expected | bytes }} read
+              </div>
+            }
+            <div class="t-meta faint">{{ basisNote() }}</div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <div class="pct-time">
+            @if (scan.remainingMs !== null) {
+              <div class="t-num-lg">{{ scan.remainingMs | duration }} left</div>
+            } @else {
+              <!-- Below 2% nothing is claimed: an estimate that lurches reads as broken. -->
+              <div class="t-num-lg faint">estimating</div>
+            }
+            <div class="t-meta faint">elapsed {{ scan.elapsedMs | duration }}</div>
+          </div>
+        </div>
+
+        <div class="bar-track">
+          @if (scan.percent !== null) {
+            <div class="bar-fill" [style.width.%]="scan.percent"></div>
+          } @else {
+            <div class="bar-fill indeterminate"></div>
+          }
+        </div>
+
+        <div class="stats">
+          <div>
+            <div class="t-micro">Rate</div>
+            <div class="mono">{{ scan.entriesPerSecond | grouped }} entries/s</div>
+          </div>
+          <div>
+            <div class="t-micro">Directories seen</div>
+            <div class="mono">{{ scan.directoriesCompleted | grouped }}</div>
+          </div>
+          <div>
+            <div class="t-micro">Files seen</div>
+            <div class="mono">{{ scan.filesSeen | grouped }}</div>
+          </div>
+          <div>
+            <div class="t-micro">Counted so far</div>
+            <div class="mono">{{ scan.bytesSeen | bytes }}</div>
+          </div>
+          <div>
+            <div class="t-micro">Depth</div>
+            <div class="mono">{{ scan.currentDepth }}</div>
+          </div>
+        </div>
+
+        <!--
+          The path being read. More than a bar and a percentage, this is what says the thing is
+          alive: it changes every second and it names something recognisable.
+        -->
+        <div class="reading">
+          <div class="t-micro">Reading now</div>
+          <div class="t-path reading-path" [title]="scan.currentPath">{{ scan.currentPath }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two-up">
+      <div class="panel">
+        <div class="panel-head"><span class="t-micro">Already usable</span></div>
+        <div class="panel-body ready-list">
+          @for (item of readiness(); track item.text) {
+            <div class="ready-row">
+              <span [class]="item.ready ? 'pos' : 'faint'">{{ item.ready ? '✓' : '○' }}</span>
+              <span [class]="item.ready ? '' : 'faint'">{{ item.text }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="t-micro">Volumes</span></div>
+        <div class="panel-body ready-list">
+          @for (volume of shell.volumes(); track volume.guidPath) {
+            <div class="ready-row">
+              <span class="mono">{{ volume.driveLetter ?? volume.label }}</span>
+              @if (volume.driveLetter === scan.volume) {
+                <span class="pos">scanning</span>
+              } @else if (volume.baselineUtc) {
+                <span class="dim">done</span>
+              } @else if (volume.attached && volume.scannable) {
+                <span class="faint">not scanned</span>
+              } @else {
+                <span class="faint">not scannable</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="t-body-lg dim close-note">
+      You can close this tab. The scan runs in the tray agent and does not need the browser open.
+    </div>
+  } @else {
+    <!-- Nothing scanned and nothing running. The one screen with a call to action on it. -->
+    <div class="head">
+      <div class="t-title">No history yet</div>
+      <div class="t-body-lg dim">
+        Strata answers what grew, when and where by recording history and diffing it, so it needs one
+        full pass over a volume before it can say anything. A system volume takes about three and a
+        half minutes and runs at very low I/O priority.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span class="t-micro">Volumes</span></div>
+
+      <div class="panel-body">
+        @for (volume of candidates(); track volume.guidPath) {
+          <div class="offer">
+            <span class="mono t-body-lg">{{ volume.driveLetter ?? volume.label }}</span>
+            <span class="dim">{{ volume.label }}</span>
+            <span class="faint t-meta">
+              {{ volume.fileSystem }} ·
+              {{ volume.supportsUsnJournal ? 'journal available' : 'no change journal' }}
+            </span>
+
+            <div class="spacer"></div>
+
+            <span class="mono dim">{{ volume.usedBytes | bytes }} used</span>
+
+            <button class="btn on" [disabled]="queueing()" (click)="scan(keyOf(volume))">
+              Scan {{ volume.driveLetter ?? volume.label }} now
+            </button>
+          </div>
+        } @empty {
+          <div class="dim">No fixed volume is attached that Strata can read.</div>
+        }
+      </div>
+    </div>
+
+    @if (failure(); as text) {
+      <div class="alert">{{ text }}</div>
+    }
+
+    @if (queued().length) {
+      <div class="dim">
+        Queued: {{ queued().length }}. The scanner picks it up within a few seconds.
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,200 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 2200px;
+  margin: 0 auto;
+  padding: 14px var(--gutter) 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.crumb {
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.crumb:hover {
+  color: var(--fg-1);
+  border-color: var(--rule-strong);
+}
+
+.crumb.here {
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border-color: var(--rule-strong);
+}
+
+/* --- you are here ----------------------------------------------------------------------------- */
+
+.here {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gutter);
+  padding-bottom: 4px;
+}
+
+.here-path {
+  min-width: 0;
+  flex: 1;
+}
+
+.here-path .t-num-lg {
+  word-break: break-all;
+}
+
+.here-facts {
+  display: flex;
+  gap: 28px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* --- the two halves --------------------------------------------------------------------------- */
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.treemap {
+  height: 460px;
+  background: var(--bg-0);
+}
+
+.list-head,
+.list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px 90px 130px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--pad);
+}
+
+.list-head {
+  height: 24px;
+}
+
+.list {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.list-row {
+  min-height: var(--row);
+  cursor: pointer;
+  border-bottom: 1px solid var(--grid);
+}
+
+.list-row:hover {
+  background: var(--bg-2);
+}
+
+.list-row.picked {
+  background: var(--bg-3);
+  box-shadow: inset 2px 0 0 var(--pos);
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+}
+
+.drill {
+  flex: none;
+  padding: 0 5px;
+  background: transparent;
+  border: none;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.drill:hover {
+  color: var(--pos);
+}
+
+.share {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.share-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-2);
+}
+
+.share-fill {
+  display: block;
+  height: 100%;
+}
+
+.share-pct {
+  width: 42px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.list-foot {
+  padding: 9px var(--pad);
+  font-size: 11px;
+  color: var(--fg-2);
+  border-top: 1px solid var(--rule);
+  text-wrap: pretty;
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  color: var(--fg-2);
+  background: var(--bg-1);
+  border: 1px dashed var(--rule-strong);
+  text-wrap: pretty;
+}

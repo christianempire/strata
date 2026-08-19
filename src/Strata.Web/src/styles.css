@@ -1,0 +1,321 @@
+/*
+ * Strata design tokens and global rules.
+ *
+ * Lifted verbatim from docs/design/Strata Palette and Type. Every value here is fixed by the
+ * mockups; nothing in this file is a judgement call, and a component that wants a colour takes it
+ * from a token rather than inventing one.
+ *
+ * Dark is the only theme, stated explicitly in the palette. The tokens are all on :root so a light
+ * set could be added later as a second block without touching a component, and ECharts reads them
+ * through getComputedStyle at chart init for the same reason.
+ */
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-sans-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
+:root {
+  /* Background layers. Warm neutrals — a little yellow chroma keeps a panel this dark from
+     reading blue-cold at night. */
+  --bg-0: #0f0d0b;   /* app ground, chart plot area */
+  --bg-1: #181613;   /* panels, top bar, table header */
+  --bg-2: #23201d;   /* raised rows, chips, inputs */
+  --bg-3: #2e2b27;   /* selected row, active control */
+
+  /* Rules and grid. */
+  --rule: #2e2b27;
+  --rule-strong: #393632;
+  --grid: #23201d;
+
+  /* Text, three emphasis levels. fg-3 is for 10-11px non-essential labels only: never a
+     number, never a path. */
+  --fg-1: #f1eeea;
+  --fg-2: #aeaaa5;
+  --fg-3: #78746f;
+
+  /* Deltas. Amber against cyan rather than red against green: the pair separates on both the
+     deutan and protan axes and survives greyscale, because amber is much the lighter of the two.
+     Colour is the second signal — sign, triangle and bar direction each carry the meaning alone. */
+  --pos: #f8ac3d;
+  --pos-bg: #452d0a;
+  --neg: #5cd0ea;
+  --neg-bg: #0b3943;
+
+  --warn: #ff9868;   /* reduced fidelity, deferred scan */
+  --alert: #f8767a;  /* undercount, free space under 8% */
+
+  /* Categorical series ramp: oklch(0.70 0.125 h), h = 28..338. One lightness, one chroma, twelve
+     hues about 30 degrees apart, so no series dominates by brightness. */
+  --s1: #e17e72;
+  --s2: #d9884d;
+  --s3: #c59634;
+  --s4: #a6a43c;
+  --s5: #7cb05e;
+  --s6: #46b686;
+  --s7: #00b7b0;
+  --s8: #06b0d2;
+  --s9: #56a5e7;
+  --s10: #8897ec;
+  --s11: #b189dd;
+  --s12: #d07fb9;
+
+  /* Series 13 and beyond fold into this. The only desaturated band, so "everything else" never
+     looks like a named directory. Also the ink for unattributed and unreadable bytes. */
+  --other: #4b4743;
+
+  --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+
+  /* Density: table row 26px, panel padding 14px, gutter 24px. Nothing here has 40px of padding. */
+  --row: 26px;
+  --pad: 14px;
+  --gutter: 24px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-0);
+}
+
+body {
+  color: var(--fg-1);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+
+  /* Set globally so columns of bytes align on the decimal without per-cell work. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--neg);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a:hover {
+  color: #8fe0f2;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-0);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--other);
+}
+
+/* --- the nine-step type scale ---------------------------------------------------------------
+ *
+ * Sans carries language; mono carries every number and every path. Nine steps, no more.
+ */
+
+.t-num-hero { font: 500 32px/34px var(--mono); }
+.t-num-lg   { font: 500 22px/28px var(--mono); }
+.t-title    { font: 500 18px/24px var(--sans); letter-spacing: -0.01em; }
+.t-panel    { font: 500 15px/22px var(--sans); }
+.t-body-lg  { font: 400 13px/20px var(--sans); }
+.t-body     { font: 400 12px/18px var(--sans); }
+.t-path     { font: 400 12px/18px var(--mono); }
+.t-meta     { font: 400 11px/16px var(--sans); }
+
+.t-micro {
+  font: 400 10px/14px var(--sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.mono { font-family: var(--mono); }
+
+/* --- structure -------------------------------------------------------------------------------
+ *
+ * Elevation is one background step plus a 1px rule. No shadows anywhere. Square corners, 2px
+ * maximum on chips.
+ */
+
+.panel {
+  background: var(--bg-1);
+  border: 1px solid var(--rule);
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px var(--pad);
+  border-bottom: 1px solid var(--rule);
+}
+
+.panel-body {
+  padding: var(--pad);
+}
+
+.dim { color: var(--fg-2); }
+.faint { color: var(--fg-3); }
+
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.warn { color: var(--warn); }
+.alert { color: var(--alert); }
+
+/* Unreadable or unattributed bytes. Hatching means "we could not read this", and an estimate is
+   never rendered in the same ink as a measurement. */
+.hatched {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--other) 0 1px,
+    transparent 1px 5px
+  );
+}
+
+.chip {
+  display: inline-block;
+  padding: 1px 5px;
+  font: 400 10px/14px var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--bg-2);
+  color: var(--fg-2);
+}
+
+.chip-pos { background: var(--pos-bg); color: var(--pos); }
+.chip-neg { background: var(--neg-bg); color: var(--neg); }
+.chip-warn { background: var(--pos-bg); color: var(--warn); }
+.chip-alert { background: #3a1a1c; color: var(--alert); }
+.chip-ok { background: #1b2a1b; color: var(--s5); }
+
+.btn {
+  padding: 3px 9px;
+  font: 400 11px/16px var(--mono);
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid var(--rule-strong);
+  background: var(--bg-1);
+  color: var(--fg-2);
+}
+
+.btn:hover {
+  border-color: var(--other);
+  color: var(--fg-1);
+}
+
+.btn.on {
+  border-color: var(--pos);
+  background: var(--pos-bg);
+  color: var(--pos);
+}
+
+.btn:disabled {
+  cursor: default;
+  color: var(--fg-3);
+  border-color: var(--rule);
+  background: transparent;
+}
+
+.btn-group {
+  display: flex;
+}
+
+.btn-group .btn + .btn {
+  margin-left: -1px;
+}
+
+/* --- tables ---------------------------------------------------------------------------------- */
+
+.grid-head {
+  font: 400 10px/14px var(--sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.grid-row {
+  min-height: var(--row);
+  border-bottom: 1px solid var(--grid);
+}
+
+.grid-row:hover {
+  background: var(--bg-2);
+}
+
+.num {
+  font-family: var(--mono);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* --- path truncation -------------------------------------------------------------------------
+ *
+ * Two spans in a flex row: the head shrinks and ellipsizes, the tail — the last segments, which are
+ * the part that carries the meaning — never shrinks.
+ */
+
+.path {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  font-family: var(--mono);
+}
+
+.path-head {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-3);
+  direction: rtl;
+  text-align: left;
+}
+
+.path-tail {
+  flex: none;
+  white-space: nowrap;
+  color: var(--fg-1);
+}
+
+/* Screen-reader-only, for the labels that are carried visually by a glyph or a bar. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

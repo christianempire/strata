@@ -30,7 +30,9 @@ internal static class ServeCommand
             LogRequests = options.Verbose,
         });
 
-        Console.WriteLine($"Strata API on http://localhost:{options.Port}/api  (loopback only)");
+        Console.WriteLine(ApiHost.HasUserInterface
+            ? $"Strata on http://localhost:{options.Port}/  (loopback only)"
+            : $"Strata API on http://localhost:{options.Port}/api  (loopback only)");
         Console.WriteLine($"Database: {database.DatabasePath}");
         Console.WriteLine($"Elevated: {(Elevation.IsElevated ? "yes" : "no")}");
         Console.WriteLine();
@@ -45,6 +47,13 @@ internal static class ServeCommand
         Console.WriteLine("  GET  /api/settings");
         Console.WriteLine("  PUT  /api/settings        any subset of the fields GET returns");
         Console.WriteLine();
+        if (!ApiHost.HasUserInterface)
+        {
+            Console.WriteLine("No UI is built. `cd src/Strata.Web && npm ci && npm run build`,");
+            Console.WriteLine("or `dotnet build src/Strata.Host -p:BuildWebUi=true`.");
+            Console.WriteLine();
+        }
+
         Console.WriteLine("Ctrl+C to stop.");
         Console.WriteLine();
 

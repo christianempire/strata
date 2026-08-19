@@ -31,4 +31,57 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <!--
+    The Angular app, compiled to static files and copied into the executable's output.
+
+    At runtime there is no Node, no `ng serve`, no second process: `ng build` produces plain HTML,
+    CSS and JavaScript at *build* time and this copies it next to strata.exe as wwwroot. See
+    docs/RUNTIME.md.
+
+    Running npm is opt-in rather than automatic. `dotnet build` and `dotnet test` have to work on a
+    machine with no Node installed — the backend is four projects and 161 tests that have nothing to
+    do with the UI, and making them depend on an npm install would be a poor trade for the
+    convenience of one command. Build the UI with:
+
+        dotnet build src/Strata.Host -p:BuildWebUi=true
+
+    or by running `npm run build` in src/Strata.Web yourself. Whatever is in dist gets copied either
+    way, and if nothing is there the host serves the API alone and says so on startup.
+  -->
+  <PropertyGroup>
+    <WebProjectDir>$(MSBuildThisFileDirectory)..\Strata.Web\</WebProjectDir>
+    <BuildWebUi Condition="'$(BuildWebUi)' == ''">false</BuildWebUi>
+  </PropertyGroup>
+
+  <Target Name="BuildAngularApp"
+          BeforeTargets="CollectWebAssets"
+          Condition="'$(BuildWebUi)' == 'true'">
+    <Message Importance="high" Text="Building the Angular app in $(WebProjectDir)..." />
+
+    <Exec Command="npm ci"
+          WorkingDirectory="$(WebProjectDir)"
+          Condition="!Exists('$(WebProjectDir)node_modules')" />
+
+    <Exec Command="npm run build" WorkingDirectory="$(WebProjectDir)" />
+  </Target>
+
+  <!--
+    Globbed inside a target rather than in a plain ItemGroup, because the files may not exist when
+    the project is evaluated — a build that produces them in the same pass would otherwise copy the
+    previous build's output, or nothing at all on the first one.
+  -->
+  <Target Name="CollectWebAssets" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_WebAsset Include="$(WebProjectDir)dist\**\*" />
+
+      <Content Include="@(_WebAsset)"
+               Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+               CopyToOutputDirectory="PreserveNewest"
+               CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <Message Importance="normal"
+             Text="Web assets: @(_WebAsset->Count()) files from $(WebProjectDir)dist" />
+  </Target>
+
 </Project>
