@@ -148,6 +148,50 @@ export interface Settings {
   excludedEventPaths: string[];
   excludedDirectoryNames: string[];
   paused: boolean;
+
+  /** Off means nothing is ever deleted and the database grows without bound. */
+  retentionEnabled: boolean;
+
+  /** Days during which every measurement is kept exactly as recorded. */
+  fullResolutionDays: number;
+
+  /** Days during which at most one measurement an hour is kept. */
+  hourlyDays: number;
+
+  /** Days during which at most one a day is kept. Weekly beyond it, forever. */
+  dailyDays: number;
+
+  /** Days of scan log kept. Dropped by age rather than thinned; it is not a series. */
+  scanLogDays: number;
+}
+
+/**
+ * What recorded history costs on disk.
+ *
+ * Worth reporting because the shape of it is counter-intuitive: only `dir_history` grows with time,
+ * and on the target machine that is 14% of a 680 MB database. The rest is current state, sized by
+ * how many files the machine has, and no retention setting will shrink it.
+ */
+export interface HistorySize {
+  databaseBytes: number;
+
+  /** The write-ahead log, which is real space that comes and goes. */
+  walBytes: number;
+
+  /** Rows in the one table that grows with time. */
+  historyRows: number;
+
+  volumes: VolumeHistory[];
+}
+
+export interface VolumeHistory {
+  volume: string;
+  key: string;
+  rows: number;
+
+  /** Null when there is none. Excludes the epoch-dated opening rows a migration leaves behind. */
+  oldestUtc: string | null;
+  newestUtc: string | null;
 }
 
 export interface ScanActivity {

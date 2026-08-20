@@ -3,10 +3,11 @@ import { FormsModule } from '@angular/forms';
 
 import { Api, errorText } from '../../core/api';
 import { toIso } from '../../core/format';
-import { ScanLog, ScanTier, Settings } from '../../core/models';
+import { HistorySize, ScanLog, ScanTier, Settings } from '../../core/models';
 import { Shell, isSystemPartition, volumeKey, volumeName } from '../../core/state';
 import {
   BytesPipe,
+  ExactBytesPipe,
   ClockPipe,
   DurationPipe,
   GroupedPipe,
@@ -36,6 +37,17 @@ const CATCH_UP_INTERVALS = [
   { seconds: 300, label: '5 min' },
 ] as const;
 
+/**
+ * The retention tiers offered, as day counts.
+ *
+ * Presets rather than free entry because the tiers have to stay in order — a full-resolution window
+ * longer than the hourly window would mean the hourly tier never applied to anything — and a form
+ * that lets you type an invalid pair and then rejects it is a worse form than one that cannot.
+ */
+const FULL_DAYS = [1, 3, 7, 14] as const;
+const HOURLY_DAYS = [7, 30, 90] as const;
+const DAILY_DAYS = [90, 365, 730] as const;
+
 const LOG_FILTERS = ['all', 'ran', 'deferred', 'failed'] as const;
 
 type LogFilter = (typeof LOG_FILTERS)[number];
@@ -52,7 +64,15 @@ type LogFilter = (typeof LOG_FILTERS)[number];
   selector: 'strata-settings',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, BytesPipe, GroupedPipe, ClockPipe, StampPipe, DurationPipe],
+  imports: [
+    FormsModule,
+    BytesPipe,
+    ExactBytesPipe,
+    GroupedPipe,
+    ClockPipe,
+    StampPipe,
+    DurationPipe,
+  ],
   templateUrl: './settings.html',
   styleUrl: './settings.css',
 })
@@ -62,6 +82,11 @@ export class SettingsPage {
 
   protected readonly intervals = INTERVALS;
   protected readonly catchUpIntervals = CATCH_UP_INTERVALS;
+  protected readonly fullDays = FULL_DAYS;
+  protected readonly hourlyDays = HOURLY_DAYS;
+  protected readonly dailyDays = DAILY_DAYS;
+
+  protected readonly history = signal<HistorySize | null>(null);
   protected readonly logFilters = LOG_FILTERS;
 
   protected readonly settings = signal<Settings | null>(null);
@@ -106,6 +131,8 @@ export class SettingsPage {
       error: (failure) => this.failure.set(errorText(failure)),
     });
 
+    this.loadHistory();
+
     effect(() => {
       const which = this.filter();
 
@@ -126,6 +153,44 @@ export class SettingsPage {
 
   protected setCatchUpInterval(seconds: number): void {
     this.patch({ catchUpIntervalSeconds: seconds });
+  }
+
+  /**
+   * Sets one retention tier, pushing the coarser ones out if it would overtake them.
+   *
+   * The tiers must stay in order, and the API rejects a pair that is not — correctly, but a screen
+   * that lets you click something and then shows an error for it is a screen that made you do the
+   * work. Widening a tier widens whatever sat behind it instead.
+   */
+  protected setRetention(tier: 'full' | 'hourly' | 'daily', days: number): void {
+    const current = this.settings();
+
+    if (!current) {
+      return;
+    }
+
+    const full = tier === 'full' ? days : current.fullResolutionDays;
+    const hourly = Math.max(tier === 'hourly' ? days : current.hourlyDays, full);
+    const daily = Math.max(tier === 'daily' ? days : current.dailyDays, hourly);
+
+    this.patch({ fullResolutionDays: full, hourlyDays: hourly, dailyDays: daily });
+  }
+
+  protected toggleRetention(): void {
+    const current = this.settings();
+
+    if (current) {
+      this.patch({ retentionEnabled: !current.retentionEnabled });
+    }
+  }
+
+  private loadHistory(): void {
+    this.api.history().subscribe({
+      next: (size) => this.history.set(size),
+
+      // A missing breakdown costs a panel, not the screen. Every other knob still works.
+      error: () => this.history.set(null),
+    });
   }
 
   protected commitCpu(): void {

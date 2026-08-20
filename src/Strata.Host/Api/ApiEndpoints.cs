@@ -34,6 +34,7 @@ internal static class ApiEndpoints
         api.MapGet("/scan-log", GetScanLog);
         api.MapPost("/scan", PostScan);
         api.MapGet("/scan/status", GetScanStatus);
+        api.MapGet("/history", GetHistory);
         api.MapGet("/settings", GetSettings);
         api.MapPut("/settings", PutSettings);
 
@@ -345,6 +346,63 @@ internal static class ApiEndpoints
     /// </para>
     /// </remarks>
     private static IResult GetScanStatus(ScanScheduler scheduler) => Results.Ok(scheduler.Status());
+
+    /// <summary>
+    /// What history costs on disk, for the Settings breakdown.
+    /// </summary>
+    /// <remarks>
+    /// Reads the file size from Windows rather than from SQLite: page counts describe what SQLite
+    /// has allocated, and the question the screen is asking is how much of the disk this is using.
+    /// The write-ahead log is reported separately because it is real space that comes and goes.
+    /// </remarks>
+    private static IResult GetHistory(StrataDatabase database)
+    {
+        using var connection = database.OpenRead();
+
+        var volumes = VolumeQueries.List(connection).ToDictionary(v => v.Id);
+        var rows = new List<VolumeHistoryResponse>();
+        long total = 0;
+
+        foreach (var history in RetentionRepository.PerVolume(connection))
+        {
+            total += history.Rows;
+
+            if (!volumes.TryGetValue(history.VolumeId, out var volume))
+            {
+                // History for a volume whose row has gone. Counted in the total, because the bytes
+                // are real, but there is nothing to name it with.
+                continue;
+            }
+
+            rows.Add(new VolumeHistoryResponse
+            {
+                Volume = volume.DriveLetter is null
+                    ? volume.Label
+                    : $"{volume.DriveLetter} ({volume.Label})",
+                Key = volume.DriveLetter ?? volume.GuidPath,
+                Rows = history.Rows,
+                OldestUtc = history.OldestUtc,
+                NewestUtc = history.NewestUtc,
+            });
+        }
+
+        rows.Sort((a, b) => b.Rows.CompareTo(a.Rows));
+
+        return Results.Ok(new HistoryResponse
+        {
+            DatabaseBytes = Size(database.DatabasePath),
+            WalBytes = Size(database.DatabasePath + "-wal"),
+            HistoryRows = total,
+            Volumes = rows,
+        });
+    }
+
+    private static long Size(string path)
+    {
+        var file = new FileInfo(path);
+
+        return file.Exists ? file.Length : 0;
+    }
 
     private static IResult GetSettings(StrataDatabase database)
     {

@@ -265,3 +265,36 @@ input[type='range']::-moz-range-thumb {
   border: 1px solid var(--rule-strong);
   background: var(--bg-1);
 }
+
+/* The on-disk breakdown. Three figures across the top, then a row per volume. */
+.disk-total {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.hist-head,
+.hist-row {
+  display: grid;
+  grid-template-columns: 1fr 130px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 6px 0;
+}
+
+.hist-head {
+  padding-top: 12px;
+}
+
+.hist-row {
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+}
+
+.hist-row .num,
+.hist-head .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

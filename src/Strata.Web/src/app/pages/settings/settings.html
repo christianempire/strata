@@ -140,6 +140,154 @@
 
         <div class="panel">
           <div class="panel-head">
+            <span class="t-micro">History kept</span>
+            <span class="t-meta faint">thinned nightly, never deleted outright</span>
+          </div>
+
+          <div class="panel-body knobs">
+            <div class="knob">
+              <div class="knob-label">
+                <span>Thin old history</span>
+                <span class="mono" [class.pos]="s.retentionEnabled" [class.warn]="!s.retentionEnabled">
+                  {{ s.retentionEnabled ? 'on' : 'off' }}
+                </span>
+              </div>
+              <div class="btn-group">
+                <button class="btn" [class.on]="s.retentionEnabled" (click)="toggleRetention()">
+                  On
+                </button>
+                <button class="btn" [class.on]="!s.retentionEnabled" (click)="toggleRetention()">
+                  Off
+                </button>
+              </div>
+              <div class="knob-note faint">
+                Off keeps every measurement for ever, and the database grows without bound. On, a
+                directory keeps its newest measurement in each bucket below — so a size is always
+                known at any past moment, just to a coarser minute the further back you look.
+                Nothing is ever deleted without something older still standing behind it.
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label">
+                <span>Every measurement, for</span>
+                <span class="faint mono">{{ s.fullResolutionDays * 96 | grouped }} ticks a volume</span>
+              </div>
+              <div class="btn-group">
+                @for (d of fullDays; track d) {
+                  <button
+                    class="btn"
+                    [disabled]="!s.retentionEnabled"
+                    [class.on]="s.fullResolutionDays === d"
+                    (click)="setRetention('full', d)"
+                  >
+                    {{ d }}d
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label"><span>Then one an hour, until</span></div>
+              <div class="btn-group">
+                @for (d of hourlyDays; track d) {
+                  <button
+                    class="btn"
+                    [disabled]="!s.retentionEnabled"
+                    [class.on]="s.hourlyDays === d"
+                    (click)="setRetention('hourly', d)"
+                  >
+                    {{ d }}d
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label"><span>Then one a day, until</span></div>
+              <div class="btn-group">
+                @for (d of dailyDays; track d) {
+                  <button
+                    class="btn"
+                    [disabled]="!s.retentionEnabled"
+                    [class.on]="s.dailyDays === d"
+                    (click)="setRetention('daily', d)"
+                  >
+                    {{ d }}d
+                  </button>
+                }
+              </div>
+              <div class="knob-note faint">
+                Weekly after that, for ever. The scan log is separate: it is an audit trail rather
+                than a series, so it is dropped by age at
+                <span class="mono">{{ s.scanLogDays }}</span> days rather than thinned.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="t-micro">On disk</span>
+            <span class="t-meta faint">what Strata is using to answer with</span>
+          </div>
+
+          @if (history(); as h) {
+            <div class="panel-body">
+              <div class="disk-total">
+                <div>
+                  <div class="t-micro">Database</div>
+                  <div class="t-num-lg" [title]="h.databaseBytes | exactBytes">
+                    {{ h.databaseBytes | bytes }}
+                  </div>
+                </div>
+                <div>
+                  <div class="t-micro">Write-ahead log</div>
+                  <div class="t-num-lg" [title]="h.walBytes | exactBytes">{{ h.walBytes | bytes }}</div>
+                </div>
+                <div>
+                  <div class="t-micro">History rows</div>
+                  <div class="t-num-lg">{{ h.historyRows | grouped }}</div>
+                </div>
+              </div>
+
+              <div class="hist-head grid-head">
+                <span>Volume</span>
+                <span class="num">Measurements</span>
+                <span>History since</span>
+              </div>
+
+              @for (v of h.volumes; track v.key) {
+                <div class="hist-row">
+                  <span class="mono">{{ v.volume }}</span>
+                  <span class="num">{{ v.rows | grouped }}</span>
+                  <span class="faint mono" [title]="v.oldestUtc | stamp">
+                    {{ v.oldestUtc ? (v.oldestUtc | clock) : 'no measurements yet' }}
+                  </span>
+                </div>
+              } @empty {
+                <div class="panel-body dim">No history recorded yet.</div>
+              }
+
+              <div class="panel-foot">
+                <!--
+                  Stated because it is the thing everyone assumes wrongly, and assuming it wrongly
+                  leads to turning retention up and being disappointed. Measured on this machine:
+                  only dir_history grows with time, and it is 14% of the file.
+                -->
+                Most of that file is <em>current</em> state — one row per file and per directory on
+                the machine — which is sized by what you have, not by how long Strata has been
+                watching. Retention only thins the history, so shortening these tiers reclaims less
+                than it looks like it should.
+              </div>
+            </div>
+          } @else {
+            <div class="panel-body dim">Measuring…</div>
+          }
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
             <span class="t-micro">Volumes</span>
             <span class="t-meta faint">fidelity, and scanning by hand</span>
           </div>

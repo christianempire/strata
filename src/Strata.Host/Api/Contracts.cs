@@ -81,6 +81,52 @@ internal sealed record ScanLogResponse
     public required IReadOnlyList<ScanLogRow> Ticks { get; init; }
 }
 
+/// <summary>
+/// What recorded history costs, and what retention is keeping.
+/// </summary>
+/// <remarks>
+/// Reported because the Settings mockup asks for a history-on-disk breakdown, and because the
+/// interesting fact about it is counter-intuitive enough to be worth stating plainly: on the target
+/// machine only <c>dir_history</c> grows with time, and it is 14% of a 680 MB database. The rest is
+/// current state, sized by how many files and directories the machine has, and no retention setting
+/// will shrink it.
+/// </remarks>
+internal sealed record HistoryResponse
+{
+    /// <summary>The database file, as Windows sees it.</summary>
+    public long DatabaseBytes { get; init; }
+
+    /// <summary>The write-ahead log, which is where recent writes live until SQLite folds them in.</summary>
+    public long WalBytes { get; init; }
+
+    /// <summary>Rows in the one table that grows with time.</summary>
+    public long HistoryRows { get; init; }
+
+    public IReadOnlyList<VolumeHistoryResponse> Volumes { get; init; } = [];
+}
+
+/// <summary>One volume's share of recorded history.</summary>
+internal sealed record VolumeHistoryResponse
+{
+    public required string Volume { get; init; }
+
+    /// <summary>Drive letter or GUID path — the key the rest of the API takes.</summary>
+    public required string Key { get; init; }
+
+    public long Rows { get; init; }
+
+    /// <summary>
+    /// The oldest real measurement held, or null when there is none.
+    /// </summary>
+    /// <remarks>
+    /// Migration 005's epoch-dated opening rows are excluded. They exist so every directory has a
+    /// size at every moment, and reporting them would claim history back to 1970.
+    /// </remarks>
+    public string? OldestUtc { get; init; }
+
+    public string? NewestUtc { get; init; }
+}
+
 /// <summary>A scan asked for through the API.</summary>
 internal sealed record ScanRequestBody
 {

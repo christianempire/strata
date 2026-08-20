@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import {
   AttributedChange,
   ChangeEvent,
+  HistorySize,
   ScanAccepted,
   ScanLog,
   ScanStatus,
@@ -121,6 +122,11 @@ export class Api {
 
   settings(): Observable<Settings> {
     return this.http.get<Settings>('/api/settings');
+  }
+
+  /** A full scan of dir_history — 272 ms over 3.9M rows. Fine on open, not on a poll. */
+  history(): Observable<HistorySize> {
+    return this.http.get<HistorySize>('/api/history');
   }
 
   /** A patch, not a replacement. Send only what is changing; omitted fields are left alone. */
