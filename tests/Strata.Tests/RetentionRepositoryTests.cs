@@ -353,6 +353,34 @@ public sealed class RetentionRepositoryTests : IDisposable
         Assert.Equal(3, Remaining(9).Count);
     }
 
+    [Fact]
+    public void The_oldest_measurement_ignores_the_epoch_dated_seed()
+    {
+        // Caught by looking at the live endpoint rather than by a test: C: holds 3.8M measurements
+        // and one migration-005 seed dated at the epoch, and a plain MIN answered with the seed —
+        // which Stamp reports as null, so the screen read "no measurements yet" beside 3.8M of them.
+        Write(20, 0, At(30), At(3));
+
+        var history = Assert.Single(RetentionRepository.PerVolume(_connection));
+
+        Assert.Equal(3, history.Rows);
+        Assert.Equal(DateTime.UnixEpoch.AddSeconds(At(30)).ToString("O"), history.OldestUtc);
+        Assert.Equal(DateTime.UnixEpoch.AddSeconds(At(3)).ToString("O"), history.NewestUtc);
+    }
+
+    [Fact]
+    public void A_volume_holding_only_seed_rows_reports_no_oldest_measurement()
+    {
+        // The other half of it: rows, but none of them a real measurement. Null is right here, and
+        // the screen says "opening state only" rather than inventing a date.
+        Write(21, 0);
+
+        var history = Assert.Single(RetentionRepository.PerVolume(_connection));
+
+        Assert.Equal(1, history.Rows);
+        Assert.Null(history.OldestUtc);
+    }
+
     private long Count(string sql)
     {
         using var command = _connection.CreateCommand();

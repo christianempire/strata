@@ -262,7 +262,14 @@
                   <span class="mono">{{ v.volume }}</span>
                   <span class="num">{{ v.rows | grouped }}</span>
                   <span class="faint mono" [title]="v.oldestUtc | stamp">
-                    {{ v.oldestUtc ? (v.oldestUtc | clock) : 'no measurements yet' }}
+                    @if (v.oldestUtc) {
+                      {{ v.oldestUtc | clock }}
+                    } @else if (v.rows > 0) {
+                      <!-- Rows, but all of them the opening seed a migration wrote. -->
+                      opening state only
+                    } @else {
+                      no measurements yet
+                    }
                   </span>
                 </div>
               } @empty {

@@ -221,7 +221,10 @@ public static class RetentionRepository
 
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT volume_id, COUNT(*), MIN(taken_unix), MAX(taken_unix)
+            SELECT volume_id,
+                   COUNT(*),
+                   MIN(CASE WHEN taken_unix > 0 THEN taken_unix END),
+                   MAX(taken_unix)
             FROM dir_history GROUP BY volume_id;
             """;
 
@@ -236,8 +239,10 @@ public static class RetentionRepository
                 Rows = reader.GetInt64(1),
 
                 // The epoch-dated opening rows from migration 005 are placeholders rather than
-                // measurements, and reporting "history since 1970" would claim coverage that is not
-                // there. Stamp answers null for them.
+                // measurements, so they are excluded from the minimum by the CASE above rather than
+                // filtered out afterwards. Reporting "history since 1970" would claim coverage that
+                // is not there — and taking the plain MIN answered null for C:, which holds 3.8M
+                // measurements and one seed, so the screen read "no measurements yet" beside them.
                 OldestUtc = Stamp(reader.IsDBNull(2) ? 0 : reader.GetInt64(2)),
                 NewestUtc = Stamp(reader.IsDBNull(3) ? 0 : reader.GetInt64(3)),
             });
