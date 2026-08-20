@@ -968,6 +968,39 @@ pushed E:'s recovery back another four cycles for free, and again after every su
 Counts are now kept per remedy and cleared only by a tick that actually ran, which is the one event
 that proves a condition has lifted.
 
+## The recovery, provoked on the real machine
+
+The failure took 27 hours to appear naturally, so it was reproduced deliberately: E:'s stored cursor
+was set to a USN its live window no longer contains — which is exactly what the journal wrapping past
+it does — with the interval shortened to 30 s so four cycles take two minutes instead of an hour.
+
+```
+20:27:03  deferred   journal reset or cursor trimmed; a full baseline is needed
+20:27:38  deferred   journal reset or cursor trimmed; a full baseline is needed
+20:28:08  deferred   journal reset or cursor trimmed; a full baseline is needed
+20:28:38  deferred   journal reset or cursor trimmed; a full baseline is needed
+20:28:41  ran        automatic recovery baseline, the journal could not be resumed —
+                     343,458 files in 23,628 directories                      2,389 ms
+20:29:13  ran        incremental, 0 journal records                                9 ms
+20:29:48  ran        incremental, 0 journal records                                9 ms
+20:30:18  ran        incremental, 0 journal records                                8 ms
+```
+
+Four deferrals, then the baseline three seconds after the fourth, then ticking. C: and D: were
+untouched throughout. Against the same fault before this change: 49 deferrals, 25.9 hours, no
+recovery.
+
+Then the loop guard, provoked the same way — the cursor poisoned again immediately after the
+recovery:
+
+```
+20:31:23 · 20:31:53 · 20:32:23 · 20:32:54 · 20:33:25 · 20:33:55   all deferred, no second baseline
+```
+
+Six cycles past the four-deferral threshold and nothing fired, because the previous automatic
+baseline was minutes old and the cooldown is six hours. A recovery that does not work cannot become
+a scanner that runs baselines forever.
+
 ## Still not measured
 
 - **Scan cost with a game running.** Unchanged from Phase 2 and Phase 3: still the constraint the
