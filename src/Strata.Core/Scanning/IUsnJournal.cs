@@ -68,9 +68,15 @@ public interface IUsnJournal
     /// Reads changes from <paramref name="cursor"/> onward.
     /// </summary>
     /// <param name="maxRecords">
-    /// Ceiling on records returned in one call. The journal is a durable queue, so stopping early
-    /// and resuming next tick is safe; blocking until a 500k-record backlog drains is what would
-    /// cause the stall the whole design exists to avoid.
+    /// Ceiling on records returned in one call. Blocking until a 500k-record backlog drains is what
+    /// would cause the stall the whole design exists to avoid, so a read takes a bounded bite and
+    /// resumes next tick.
+    /// <para>
+    /// Stopping early is safe only while the cursor stays inside the journal's window, which is a
+    /// circular buffer of 32 MiB on this machine's C:. A caller that stops early must come back
+    /// promptly — see <see cref="UsnReadResult.MoreAvailable"/> — or it will be trimmed past and
+    /// have nothing to resume from.
+    /// </para>
     /// </param>
     UsnReadResult Read(UsnCursor cursor, int maxRecords);
 }

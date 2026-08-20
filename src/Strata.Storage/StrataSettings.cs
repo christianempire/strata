@@ -22,11 +22,34 @@ public sealed record StrataSettings
     /// the next one.
     /// </summary>
     /// <remarks>
-    /// The journal is a durable queue, so falling behind is safe and self-healing. Draining a
-    /// several-hundred-thousand record backlog in one go is the stall the whole design exists to
-    /// prevent. Measured: 50,000 records is about a 1 s tick.
+    /// Draining a several-hundred-thousand record backlog in one go is the stall the whole design
+    /// exists to prevent. Measured: 50,000 records is about a 1 s tick.
+    /// <para>
+    /// This used to say the journal is a durable queue, so falling behind is safe and self-healing.
+    /// It is durable but <b>finite</b>, and real use disproved the rest of that sentence. C:'s
+    /// journal is a 32 MiB circular buffer; a cap of 50,000 records every 900 s drains it at 55
+    /// records a second, which is less than a development machine generates. The scanner lost ground
+    /// every tick until Windows trimmed the journal past its cursor, and then there was nothing to
+    /// resume from. See the incident in docs/MEASUREMENTS.md.
+    /// </para>
+    /// <para>
+    /// Two things now stop that: a tick that hits this cap comes back at
+    /// <see cref="CatchUpIntervalSeconds"/> instead of the full interval, so catching up can
+    /// actually win; and a journal that has been trimmed past us escalates to an automatic baseline
+    /// rather than deferring forever.
+    /// </para>
     /// </remarks>
     public int MaxRecordsPerTick { get; init; } = 50_000;
+
+    /// <summary>
+    /// Seconds between ticks on a volume whose last tick hit <see cref="MaxRecordsPerTick"/>.
+    /// </summary>
+    /// <remarks>
+    /// Only this volume is accelerated, and only while it is behind. A quiet volume keeps its
+    /// ordinary interval, because ticking it fifteen times as often would multiply its snapshot rows
+    /// by fifteen to learn nothing.
+    /// </remarks>
+    public int CatchUpIntervalSeconds { get; init; } = 60;
 
     /// <summary>Smallest change worth a row in the events feed.</summary>
     public long EventFloorBytes { get; init; } = 1024 * 1024;
@@ -94,6 +117,13 @@ public sealed record StrataSettings
         if (MaxRecordsPerTick < 1000)
         {
             errors.Add("maxRecordsPerTick must be at least 1000.");
+        }
+
+        // The floor stops the accelerated path becoming a busy loop against the disk; the ceiling
+        // stops "catching up" being slower than not catching up.
+        if (CatchUpIntervalSeconds is < 15 || CatchUpIntervalSeconds > IntervalSeconds)
+        {
+            errors.Add("catchUpIntervalSeconds must be at least 15 and no more than intervalSeconds.");
         }
 
         if (EventFloorBytes < 0)

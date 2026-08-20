@@ -12,9 +12,14 @@ public sealed record Tier2Options
     /// <remarks>
     /// The brief sets a hard budget of two seconds for the common case but does not say what happens
     /// when a game install or a component-store servicing produces several hundred thousand records
-    /// at once. Draining that synchronously is exactly the stall the whole design exists to avoid.
-    /// The journal is a durable queue, so the answer is to take a bounded bite, persist the cursor
-    /// there, and continue next tick: falling behind is safe and self-healing, stalling is not.
+    /// at once. Draining that synchronously is exactly the stall the whole design exists to avoid,
+    /// so a tick takes a bounded bite, persists the cursor there, and continues next tick.
+    /// <para>
+    /// Falling behind is safe only for as long as the journal still holds the cursor's position. It
+    /// is a fixed-size circular buffer — 32 MiB on this machine's C: — and once it wraps past us
+    /// there is nothing left to resume from. <see cref="Tier2Result.CatchingUp"/> is therefore a
+    /// signal the caller has to act on, not a statistic.
+    /// </para>
     /// </remarks>
     public int MaxRecordsPerTick { get; init; } = 50_000;
 
@@ -40,7 +45,14 @@ public sealed class Tier2Result
 
     public int MetadataReads { get; init; }
 
-    /// <summary>True when the journal held more than this tick was allowed to take.</summary>
+    /// <summary>
+    /// True when the journal held more than this tick was allowed to take.
+    /// </summary>
+    /// <remarks>
+    /// A volume in this state is losing a race, not merely reporting a backlog: it is generating
+    /// records faster than one capped tick per interval can drain, and the journal it is falling
+    /// behind in is finite. The scheduler shortens the interval until this goes false.
+    /// </remarks>
     public bool CatchingUp { get; init; }
 
     public TimeSpan Duration { get; init; }
@@ -57,6 +69,22 @@ public sealed class Tier2Result
 
     /// <summary>A baseline is the only way forward, because the journal cannot bridge the gap.</summary>
     public bool RequiresBaseline => Status is UsnReadStatus.JournalInvalidated or UsnReadStatus.JournalNotActive;
+
+    /// <summary>
+    /// What kind of remedy this tick needs, for a scheduler deciding whether to force the issue.
+    /// </summary>
+    /// <remarks>
+    /// Narrower than <see cref="RequiresBaseline"/>, which covers a volume with no journal at all.
+    /// A baseline would refresh that volume's totals and change nothing about its ability to tick:
+    /// only an elevated <c>strata enable-journal</c> does that, and running a three-minute scan
+    /// every six hours to not fix it would be worse than saying so.
+    /// </remarks>
+    public DeferralKind Deferral => Status switch
+    {
+        UsnReadStatus.Ok => DeferralKind.None,
+        UsnReadStatus.JournalInvalidated => DeferralKind.NeedsBaseline,
+        _ => DeferralKind.NeedsPerson,
+    };
 }
 
 /// <summary>
