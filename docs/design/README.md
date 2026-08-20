@@ -94,5 +94,27 @@ unmounted on purpose, and a volume with no path is not one anyone browses to. Ov
 a footnote and Settings lists them in full with a `system` chip, so they are out of the way rather
 than hidden.
 
+**Explorer dates a reading once it is more than an hour old.** The mockups draw Explorer as a live
+answer to "where are the bytes right now?", with no age on it. It is only ever as fresh as the last
+successful tick, and when C: stopped ticking for 27 hours the screen went on showing a folder that
+had been deleted the day before, at its full 16.84 GiB, looking exactly like the truth. It follows
+the same rule as the not-connected note next to it now: the reading is stated as of when it was
+true, with the reason it has not moved since, rather than being hidden or silently refreshed. One
+hour is the threshold because at the default fifteen-minute interval that is four ticks that did not
+run — deliberately the same count at which the scanner stops waiting and forces the issue.
+
+**The per-volume "journal live" badge checks that the journal is live.** It was derived from the
+filesystem alone — NTFS, therefore a journal, therefore fine — and said "journal live" for 27 hours
+about a journal that had been trimmed past Strata's cursor and could not be read at all. A badge
+asserting that a mechanism works has to be reading whether it is working, so it now says
+`journal cursor lost` when the cursor cannot be resumed, `no tick for 27 h` when the volume has gone
+quiet for another reason, and `journal live · catching up` while a volume is draining a backlog. The
+mockup's three fidelity states are unchanged; these sit below them.
+
+**Settings gains one knob the mockup does not have: the interval while catching up.** Consistent
+with the rule above about only drawing controls that do something — it is a real setting, and the
+one the incident turned on. It sits under the scan interval and shows the drain rate it implies in
+records per second, because that number against the volume's churn is the whole of what it decides.
+
 **Treemap tiles cap at 40 before the tail merges.** The mockup's own figure. Stated here because it
 is a number rather than a shape: the sibling list beside the map still lists every child.

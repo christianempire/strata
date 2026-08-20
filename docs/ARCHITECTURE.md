@@ -119,6 +119,13 @@ which is why `files` holds current state rather than being append-only.
 `FirstUsn`, the journal was reset or wrapped, and we fall back to Tier 1. If no journal exists on a
 volume, create one (elevated, one-time) or fall back to Tier 3.
 
+Falling back to Tier 1 is the scheduler's job, and for a long time it was nobody's: the condition was
+detected, logged, and never acted on, so C: sat behind the same deferral message for 27 hours. A
+volume that reports it needs a baseline four cycles running now gets one automatically, put through
+the Tier 1 gate so it waits for the machine to be idle, and rate-limited to one per volume per six
+hours so a baseline that does not help cannot re-arm hourly. See `ScanCadence` and the incident
+write-up in `docs/MEASUREMENTS.md`.
+
 **Elevation: settled, and better than the brief assumed.** Reading the journal needs no elevation at
 all. A directory handle on the volume root plus `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` is sufficient;
 the `\\.\C:` + GENERIC_READ form the brief describes is what needs administrator. Only
@@ -135,9 +142,17 @@ measured cost says that is an optimisation rather than a requirement.
 **Budget, measured.** A steady-state tick is about 250 ms; the largest bite the scanner takes in one
 go, 50,000 records with 7,000 metadata reads, is about 1 s. The brief's 2 s budget holds.
 
-**Backlogs** are taken in bounded bites with the cursor persisted where they stop. The journal is a
-durable queue, so falling behind is safe and self-healing, while draining a several-hundred-thousand
-record backlog synchronously is precisely the stall the design exists to prevent.
+**Backlogs** are taken in bounded bites with the cursor persisted where they stop, because draining a
+several-hundred-thousand record backlog synchronously is precisely the stall the design exists to
+prevent.
+
+This used to say the journal is a durable queue, so falling behind is safe and self-healing. It is
+durable and **finite**: C:'s is a 32 MiB circular buffer holding roughly 220,000–350,000 records,
+which at the churn rate measured during a heavy build is about half an hour of history. Falling
+behind is safe only while the deficit stays inside that window. A tick that hits its record cap
+therefore comes back after `CatchUpIntervalSeconds` — 60 by default, against 900 — because 50,000
+records every 900 s drains 55 a second and the volume was writing 116. Only the volume that is
+behind is accelerated; each volume carries its own due time.
 
 ### Tier 3 — throttled fallback
 
@@ -165,7 +180,8 @@ Implemented as hard requirements, not best-effort.
 | User actively typing | `GetLastInputInfo` | Defers Tier 1 only. Tier 2 is cheap enough to run regardless. |
 | System CPU load | `GetSystemTimes` deltas, default threshold 70% | Deliberately not `PerformanceCounter`, which is slow to initialise and flaky. |
 | Removable / network | `GetDriveType` | Never scanned unless explicitly opted in. |
-| Tier 2 latency | Hard budget of 2 s in the common case | Over-budget ticks are logged. Very large change sets are processed in capped chunks across ticks rather than blocking; the journal is a durable queue, so falling behind is safe. |
+| Tier 2 latency | Hard budget of 2 s in the common case | Over-budget ticks are logged. Very large change sets are processed in capped chunks across ticks rather than blocking. The journal is durable but finite, so a volume left behind is ticked at a shorter interval until it is not. |
+| Journal cursor lost | `FirstUsn` has passed the persisted cursor | Unrecoverable by any tick. Escalates to an automatic Tier 1 baseline after four cycles, still gated, at most one per volume per six hours. |
 
 ## Storage model
 

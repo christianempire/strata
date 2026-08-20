@@ -795,3 +795,186 @@ never saw.
 | The database it maintains, C:, D: and E: after a week | 648.5 MB |
 
 The program is 0.6% of its own data directory, and 0.0004% of the 2.2 TB it is watching.
+
+---
+
+# Phase 4: the journal that wrapped
+
+20 Aug 2026, same machine. **A documented assumption, disproved by ordinary use.**
+
+`StrataSettings.MaxRecordsPerTick` said:
+
+> The journal is a durable queue, so falling behind is safe and self-healing.
+
+It is durable. It is not infinite, and nothing in Phase 2 measured how big it is. Both halves of
+that sentence after the comma are wrong, and the cost of being wrong was 27 hours of C: history and
+25 hours of E:.
+
+## What happened
+
+Strata silently stopped seeing C: at **2026-08-19T16:26:18** and was not noticed until the following
+evening, when a folder the user had deleted — `…\My Programming Projects\Blue Otter Games` — was
+still on the Explorer screen at its full 16.84 GiB. The screen was not wrong. It was faithfully
+showing the last state Strata knew, with nothing to say how old that was.
+
+E: had gone the same way ninety minutes later, at **17:56:21**, and nobody noticed that at all until
+this was being investigated.
+
+The run-up on C:, from `scan_log`:
+
+| Time | Records | Duration | |
+|---|---:|---:|---|
+| 14:56:42 | 47,618 | 1,296 ms | 95% of the cap, and not yet flagged |
+| 15:11:43 | 21,513 | 1,214 ms | the last tick that drained the journal |
+| 15:26:44 | **50,000** | 825 ms | catching up |
+| 15:29:26 | **50,000** | 1,536 ms | catching up |
+| 15:44:27 | **50,000** | 553 ms | catching up |
+| 15:54:48 | **50,000** | 2,067 ms | catching up |
+| 15:56:16 | **50,000** | 2,092 ms | catching up |
+| 16:11:17 | **50,000** | 999 ms | catching up |
+| 16:26:18 | **50,000** | 1,031 ms | catching up — and the last tick that ever ran |
+| 16:41:18 | — | — | `journal reset or cursor trimmed; a full baseline is needed` |
+
+Seven consecutive ticks at exactly the cap, one hour, and then the cursor was outside the window.
+Every tick after that named the remedy and none of them applied it:
+
+| Volume | Deferrals after the last good tick | of which "a full baseline is needed" |
+|---|---:|---:|
+| C: | 74 over 27.2 h | **54** |
+| E: | 68 over 25.9 h | **49** |
+
+The other twenty on each volume were the gate doing its job — 13 borderless fullscreen, 5 system
+busy, 2 CPU. Those are correct. The 54 are a detected fault with a known remedy, repeated hourly,
+acted on never.
+
+## The measurement nobody had taken: how big is the journal?
+
+`strata usn-probe` reports each journal's live window, which no previous phase had recorded.
+
+| Volume | Journal ID | First USN | Next USN | **Window** |
+|---|---|---:|---:|---:|
+| C: | `1DB931EBE461434` | 102,248,742,912 | 102,282,419,456 | **33,676,544 B — 32.1 MiB** |
+| E: | `1DD2FE683605825` | 301,989,888 | 336,636,352 | **34,646,464 B — 33.0 MiB** |
+| D: | `1DD2FE6835C7B28` | 0 | 905,176 | 884 KiB, never yet wrapped |
+
+**C:'s change journal is a 32 MiB circular buffer.** That is the whole of the durable queue.
+
+A USN is a byte offset, not a record ordinal, so the window has to be converted before it can be
+compared with a record cap. Measured directly, by dividing a tick's cursor advance by the records it
+reported reading:
+
+| Tick | Records | Cursor advance | Bytes/record |
+|---|---:|---:|---:|
+| 20:18:28 | 50,000 | 7,694,088 B | 153.9 |
+| 20:19:28 | 17,662 | 1,711,304 B | 96.9 |
+
+Records are variable length — the name is stored inline even though the unprivileged read redacts it
+— so call it **97–154 bytes**, and C:'s window **roughly 220,000 to 350,000 records**.
+
+### The arithmetic that made this inevitable
+
+| | |
+|---|---:|
+| Drain rate, `MaxRecordsPerTick` 50,000 every `IntervalSeconds` 900 | **55.6 records/s** |
+| C: churn over the hour it was losing, derived from the deficit crossing the window | **≈ 116 records/s** |
+| Journal window, in time, at that churn rate | **≈ 31 minutes** |
+| Stored cursor when the fault was diagnosed | 101,767,768,800 |
+| Window start at the same moment | 102,240,354,304 |
+| **Cursor behind the window** | **472,585,504 B — about 14 windows, 3.1–4.9M records** |
+
+Three things follow, and only the first was previously believed:
+
+1. Falling behind is safe **only until the deficit exceeds the window**, and then it is unrecoverable.
+2. **At 116 records a second, C:'s journal holds about half an hour.** Any deferral longer than that
+   during a heavy build loses the cursor — including a perfectly correct deferral for a fullscreen
+   game. Thirteen consecutive fullscreen deferrals were observed in this very incident, which is
+   3.25 hours, or six journal windows.
+3. So the cursor **cannot be protected** without breaking the first non-negotiable. What can be
+   guaranteed is that losing it is noticed and repaired.
+
+That third point is why the fix is automatic recovery rather than more aggressive ticking.
+
+## Was 50,000 records per tick simply too low?
+
+It is not the lever, and the same log says why. The seven catch-up ticks measured 553–2,092 ms, with
+two of them over the 2 s budget from the brief:
+
+```
+ 553 ms  ███████
+ 825 ms  ██████████
+ 999 ms  ████████████
+1031 ms  ████████████
+1035 ms  ████████████        (a fresh one, 20 Aug)
+1536 ms  ███████████████████
+2067 ms  ██████████████████████████   over budget
+2092 ms  ██████████████████████████   over budget
+```
+
+**The cap is already at the budget**, which confirms the Phase 2 figure of "about a 1 s tick" and
+rules out raising it: doubling it to 100,000 would put a routine catch-up tick at 2–4 s, which is the
+stall the incremental path exists to avoid. `MaxRecordsPerTick` is unchanged at 50,000.
+
+The interval is the free variable, so that is the one that moved. A tick that hits the cap now comes
+back after `CatchUpIntervalSeconds`, default 60, instead of waiting out the full 900:
+
+| | Drain rate | Against 116 records/s of churn |
+|---|---:|---|
+| 50,000 every 900 s | 55.6/s | loses, by a factor of 2.1 |
+| **50,000 every 60 s** | **833/s** | **wins, by a factor of 7.2** |
+
+Only the volume that is behind is accelerated. Ticking the quiet ones fifteen times as often would
+multiply their `snapshots` rows by fifteen to learn nothing, so each volume now carries its own due
+time rather than the scheduler sweeping all of them on one timer.
+
+### Measured live, on the real machine
+
+First cycle after deploying, C: still holding the backlog from the recovery baseline:
+
+```
+20:18:28   50,000 records   1,035 ms   catching up   -> next tick 20:19:28   (60 s)
+20:19:28   17,662 records     393 ms   drained       -> next tick 20:34:28   (900 s)
+```
+
+D: and E: stayed on 900 s throughout, which is the behaviour the per-volume due time exists for.
+One accelerated tick, and the volume was current. At the old cadence the same backlog would have
+taken until 20:33 and started the next interval already behind.
+
+## What the recovery costs
+
+The baselines that restored service, both taken during this session:
+
+| Volume | Files | Directories | Duration |
+|---|---:|---:|---:|
+| C: | 3,029,435 | 572,734 | **142.5 s** |
+| E: | 343,458 | 23,628 | **~5 s** |
+
+An automatic baseline is gated at Tier 1, so it waits for no game, no presentation, no recent input
+and CPU below threshold — the same conditions a manual baseline waits for. It is rate-limited to one
+per volume per six hours, which bounds the worst case at four baselines a day: **9.5 minutes of disk
+on C:**, taken only in idle moments, against 27 hours of history not being recorded at all.
+
+Applied to the incident as it actually happened, escalation would have fired at **17:26:18** — the
+fourth consecutive `NeedsBaseline` deferral, one hour after the fault, and 26 hours before a person
+noticed. The machine was idle then; the fullscreen deferrals did not start until 18:26.
+
+## A correction the log forced
+
+The first cut reset the consecutive-deferral count whenever the *kind* of deferral changed, on the
+reasoning that the situation had changed. The real E: sequence disproves it: the journal was lost at
+18:11 and a game started at 18:26. A gate deferral says nothing about whether the journal is
+readable — it means the tick never looked — so treating it as evidence of improvement would have
+pushed E:'s recovery back another four cycles for free, and again after every subsequent game.
+
+Counts are now kept per remedy and cleared only by a tick that actually ran, which is the one event
+that proves a condition has lifted.
+
+## Still not measured
+
+- **Scan cost with a game running.** Unchanged from Phase 2 and Phase 3: still the constraint the
+  whole design exists to satisfy, and still never tested under real contention.
+- **How large the journal can be made.** `FSCTL_CREATE_USN_JOURNAL` takes a maximum size, and D:'s
+  and E:'s were created by `strata enable-journal` without one being chosen deliberately. A larger
+  buffer on C: would widen the window that half an hour of heavy building consumes. It needs
+  elevation, so it is a setup-time question rather than a runtime one.
+- **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
+- **Whether elevation closes the 29.6 GB gap on C:.**
