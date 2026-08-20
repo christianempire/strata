@@ -15,8 +15,9 @@ import { Api, errorText } from '../../core/api';
 import { bytes, count, joinPath, leaf } from '../../core/format';
 import { TreeNode } from '../../core/models';
 import { otherSeriesColour, seriesColour } from '../../core/series';
-import { Shell, volumeKey, volumeName } from '../../core/state';
+import { Shell, freshness, volumeKey, volumeName } from '../../core/state';
 import {
+  AgoPipe,
   BytesPipe,
   ExactBytesPipe,
   GroupedPipe,
@@ -61,7 +62,15 @@ interface Child {
   selector: 'strata-explorer',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [EChartDirective, BytesPipe, ExactBytesPipe, GroupedPipe, Percent1Pipe, StampPipe],
+  imports: [
+    EChartDirective,
+    AgoPipe,
+    BytesPipe,
+    ExactBytesPipe,
+    GroupedPipe,
+    Percent1Pipe,
+    StampPipe,
+  ],
   templateUrl: './explorer.html',
   styleUrl: './explorer.css',
 })
@@ -109,6 +118,20 @@ export class Explorer {
     }
 
     return crumbs;
+  });
+
+  /**
+   * How old this volume's totals are, when that is worth saying.
+   *
+   * Explorer reads `dir_totals`, which is exactly as fresh as the last successful tick and no
+   * fresher. Null while the scanner is keeping up, because dating every reading of a screen that
+   * refreshes on a timer would be noise; a value once it is not, because a stale answer that looks
+   * current is how a deleted 16.84 GiB folder stayed on this screen for 27 hours.
+   */
+  protected readonly staleness = computed(() => {
+    const age = freshness(this.shell.volumeScanner());
+
+    return age?.stale ? age : null;
   });
 
   protected readonly parentPath = computed(() => {

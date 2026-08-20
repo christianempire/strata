@@ -33,6 +33,36 @@
     <button class="btn" [disabled]="!path()" (click)="go('')">Reset to {{ root() }}\</button>
   </div>
 
+  @if (staleness(); as age) {
+    <!--
+      The reading is dated rather than hidden or silently refreshed, which is the same rule the
+      not-connected note below follows. What is on screen is not wrong — it is the last state Strata
+      knew — so it is stated as of when it was true, and the reason it has not moved since is named
+      rather than left for the scan log.
+    -->
+    <div class="note stale-note" [class.needs-baseline]="age.needsBaseline">
+      <span class="chip" [class.chip-alert]="age.needsBaseline" [class.chip-warn]="!age.needsBaseline">
+        ▲ {{ age.atUtc | ago }}
+      </span>
+
+      <span>
+        This is where the bytes were at
+        <span class="mono">{{ age.atUtc | stamp }}</span>, not where they are now.
+
+        @if (age.reason) {
+          {{ root() }} has not been scanned since: <span class="mono">{{ age.reason }}</span>.
+        } @else {
+          {{ root() }} has not been scanned since.
+        }
+
+        @if (age.needsBaseline) {
+          A full scan is the only way to close the gap, and Strata will run one at the next idle
+          moment.
+        }
+      </span>
+    </div>
+  }
+
   <!-- You are here. -->
   <div class="here">
     <div class="here-path">

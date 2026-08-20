@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { interval, startWith, switchMap } from 'rxjs';
 
 import { Api, errorText } from './api';
-import { ScanStatus, Volume } from './models';
+import { ScanStatus, Volume, VolumeScanStatus } from './models';
 
 /**
  * How often the scanner's state is re-read.
@@ -60,6 +60,9 @@ export class Shell {
   readonly systemPartitions = computed(() => this.volumes().filter(isSystemPartition));
 
   readonly scanning = computed(() => this.status()?.state === 'scanning');
+
+  /** The scanner's standing on the volume currently being looked at. */
+  readonly volumeScanner = computed(() => scannerFor(this.status(), this.selected()));
 
   /** True until at least one volume has a baseline. The first-run state hangs off this. */
   readonly noHistory = computed(
@@ -194,4 +197,76 @@ function defaultVolume(volumes: Volume[]): string | null {
   const attached = volumes.filter((v) => v.attached && v.scannable);
 
   return attached.length > 0 ? volumeKey(attached[0]) : null;
+}
+
+/**
+ * How old a reading may be before its age is worth stating.
+ *
+ * One hour, which at the default fifteen-minute interval is four consecutive ticks that did not run
+ * — deliberately the same count at which the scheduler stops waiting and forces the issue. Below it
+ * the screen is showing the ordinary lag of a scanner that ticks on a timer, and dating every
+ * reading would be noise; above it something is wrong and the reading has a date on it.
+ */
+export const STALE_AFTER_MS = 60 * 60 * 1000;
+
+/** The scanner's row for one volume, or null when it is not being ticked. */
+export function scannerFor(
+  status: ScanStatus | null,
+  key: string | null,
+): VolumeScanStatus | null {
+  if (!status || !key) {
+    return null;
+  }
+
+  return status.volumes?.find((v) => v.key === key) ?? null;
+}
+
+/** How old a volume's recorded state is, and what to say about it. */
+export interface Freshness {
+  /** When the volume last ticked. Never null: a volume that never has gets no Freshness at all. */
+  atUtc: string;
+  ageMs: number;
+
+  /** Whether the age is worth putting on screen. */
+  stale: boolean;
+
+  /** Why it has not ticked since. Empty when the last attempt ran. */
+  reason: string;
+
+  /** Nothing will tick until a baseline runs, so the age will keep growing on its own. */
+  needsBaseline: boolean;
+}
+
+/**
+ * What to say about the age of a volume's recorded state.
+ *
+ * Explorer answers "where are the bytes right now?" from `dir_totals`, which is only as fresh as the
+ * last successful tick. It used to give no hint of its age, so a 27-hour-old answer looked exactly
+ * like a current one — including a 16.84 GiB folder that had been deleted the day before. The house
+ * rule the rest of the UI follows applies here too: a stale reading is stated with its timestamp,
+ * not hidden and not silently refreshed.
+ */
+export function freshness(
+  volume: VolumeScanStatus | null,
+  nowMs: number = Date.now(),
+): Freshness | null {
+  if (!volume) {
+    return null;
+  }
+
+  // Never ticked. Not stale — there is no earlier reading for this one to be older than — and the
+  // no-baseline case has its own wording elsewhere.
+  if (!volume.lastTickUtc) {
+    return null;
+  }
+
+  const ageMs = Math.max(0, nowMs - Date.parse(volume.lastTickUtc));
+
+  return {
+    atUtc: volume.lastTickUtc,
+    ageMs,
+    stale: ageMs >= STALE_AFTER_MS,
+    reason: volume.deferral,
+    needsBaseline: volume.needsBaseline,
+  };
 }

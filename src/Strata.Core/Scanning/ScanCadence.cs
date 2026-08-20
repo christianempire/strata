@@ -222,25 +222,36 @@ public sealed class ScanCadence
 
         if (report.Ran)
         {
-            state.Run = 0;
-            state.Remedy = Escalation.None;
+            // A tick that ran is the only thing that proves a condition has lifted, so it is the
+            // only thing that clears the counters.
+            state.BusyRun = 0;
+            state.BaselineRun = 0;
             state.LastSuccessUtc = utcNow;
             state.NextDueUtc = utcNow + PaceFor(state, report, options);
 
             return Escalation.None;
         }
 
-        // Consecutive means consecutive in remedy, not in wording. Cpu-busy then user-active is one
-        // run of two, because forcing the tick is the answer to both. A game intervening restarts
-        // it, because the situation genuinely changed.
-        var wanted = RemedyFor(report.Deferral);
-
-        state.Run = wanted == state.Remedy ? state.Run + 1 : 1;
-        state.Remedy = wanted;
         state.NextDueUtc = utcNow + options.Interval;
         state.CatchUpBurst = 0;
 
-        if (wanted == Escalation.None || state.Run < options.DeferralsBeforeEscalating)
+        // Counted per remedy, and one kind of deferral never clears another kind's count. A gate
+        // that refused to start the tick carries no information about whether the journal is still
+        // unreadable — it means we did not look. Resetting on it is how E: would have had its
+        // recovery pushed back four more cycles by a game that started after the journal was
+        // already lost.
+        var wanted = RemedyFor(report.Deferral);
+
+        var run = wanted switch
+        {
+            Escalation.TickAnyway => ++state.BusyRun,
+            Escalation.Baseline => ++state.BaselineRun,
+            _ => 0,
+        };
+
+        state.Run = run;
+
+        if (wanted == Escalation.None || run < options.DeferralsBeforeEscalating)
         {
             return Escalation.None;
         }
@@ -264,13 +275,19 @@ public sealed class ScanCadence
             return;
         }
 
-        // The run resets either way: the escalation is the response to it, and letting it keep
-        // climbing would fire again on the very next deferral.
-        state.Run = 0;
-
+        // The run resets: the escalation is the response to it, and letting it keep climbing would
+        // fire again on the very next deferral. Only the one that fired, though — a forced tick says
+        // nothing about whether the journal can be resumed.
         if (escalation == Escalation.Baseline)
         {
+            state.BaselineRun = 0;
+            state.Run = 0;
             state.LastBaselineUtc = utcNow;
+        }
+        else if (escalation == Escalation.TickAnyway)
+        {
+            state.BusyRun = 0;
+            state.Run = 0;
         }
     }
 
@@ -291,7 +308,8 @@ public sealed class ScanCadence
         }
 
         state.Run = 0;
-        state.Remedy = Escalation.None;
+        state.BusyRun = 0;
+        state.BaselineRun = 0;
         state.Deferral = DeferralKind.None;
         state.CatchingUp = false;
         state.CatchUpBurst = 0;
@@ -340,8 +358,13 @@ public sealed class ScanCadence
 
         internal DeferralKind Deferral { get; set; }
 
-        internal Escalation Remedy { get; set; }
+        /// <summary>Deferrals in a row that a forced tick would answer.</summary>
+        internal int BusyRun { get; set; }
 
+        /// <summary>Deferrals in a row that only a baseline would answer.</summary>
+        internal int BaselineRun { get; set; }
+
+        /// <summary>Whichever of the two the last deferral belonged to. For reporting only.</summary>
         internal int Run { get; set; }
 
         internal int CatchUpBurst { get; set; }

@@ -21,6 +21,21 @@ const INTERVALS = [
   { seconds: 3600, label: '60 min' },
 ] as const;
 
+/**
+ * How soon to come back to a volume that is behind.
+ *
+ * A separate cadence from the scan interval, and a much shorter one, because a tick that hit its
+ * record cap has left records in a journal that is a fixed-size circular buffer. Draining 50,000
+ * records every 15 minutes is 55 a second, which is less than a development volume writes — so at
+ * the ordinary interval catching up can only ever lose, and eventually the buffer wraps past the
+ * cursor and the history is gone.
+ */
+const CATCH_UP_INTERVALS = [
+  { seconds: 30, label: '30 s' },
+  { seconds: 60, label: '1 min' },
+  { seconds: 300, label: '5 min' },
+] as const;
+
 const LOG_FILTERS = ['all', 'ran', 'deferred', 'failed'] as const;
 
 type LogFilter = (typeof LOG_FILTERS)[number];
@@ -46,6 +61,7 @@ export class SettingsPage {
   protected readonly shell = inject(Shell);
 
   protected readonly intervals = INTERVALS;
+  protected readonly catchUpIntervals = CATCH_UP_INTERVALS;
   protected readonly logFilters = LOG_FILTERS;
 
   protected readonly settings = signal<Settings | null>(null);
@@ -106,6 +122,10 @@ export class SettingsPage {
 
   protected setInterval(seconds: number): void {
     this.patch({ intervalSeconds: seconds });
+  }
+
+  protected setCatchUpInterval(seconds: number): void {
+    this.patch({ catchUpIntervalSeconds: seconds });
   }
 
   protected commitCpu(): void {

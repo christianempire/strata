@@ -189,3 +189,25 @@
   border: 1px dashed var(--rule-strong);
   text-wrap: pretty;
 }
+
+/*
+ * The dated-reading note. Warn rather than alert, because nothing here is wrong: it is a true
+ * statement about an earlier moment, and the only failure would be presenting it as this one. It
+ * turns alert only when the gap cannot close by itself.
+ */
+.stale-note {
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.6;
+  border-style: solid;
+  border-left: 2px solid var(--warn);
+}
+
+.stale-note.needs-baseline {
+  border-left-color: var(--alert);
+}
+
+.stale-note .chip {
+  flex: none;
+  margin-top: 1px;
+}

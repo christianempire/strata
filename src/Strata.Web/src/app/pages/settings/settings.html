@@ -56,6 +56,34 @@
 
             <div class="knob">
               <div class="knob-label">
+                <span>Interval while catching up</span>
+                <span class="faint mono">
+                  {{ (s.maxRecordsPerTick / s.catchUpIntervalSeconds).toFixed(0) }} records/s drained
+                </span>
+              </div>
+              <div class="btn-group">
+                @for (i of catchUpIntervals; track i.seconds) {
+                  <button
+                    class="btn"
+                    [class.on]="s.catchUpIntervalSeconds === i.seconds"
+                    (click)="setCatchUpInterval(i.seconds)"
+                  >
+                    {{ i.label }}
+                  </button>
+                }
+              </div>
+              <div class="knob-note faint">
+                Applies only to a volume whose last tick hit the
+                <span class="mono">{{ s.maxRecordsPerTick | grouped }}</span>-record cap, and only
+                until it is caught up. The change journal is a fixed-size circular buffer, so a
+                volume that drains slower than it writes eventually loses the records it has not
+                read. At the {{ (86400 / s.intervalSeconds).toFixed(0) }}-tick day above, that works
+                out at {{ (s.maxRecordsPerTick / s.intervalSeconds).toFixed(0) }} records a second.
+              </div>
+            </div>
+
+            <div class="knob">
+              <div class="knob-label">
                 <span>CPU threshold</span>
                 <span class="mono pos">{{ cpu() }}%</span>
               </div>

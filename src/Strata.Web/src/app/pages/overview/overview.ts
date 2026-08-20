@@ -4,10 +4,17 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { Api } from '../../core/api';
-import { bytes, toIso } from '../../core/format';
-import { ChangeEvent, Snapshot, Volume } from '../../core/models';
+import { ago, bytes, toIso } from '../../core/format';
+import { ChangeEvent, Snapshot, Volume, VolumeScanStatus } from '../../core/models';
 import { seriesColour } from '../../core/series';
-import { Shell, isSystemPartition, volumeKey, volumeName } from '../../core/state';
+import {
+  Shell,
+  freshness,
+  isSystemPartition,
+  scannerFor,
+  volumeKey,
+  volumeName,
+} from '../../core/state';
 import { KindChip } from '../../ui/kind-chip';
 import { PathCell } from '../../ui/path-cell';
 import { SparkPoint, Sparkline } from '../../ui/sparkline';
@@ -247,7 +254,7 @@ export class Overview {
       // fact, and the number turns red.
       lowSpace: freeShareOfCapacity < 0.08,
 
-      fidelity: fidelityOf(volume),
+      fidelity: fidelityOf(volume, scannerFor(this.shell.status(), key)),
 
       // Used space as the OS sees it, not as Strata counts it. Every snapshot records free space,
       // so capacity minus free is the same measure across the whole window — and it is the one a
@@ -296,14 +303,36 @@ function usedAt(snapshot: Snapshot, volume: Volume): number {
  * Three states from the mockups, and none of them is an error: a journal-backed volume is fine, a
  * volume without one has coarser history and a one-command fix, and a volume with no baseline has
  * not started yet.
+ *
+ * Two more since: "journal live" was shown for 27 hours about a journal that had been trimmed past
+ * Strata's cursor and could not be read at all. A badge that says a mechanism is working has to be
+ * checking that it is, so it now reads the scanner's standing on this volume rather than only its
+ * filesystem.
  */
-function fidelityOf(volume: Volume): { text: string; cls: string } {
+function fidelityOf(
+  volume: Volume,
+  scanner: VolumeScanStatus | null,
+): { text: string; cls: string } {
   if (!volume.baselineUtc) {
     return { text: 'no baseline yet', cls: 'faint' };
   }
 
   if (!volume.supportsUsnJournal) {
     return { text: 'no change journal', cls: 'warn' };
+  }
+
+  if (scanner?.needsBaseline) {
+    return { text: 'journal cursor lost', cls: 'alert' };
+  }
+
+  const age = freshness(scanner);
+
+  if (age?.stale) {
+    return { text: `no tick for ${ago(age.atUtc)}`, cls: 'warn' };
+  }
+
+  if (scanner?.catchingUp) {
+    return { text: 'journal live · catching up', cls: 'dim' };
   }
 
   return { text: 'journal live', cls: 'dim' };

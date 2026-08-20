@@ -133,6 +133,10 @@ export interface Settings {
   intervalSeconds: number;
   cpuThresholdPercent: number;
   maxRecordsPerTick: number;
+
+  /** Seconds between ticks on a volume whose last tick hit the record cap. */
+  catchUpIntervalSeconds: number;
+
   eventFloorBytes: number;
   snapshotMaxDepth: number;
   snapshotSizeFloorBytes: number;
@@ -170,15 +174,50 @@ export interface ScanActivity {
   remainingMs: number | null;
 }
 
+/**
+ * Where one volume's incremental scanning stands.
+ *
+ * The machine-wide `deferral` cannot say that C: is stuck while D: and E: are fine, which is most of
+ * why a volume once went 27 hours without a tick and nothing on screen said so.
+ */
+export interface VolumeScanStatus {
+  /** How the volume is named on screen. */
+  volume: string;
+
+  /** Drive letter or GUID path — the same key the rest of the API takes. */
+  key: string;
+
+  /** When this volume last ticked successfully, which is how old its recorded state is. */
+  lastTickUtc: string | null;
+
+  nextTickUtc: string | null;
+
+  /** Why the last attempt on this volume did not run. Empty when it did. */
+  deferral: string;
+
+  /** The journal cannot be resumed, so nothing ticks until a baseline runs. */
+  needsBaseline: boolean;
+
+  /** The last tick hit its record cap, so this volume is on the short interval. */
+  catchingUp: boolean;
+
+  consecutiveDeferrals: number;
+}
+
 export interface ScanStatus {
   state: ScannerState;
   activity: ScanActivity | null;
   queued: { volume: string; tier: ScanTier }[];
+
+  /** When anything last happened anywhere. For one volume's freshness, use `volumes`. */
   lastTickUtc: string | null;
 
   /** Null while a scan is running or the scanner is paused, when there is no such time. */
   nextTickUtc: string | null;
   deferral: string;
+
+  /** One row per volume the scheduler is ticking. */
+  volumes: VolumeScanStatus[];
 }
 
 export interface ScanLogEntry {

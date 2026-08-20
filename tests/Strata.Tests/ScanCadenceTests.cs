@@ -221,21 +221,78 @@ public sealed class ScanCadenceTests
     }
 
     [Fact]
-    public void A_game_interrupting_a_busy_run_restarts_it()
+    public void A_game_interrupting_a_run_does_not_erase_what_it_interrupted()
     {
+        // The correction the real log forced. A gate that refused to start the tick says nothing
+        // about whether the journal is readable — it means we did not look — so treating it as
+        // evidence that the situation has improved pushes the recovery back four more cycles for
+        // free. On E: a game started half an hour after the journal was already lost.
         var cadence = new ScanCadence();
         var now = Start;
 
-        cadence.Record("C:", TickReport.Deferred(DeferralKind.Busy), now, Defaults);
-        cadence.Record("C:", TickReport.Deferred(DeferralKind.Busy), now, Defaults);
-        cadence.Record("C:", TickReport.Deferred(DeferralKind.Busy), now, Defaults);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            cadence.Record("E:", TickReport.Deferred(DeferralKind.NeedsBaseline), now, Defaults);
+            now = now.AddSeconds(900);
+        }
 
-        // A game appears. The situation changed, so the run does not simply continue.
-        cadence.Record("C:", TickReport.Deferred(DeferralKind.Presentation), now, Defaults);
+        // Eight hours of it, during which nothing is escalated at all.
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            Assert.Equal(
+                Escalation.None,
+                cadence.Record("E:", TickReport.Deferred(DeferralKind.Presentation), now, Defaults));
+
+            now = now.AddSeconds(900);
+        }
+
+        // The game closes, the journal is still unreadable, and the recovery happens on the very
+        // next cycle rather than an hour after that.
+        Assert.Equal(
+            Escalation.Baseline,
+            cadence.Record("E:", TickReport.Deferred(DeferralKind.NeedsBaseline), now, Defaults));
+    }
+
+    [Fact]
+    public void Only_a_tick_that_ran_clears_the_evidence()
+    {
+        var cadence = new ScanCadence();
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            cadence.Record("C:", TickReport.Deferred(DeferralKind.NeedsBaseline), Start, Defaults);
+        }
+
+        // The journal came back on its own, which is the one thing that does prove it is readable.
+        cadence.Record("C:", TickReport.Complete, Start, Defaults);
 
         Assert.Equal(
             Escalation.None,
-            cadence.Record("C:", TickReport.Deferred(DeferralKind.Busy), now, Defaults));
+            cadence.Record("C:", TickReport.Deferred(DeferralKind.NeedsBaseline), Start, Defaults));
+    }
+
+    [Fact]
+    public void Forcing_a_tick_does_not_count_as_answering_a_lost_journal()
+    {
+        // The two counters are independent in both directions: a forced tick is not evidence that
+        // the journal can be resumed, so it must not cancel a pending recovery.
+        var cadence = new ScanCadence();
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            cadence.Record("C:", TickReport.Deferred(DeferralKind.NeedsBaseline), Start, Defaults);
+        }
+
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            cadence.Record("C:", TickReport.Deferred(DeferralKind.Busy), Start, Defaults);
+        }
+
+        cadence.Escalated("C:", Escalation.TickAnyway, Start);
+
+        Assert.Equal(
+            Escalation.Baseline,
+            cadence.Record("C:", TickReport.Deferred(DeferralKind.NeedsBaseline), Start, Defaults));
     }
 
     [Fact]
