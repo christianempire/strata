@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Strata.Core.Formatting;
 using Strata.Core.Model;
+using Strata.Core.Retention;
 using Strata.Core.Scanning;
 using Strata.Platform;
 using Strata.Storage;
@@ -167,6 +168,16 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     /// </remarks>
     private static readonly TimeSpan MinimumWait = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// When retention last ran, so it runs once a day rather than once a cycle.
+    /// </summary>
+    /// <remarks>
+    /// Not persisted. A restart therefore prunes on its first idle moment, which is a few seconds of
+    /// work on a table it has to open anyway, and is a great deal simpler than a stored timestamp
+    /// that could be in the future after a clock change.
+    /// </remarks>
+    private DateTime _lastPruneUtc = DateTime.MinValue;
+
     internal ScanScheduler(StrataDatabase database, ILogger<ScanScheduler> logger)
     {
         _database = database;
@@ -296,6 +307,11 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
             PublishVolumeStatus();
 
+            if (!settings.Paused)
+            {
+                Prune(settings);
+            }
+
             // Paused takes the whole interval regardless of what is due: due times stop advancing
             // when nothing ticks, so pacing off them would log "paused from the UI" every five
             // seconds for as long as the pause lasted.
@@ -303,6 +319,74 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
             _nextTickUtc = DateTime.UtcNow + wait;
             _wake.WaitOne(wait);
+        }
+    }
+
+    /// <summary>
+    /// Thins recorded history, at most once a day.
+    /// </summary>
+    /// <remarks>
+    /// On the scheduler thread, deliberately, and after the cycle's ticks rather than before. It
+    /// takes a write lock on the one database a tick also writes to, and the busy timeout is five
+    /// seconds — a prune on its own thread would eventually collide with a tick and fail one of
+    /// them. Here they are serialised by construction and neither can wait on the other.
+    /// <para>
+    /// Not gated. It is a bounded amount of work against a table already in the page cache, once a
+    /// day, and unlike a baseline there is no version of it that runs for minutes. Gating it would
+    /// mean a machine in use every evening never pruning at all.
+    /// </para>
+    /// </remarks>
+    private void Prune(StrataSettings settings)
+    {
+        var now = DateTime.UtcNow;
+
+        if (!settings.RetentionEnabled || now - _lastPruneUtc < TimeSpan.FromDays(1))
+        {
+            return;
+        }
+
+        var tiers = settings.Retention;
+
+        if (tiers.Validate().Count > 0)
+        {
+            // Stamped anyway, so a configuration that cannot be applied is complained about once a
+            // day rather than once a cycle.
+            _lastPruneUtc = now;
+            RetentionMisconfigured(string.Join(" ", tiers.Validate()));
+
+            return;
+        }
+
+        _lastPruneUtc = now;
+
+        try
+        {
+            using var connection = _database.Open();
+
+            var result = RetentionRepository.Run(connection, tiers, now);
+
+            RetentionFinished(
+                result.HistoryRemoved, result.ScanLogRemoved, result.Duration.TotalMilliseconds);
+
+            // Only when it actually did something. A nightly row saying "removed nothing" for the
+            // first week of a fresh install is noise in the one log that exists to be read.
+            if (result.TotalRemoved > 0)
+            {
+                Record(
+                    null,
+                    "—",
+                    ScanTier.Incremental,
+                    ScanOutcome.Ran,
+                    $"retention: thinned {result.HistoryRemoved:N0} history rows, " +
+                    $"dropped {result.ScanLogRemoved:N0} log rows",
+                    durationMs: (long)result.Duration.TotalMilliseconds,
+                    records: result.TotalRemoved);
+            }
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex)
+        {
+            // A failed prune costs disk space, not correctness. It is not a reason to stop scanning.
+            RetentionFailed(ex);
         }
     }
 
@@ -875,6 +959,17 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not write the scan log for this tick.")]
     private partial void ScanLogUnwritable(Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Retention: thinned {history} history rows and dropped {log} log rows in {ms:F0} ms.")]
+    private partial void RetentionFinished(int history, int log, double ms);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Retention is misconfigured: {reason}")]
+    private partial void RetentionMisconfigured(string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Retention pass failed; history was not thinned.")]
+    private partial void RetentionFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Baseline scan of {volume} starting.")]
     private partial void BaselineStarting(string volume);

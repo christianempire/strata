@@ -31,6 +31,7 @@ internal static class Cli
                 "usn-probe" => UsnProbeCommand.Run(ParseOptions(args)),
                 "usn-tail" => UsnTailCommand.Run(ParseOptions(args)),
                 "watch" => WatchCommand.Run(ParseOptions(args)),
+                "prune" => PruneCommand.Run(ParseOptions(args)),
                 "serve" => ServeCommand.Run(ParseOptions(args)),
                 "tray" => TrayCommand.Run(ParseOptions(args)),
                 "enable-journal" => EnableJournalCommand.Run(ParseOptions(args)),
@@ -153,6 +154,22 @@ internal static class Cli
                     options.CatchUpIntervalSeconds = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
+                case "--dry-run":
+                    options.DryRun = true;
+                    break;
+
+                case "--compact":
+                    options.Compact = true;
+                    break;
+
+                case "--as-of":
+                    options.AsOfUtc = DateTime.Parse(
+                        RequireValue(args, ref i),
+                        Culture,
+                        System.Globalization.DateTimeStyles.AdjustToUniversal
+                        | System.Globalization.DateTimeStyles.AssumeUniversal);
+                    break;
+
                 case "--event-floor-kb":
                     options.EventFloorBytes = long.Parse(RequireValue(args, ref i), Culture) * 1024;
                     break;
@@ -248,6 +265,7 @@ internal static class Cli
               strata usn-probe [<volume>...]     report what the change journal permits here
               strata usn-tail [<volume>]         print live change-journal records
               strata watch [<volume>...]         run the incremental scanner on a schedule
+              strata prune                       thin recorded history to the retention tiers
               strata serve                       run the scanner and the localhost API together
               strata tray                        the same, from the notification area, no console
               strata enable-journal [<volume>]   create a change journal (needs elevation)
@@ -267,6 +285,11 @@ internal static class Cli
               --top <n>            list the n largest directories (default: 15)
               --no-compact         skip the post-scan VACUUM
               --quiet              suppress progress output
+
+            PRUNE OPTIONS
+              --dry-run            report what would be removed, remove nothing
+              --as-of <iso-8601>   treat this as the present, to measure a pass without waiting
+              --compact            VACUUM afterwards, handing freed pages back to Windows
 
             WATCH OPTIONS
               --interval <s>       seconds between ticks (default: 900)
@@ -348,6 +371,22 @@ internal sealed class CliOptions
     internal int MaxRecordsPerTick { get; set; } = 50_000;
 
     internal int CatchUpIntervalSeconds { get; set; } = 60;
+
+    /// <summary>Report what retention would remove without removing it.</summary>
+    internal bool DryRun { get; set; }
+
+    /// <summary>VACUUM after pruning, so freed pages go back to Windows rather than to the free list.</summary>
+    internal bool Compact { get; set; }
+
+    /// <summary>
+    /// What to treat as the present.
+    /// </summary>
+    /// <remarks>
+    /// Exists so a retention pass can be measured against a real database today instead of in a
+    /// week, when its rows would have aged into the tiers on their own. A diagnostic in the same
+    /// spirit as <c>--no-store</c>: it changes what the run sees, never what it is allowed to do.
+    /// </remarks>
+    internal DateTime? AsOfUtc { get; set; }
 
     internal long EventFloorBytes { get; set; } = 1024 * 1024;
 

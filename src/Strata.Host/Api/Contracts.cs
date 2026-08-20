@@ -154,6 +154,16 @@ internal sealed record SettingsPatch
 
     public bool? Paused { get; init; }
 
+    public bool? RetentionEnabled { get; init; }
+
+    public int? FullResolutionDays { get; init; }
+
+    public int? HourlyDays { get; init; }
+
+    public int? DailyDays { get; init; }
+
+    public int? ScanLogDays { get; init; }
+
     internal StrataSettings Apply(StrataSettings current)
     {
         ArgumentNullException.ThrowIfNull(current);
@@ -175,6 +185,11 @@ internal sealed record SettingsPatch
             ExcludedEventPaths = ExcludedEventPaths ?? current.ExcludedEventPaths,
             ExcludedDirectoryNames = ExcludedDirectoryNames ?? current.ExcludedDirectoryNames,
             Paused = Paused ?? current.Paused,
+            RetentionEnabled = RetentionEnabled ?? current.RetentionEnabled,
+            FullResolutionDays = FullResolutionDays ?? current.FullResolutionDays,
+            HourlyDays = HourlyDays ?? current.HourlyDays,
+            DailyDays = DailyDays ?? current.DailyDays,
+            ScanLogDays = ScanLogDays ?? current.ScanLogDays,
         };
     }
 }

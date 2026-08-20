@@ -38,6 +38,11 @@ public static class SettingsRepository
             ExcludedEventPaths = Strings(stored, "excludedEventPaths"),
             ExcludedDirectoryNames = Strings(stored, "excludedDirectoryNames"),
             Paused = Bool(stored, "paused", defaults.Paused),
+            RetentionEnabled = Bool(stored, "retentionEnabled", defaults.RetentionEnabled),
+            FullResolutionDays = Int32(stored, "fullResolutionDays", defaults.FullResolutionDays),
+            HourlyDays = Int32(stored, "hourlyDays", defaults.HourlyDays),
+            DailyDays = Int32(stored, "dailyDays", defaults.DailyDays),
+            ScanLogDays = Int32(stored, "scanLogDays", defaults.ScanLogDays),
         };
     }
 
@@ -71,6 +76,11 @@ public static class SettingsRepository
             ["excludedEventPaths"] = JsonSerializer.Serialize(settings.ExcludedEventPaths),
             ["excludedDirectoryNames"] = JsonSerializer.Serialize(settings.ExcludedDirectoryNames),
             ["paused"] = Text(settings.Paused),
+            ["retentionEnabled"] = Text(settings.RetentionEnabled),
+            ["fullResolutionDays"] = Text(settings.FullResolutionDays),
+            ["hourlyDays"] = Text(settings.HourlyDays),
+            ["dailyDays"] = Text(settings.DailyDays),
+            ["scanLogDays"] = Text(settings.ScanLogDays),
         };
 
         using var transaction = connection.BeginTransaction();

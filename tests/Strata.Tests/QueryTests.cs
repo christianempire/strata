@@ -122,6 +122,11 @@ public sealed class QueryTests : IDisposable
             ExcludedEventPaths = [@"C:\Temp", @"D:\Games"],
             ExcludedDirectoryNames = ["node_modules"],
             Paused = true,
+            RetentionEnabled = false,
+            FullResolutionDays = 3,
+            HourlyDays = 14,
+            DailyDays = 200,
+            ScanLogDays = 45,
         };
 
         SettingsRepository.Save(_connection, written);
@@ -140,6 +145,11 @@ public sealed class QueryTests : IDisposable
         Assert.Equal(written.SnapshotSizeFloorBytes, read.SnapshotSizeFloorBytes);
         Assert.Equal(written.ScanWorkers, read.ScanWorkers);
         Assert.Equal(written.BackgroundIo, read.BackgroundIo);
+        Assert.Equal(written.RetentionEnabled, read.RetentionEnabled);
+        Assert.Equal(written.FullResolutionDays, read.FullResolutionDays);
+        Assert.Equal(written.HourlyDays, read.HourlyDays);
+        Assert.Equal(written.DailyDays, read.DailyDays);
+        Assert.Equal(written.ScanLogDays, read.ScanLogDays);
         Assert.Equal(written.DetectBorderlessFullscreen, read.DetectBorderlessFullscreen);
         Assert.Equal(written.IncludeStrataDatabase, read.IncludeStrataDatabase);
         Assert.Equal(written.ExcludedEventPaths, read.ExcludedEventPaths);
@@ -176,6 +186,27 @@ public sealed class QueryTests : IDisposable
     public void ACatchUpIntervalThatMakesNoSenseIsRejected(int seconds)
     {
         var settings = new StrataSettings { CatchUpIntervalSeconds = seconds };
+
+        Assert.NotEmpty(settings.Validate());
+        Assert.Throws<ArgumentException>(() => SettingsRepository.Save(_connection, settings));
+    }
+
+    /// <summary>
+    /// Retention tiers that overlap would put a measurement in two resolutions at once, so the
+    /// settings record rejects them the same way it rejects a busy-loop interval.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 30, 365)]
+    [InlineData(31, 30, 365)]
+    [InlineData(7, 400, 365)]
+    public void RetentionTiersThatOverlapAreRejected(int full, int hourly, int daily)
+    {
+        var settings = new StrataSettings
+        {
+            FullResolutionDays = full,
+            HourlyDays = hourly,
+            DailyDays = daily,
+        };
 
         Assert.NotEmpty(settings.Validate());
         Assert.Throws<ArgumentException>(() => SettingsRepository.Save(_connection, settings));

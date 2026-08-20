@@ -1,3 +1,5 @@
+using Strata.Core.Retention;
+
 namespace Strata.Storage;
 
 /// <summary>
@@ -92,6 +94,35 @@ public sealed record StrataSettings
     /// <summary>Suspends scanning without stopping the process. The tray's Pause.</summary>
     public bool Paused { get; init; }
 
+    // --- Retention. Flat rather than a nested record, because the settings table is key/value and
+    // a nested object would have to be serialised into one cell, which is neither greppable nor
+    // editable in the SQLite browser this table exists to be readable in.
+
+    /// <summary>Off means nothing is ever deleted and the database grows without bound.</summary>
+    public bool RetentionEnabled { get; init; } = true;
+
+    /// <summary>Days during which every measurement is kept exactly as recorded.</summary>
+    public int FullResolutionDays { get; init; } = 7;
+
+    /// <summary>Days during which at most one measurement an hour is kept.</summary>
+    public int HourlyDays { get; init; } = 30;
+
+    /// <summary>Days during which at most one measurement a day is kept. Weekly beyond it, forever.</summary>
+    public int DailyDays { get; init; } = 365;
+
+    /// <summary>Days of scan log kept. Dropped by age rather than thinned; it is not a series.</summary>
+    public int ScanLogDays { get; init; } = 90;
+
+    /// <summary>The retention tiers, in the shape the policy takes them.</summary>
+    public RetentionTiers Retention => new()
+    {
+        Enabled = RetentionEnabled,
+        FullResolutionDays = FullResolutionDays,
+        HourlyDays = HourlyDays,
+        DailyDays = DailyDays,
+        ScanLogDays = ScanLogDays,
+    };
+
     /// <summary>
     /// Reasons this configuration would not work, empty when it is fine.
     /// </summary>
@@ -150,6 +181,10 @@ public sealed record StrataSettings
         {
             errors.Add("scanWorkers must be between 1 and 64.");
         }
+
+        // Delegated rather than restated. The ordering rule between the tiers is the policy's to
+        // own, and two copies of it would drift.
+        errors.AddRange(Retention.Validate());
 
         return errors;
     }
