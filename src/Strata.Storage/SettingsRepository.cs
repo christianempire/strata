@@ -24,6 +24,8 @@ public static class SettingsRepository
             IntervalSeconds = Int32(stored, "intervalSeconds", defaults.IntervalSeconds),
             CpuThresholdPercent = Double(stored, "cpuThresholdPercent", defaults.CpuThresholdPercent),
             MaxRecordsPerTick = Int32(stored, "maxRecordsPerTick", defaults.MaxRecordsPerTick),
+            CatchUpIntervalSeconds =
+                Int32(stored, "catchUpIntervalSeconds", defaults.CatchUpIntervalSeconds),
             EventFloorBytes = Int64(stored, "eventFloorBytes", defaults.EventFloorBytes),
             SnapshotMaxDepth = Int32(stored, "snapshotMaxDepth", defaults.SnapshotMaxDepth),
             SnapshotSizeFloorBytes = Int64(stored, "snapshotSizeFloorBytes", defaults.SnapshotSizeFloorBytes),
@@ -57,6 +59,7 @@ public static class SettingsRepository
             ["intervalSeconds"] = Text(settings.IntervalSeconds),
             ["cpuThresholdPercent"] = Text(settings.CpuThresholdPercent),
             ["maxRecordsPerTick"] = Text(settings.MaxRecordsPerTick),
+            ["catchUpIntervalSeconds"] = Text(settings.CatchUpIntervalSeconds),
             ["eventFloorBytes"] = Text(settings.EventFloorBytes),
             ["snapshotMaxDepth"] = Text(settings.SnapshotMaxDepth),
             ["snapshotSizeFloorBytes"] = Text(settings.SnapshotSizeFloorBytes),

@@ -130,6 +130,8 @@ internal sealed record SettingsPatch
 
     public int? MaxRecordsPerTick { get; init; }
 
+    public int? CatchUpIntervalSeconds { get; init; }
+
     public long? EventFloorBytes { get; init; }
 
     public int? SnapshotMaxDepth { get; init; }
@@ -161,6 +163,7 @@ internal sealed record SettingsPatch
             IntervalSeconds = IntervalSeconds ?? current.IntervalSeconds,
             CpuThresholdPercent = CpuThresholdPercent ?? current.CpuThresholdPercent,
             MaxRecordsPerTick = MaxRecordsPerTick ?? current.MaxRecordsPerTick,
+            CatchUpIntervalSeconds = CatchUpIntervalSeconds ?? current.CatchUpIntervalSeconds,
             EventFloorBytes = EventFloorBytes ?? current.EventFloorBytes,
             SnapshotMaxDepth = SnapshotMaxDepth ?? current.SnapshotMaxDepth,
             SnapshotSizeFloorBytes = SnapshotSizeFloorBytes ?? current.SnapshotSizeFloorBytes,

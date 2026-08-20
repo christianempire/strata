@@ -25,6 +25,16 @@ internal sealed record TickOutcome
     /// <summary>Why nothing ran, when nothing did.</summary>
     internal string Deferral { get; init; } = "";
 
+    /// <summary>
+    /// What would fix it, when nothing ran.
+    /// </summary>
+    /// <remarks>
+    /// The reason in words is for the log and the screen; this is for the scheduler, which has to
+    /// decide between waiting, forcing the tick, and running a baseline. Deriving one from the other
+    /// by matching on text is how a message becomes load-bearing.
+    /// </remarks>
+    internal DeferralKind Kind { get; init; }
+
     internal int RecordsRead { get; init; }
 
     internal int MetadataReads { get; init; }
@@ -74,8 +84,8 @@ internal sealed record TickOutcome
     /// <summary>The tick budget from the brief. An overrun is logged, never silently absorbed.</summary>
     internal bool OverBudget => Duration > TimeSpan.FromSeconds(2);
 
-    internal static TickOutcome Skipped(ScanTier tier, string reason)
-        => new() { Tier = tier, Ran = false, Deferral = reason };
+    internal static TickOutcome Skipped(ScanTier tier, string reason, DeferralKind kind)
+        => new() { Tier = tier, Ran = false, Deferral = reason, Kind = kind };
 }
 
 /// <summary>
@@ -129,12 +139,15 @@ internal sealed class VolumeWatcher : IDisposable
 
         if (!IncrementalRepository.HasBaseline(connection, volumeId))
         {
-            return TickOutcome.Skipped(ScanTier.Full, "no baseline yet; run 'strata scan' first");
+            // Not escalated to an automatic baseline: scanning a volume nobody has asked about is
+            // the behaviour b81c880 removed on purpose.
+            return TickOutcome.Skipped(
+                ScanTier.Full, "no baseline yet; run 'strata scan' first", DeferralKind.NeedsPerson);
         }
 
         if (settings.Paused)
         {
-            return TickOutcome.Skipped(ScanTier.Incremental, "paused");
+            return TickOutcome.Skipped(ScanTier.Incremental, "paused", DeferralKind.Paused);
         }
 
         var decision = ignoreGate ? GateDecision.Allow : gate.CanScan(ScanTier.Incremental);
@@ -143,7 +156,8 @@ internal sealed class VolumeWatcher : IDisposable
         {
             return TickOutcome.Skipped(
                 ScanTier.Incremental,
-                $"deferred: {decision.Reason}{Detail(decision)}");
+                $"deferred: {decision.Reason}{Detail(decision)}",
+                KindOf(decision.Reason));
         }
 
         var cursor = IncrementalRepository.GetCursor(connection, volumeId);
@@ -162,7 +176,7 @@ internal sealed class VolumeWatcher : IDisposable
         if (result.Status != UsnReadStatus.Ok)
         {
             transaction.Rollback();
-            return TickOutcome.Skipped(ScanTier.Incremental, Explain(result));
+            return TickOutcome.Skipped(ScanTier.Incremental, Explain(result), result.Deferral);
         }
 
         var phase = Stopwatch.StartNew();
@@ -279,6 +293,23 @@ internal sealed class VolumeWatcher : IDisposable
             MinimumDeltaBytes = settings.EventFloorBytes,
         });
     }
+
+    /// <summary>
+    /// What the scheduler can do about a gate decision.
+    /// </summary>
+    /// <remarks>
+    /// The split that keeps the first non-negotiable intact. A busy machine is a bad moment, and
+    /// after enough bad moments in a row a millisecond of journal reading is worth more than the
+    /// moment is worth protecting. A game on screen is not a bad moment, it is the case the whole
+    /// resource budget exists for, and it is never overridden.
+    /// </remarks>
+    private static DeferralKind KindOf(DeferralReason reason) => reason switch
+    {
+        DeferralReason.Fullscreen or DeferralReason.Presenting => DeferralKind.Presentation,
+        DeferralReason.CpuBusy or DeferralReason.UserActive => DeferralKind.Busy,
+        DeferralReason.Paused => DeferralKind.Paused,
+        _ => DeferralKind.NeedsPerson,
+    };
 
     private static string Detail(GateDecision decision)
         => string.IsNullOrEmpty(decision.Detail) ? "" : $" ({decision.Detail})";

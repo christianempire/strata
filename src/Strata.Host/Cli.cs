@@ -149,6 +149,10 @@ internal static class Cli
                     options.MaxRecordsPerTick = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
+                case "--catch-up-interval":
+                    options.CatchUpIntervalSeconds = int.Parse(RequireValue(args, ref i), Culture);
+                    break;
+
                 case "--event-floor-kb":
                     options.EventFloorBytes = long.Parse(RequireValue(args, ref i), Culture) * 1024;
                     break;
@@ -268,6 +272,7 @@ internal static class Cli
               --interval <s>       seconds between ticks (default: 900)
               --cpu-threshold <n>  defer above this system CPU percent (default: 70)
               --max-records <n>    journal records per tick (default: 50000)
+              --catch-up-interval <s>     seconds between ticks while behind (default: 60)
               --event-floor-kb <n> smallest change worth an event (default: 1024)
               --exclude-events <path>      keep a path out of the change log, repeatable
               --include-strata-db         do not exclude Strata's own database
@@ -342,6 +347,8 @@ internal sealed class CliOptions
 
     internal int MaxRecordsPerTick { get; set; } = 50_000;
 
+    internal int CatchUpIntervalSeconds { get; set; } = 60;
+
     internal long EventFloorBytes { get; set; } = 1024 * 1024;
 
     internal bool NoFullscreenDetection { get; set; }
@@ -368,6 +375,7 @@ internal sealed class CliOptions
         IntervalSeconds = IntervalSeconds,
         CpuThresholdPercent = CpuThreshold,
         MaxRecordsPerTick = MaxRecordsPerTick,
+        CatchUpIntervalSeconds = CatchUpIntervalSeconds,
         EventFloorBytes = EventFloorBytes,
         SnapshotMaxDepth = MaxDepth,
         SnapshotSizeFloorBytes = SizeFloorBytes,

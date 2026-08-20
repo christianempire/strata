@@ -30,6 +30,46 @@ public enum ScannerState
 /// <summary>A scan waiting its turn.</summary>
 public sealed record QueuedScan(string Volume, ScanTier Tier);
 
+/// <summary>
+/// Where one volume's incremental scanning stands.
+/// </summary>
+/// <remarks>
+/// Added after C: went 27 hours without a tick behind a single scheduler-wide "deferred". One
+/// deferral string for the whole machine cannot say that C: is stuck while D: and E: are fine, and a
+/// screen showing where the bytes are needs to know how old the answer for *this* volume is.
+/// </remarks>
+public sealed record VolumeScanStatus
+{
+    /// <summary>How the volume is named on screen.</summary>
+    public required string Volume { get; init; }
+
+    /// <summary>Drive letter or GUID path — what the rest of the API takes as <c>volume</c>.</summary>
+    public required string Key { get; init; }
+
+    /// <summary>
+    /// When this volume last ticked successfully, which is how old its recorded state is.
+    /// </summary>
+    /// <remarks>
+    /// The scheduler-wide <see cref="SchedulerStatus.LastTickUtc"/> is when anything last happened
+    /// anywhere. This is the one a caller reporting a volume's freshness wants.
+    /// </remarks>
+    public string? LastTickUtc { get; init; }
+
+    public string? NextTickUtc { get; init; }
+
+    /// <summary>Why the last attempt on this volume did not run. Empty when it did.</summary>
+    public string Deferral { get; init; } = "";
+
+    /// <summary>The journal cannot be resumed, so nothing will tick until a baseline runs.</summary>
+    public bool NeedsBaseline { get; init; }
+
+    /// <summary>The last tick hit its record cap, so this volume is on the short interval.</summary>
+    public bool CatchingUp { get; init; }
+
+    /// <summary>Attempts in a row that did not run.</summary>
+    public int ConsecutiveDeferrals { get; init; }
+}
+
 /// <summary>The scanner's state, as a caller polling it sees it.</summary>
 public sealed record SchedulerStatus
 {
@@ -47,6 +87,9 @@ public sealed record SchedulerStatus
 
     /// <summary>Why the last attempt did not run. Empty when it did.</summary>
     public string Deferral { get; init; } = "";
+
+    /// <summary>One row per volume the scheduler is ticking.</summary>
+    public IReadOnlyList<VolumeScanStatus> Volumes { get; init; } = [];
 }
 
 /// <summary>
@@ -72,6 +115,19 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     private readonly ConcurrentQueue<ScanRequest> _requests = new();
     private readonly List<VolumeWatcher> _watchers = [];
 
+    /// <summary>
+    /// When each volume is next due, and when one that keeps not ticking gets forced.
+    /// </summary>
+    /// <remarks>
+    /// Scheduler thread only. The decisions it makes live in <c>Strata.Core</c> so they can be
+    /// driven by hand — the failure they exist to prevent took 27 hours to appear on a real machine
+    /// and left nothing behind but a repeated log line.
+    /// </remarks>
+    private readonly ScanCadence _cadence = new();
+
+    /// <summary>The last thing said about each volume, keyed by GUID path. Scheduler thread only.</summary>
+    private readonly Dictionary<string, VolumeNote> _notes = new(StringComparer.OrdinalIgnoreCase);
+
     private Thread? _thread;
     private WindowsScanGate _gate = new();
     private ScanGateOptions _gateOptions = new();
@@ -90,6 +146,26 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     private DateTime? _lastTickUtc;
     private DateTime _nextTickUtc = DateTime.UtcNow;
     private bool _paused;
+
+    /// <summary>
+    /// Per-volume status, republished as a whole list after each cycle.
+    /// </summary>
+    /// <remarks>
+    /// Published by reference rather than locked, for the reason given on <see cref="Status"/>: an
+    /// immutable list swapped in one write is safe to read from an HTTP thread, and a dictionary
+    /// being mutated on the scheduler thread is not.
+    /// </remarks>
+    private IReadOnlyList<VolumeScanStatus> _volumeStatus = [];
+
+    /// <summary>
+    /// The shortest the loop will ever sleep.
+    /// </summary>
+    /// <remarks>
+    /// A floor rather than a cadence. Due times are at least fifteen seconds apart by validation, so
+    /// this only bites when a due time is already in the past — which must not turn into a spin
+    /// against the settings table and the volume enumeration.
+    /// </remarks>
+    private static readonly TimeSpan MinimumWait = TimeSpan.FromSeconds(5);
 
     internal ScanScheduler(StrataDatabase database, ILogger<ScanScheduler> logger)
     {
@@ -156,6 +232,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     {
         var activity = Volatile.Read(ref _current);
         var queued = _requests.Select(r => new QueuedScan(r.Volume.Display, r.Tier)).ToList();
+        var volumes = Volatile.Read(ref _volumeStatus);
 
         var state = activity is not null ? ScannerState.Scanning
             : _paused ? ScannerState.Paused
@@ -164,6 +241,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
         return new SchedulerStatus
         {
+            Volumes = volumes,
             State = state,
             Activity = activity?.Snapshot(),
             Queued = queued,
@@ -199,8 +277,10 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
             _paused = settings.Paused;
 
+            var cadence = CadenceFrom(settings);
+
             RefreshGate(settings);
-            DrainRequests(settings);
+            DrainRequests(settings, cadence);
 
             if (settings.Paused)
             {
@@ -211,15 +291,95 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             }
             else
             {
-                RunScheduledTicks(settings);
+                RunScheduledTicks(settings, cadence);
             }
 
-            var interval = TimeSpan.FromSeconds(Math.Max(30, settings.IntervalSeconds));
+            PublishVolumeStatus();
 
-            _nextTickUtc = DateTime.UtcNow + interval;
-            _wake.WaitOne(interval);
+            // Paused takes the whole interval regardless of what is due: due times stop advancing
+            // when nothing ticks, so pacing off them would log "paused from the UI" every five
+            // seconds for as long as the pause lasted.
+            var wait = settings.Paused ? cadence.Interval : WaitFor(cadence);
+
+            _nextTickUtc = DateTime.UtcNow + wait;
+            _wake.WaitOne(wait);
         }
     }
+
+    /// <summary>The pacing and escalation rules, as this cycle's settings describe them.</summary>
+    /// <remarks>
+    /// Rebuilt per cycle rather than held, so a settings change takes effect on the next tick like
+    /// everything else the loop reads. Clamped as well as validated: settings can be written
+    /// straight into the database by something that never ran <see cref="StrataSettings.Validate"/>,
+    /// and a catch-up interval of zero would be a busy loop against the disk.
+    /// </remarks>
+    private static ScanCadenceOptions CadenceFrom(StrataSettings settings)
+    {
+        var interval = TimeSpan.FromSeconds(Math.Max(30, settings.IntervalSeconds));
+
+        return new ScanCadenceOptions
+        {
+            Interval = interval,
+            CatchUpInterval = TimeSpan.FromSeconds(
+                Math.Clamp(settings.CatchUpIntervalSeconds, 15, interval.TotalSeconds)),
+        };
+    }
+
+    /// <summary>How long to sleep before the next cycle.</summary>
+    /// <remarks>
+    /// The earliest volume's due time, not a fixed interval. That is what lets one volume that is
+    /// behind be ticked every minute while the quiet ones keep their fifteen — ticking those
+    /// fifteen times as often would multiply their snapshot rows by fifteen to learn nothing.
+    /// </remarks>
+    private TimeSpan WaitFor(ScanCadenceOptions cadence)
+    {
+        var due = _cadence.EarliestDueUtc();
+
+        if (due is null)
+        {
+            return cadence.Interval;
+        }
+
+        var wait = due.Value - DateTime.UtcNow;
+
+        // Capped at one interval so a settings change, a newly attached volume, or a pause lifted
+        // from the tray is never further away than it used to be.
+        return wait < MinimumWait ? MinimumWait
+            : wait > cadence.Interval ? cadence.Interval
+            : wait;
+    }
+
+    /// <summary>Republishes the per-volume status the API serves.</summary>
+    private void PublishVolumeStatus()
+    {
+        var rows = new List<VolumeScanStatus>(_notes.Count);
+
+        foreach (var state in _cadence.Snapshot())
+        {
+            if (!_notes.TryGetValue(state.Volume, out var note))
+            {
+                continue;
+            }
+
+            rows.Add(new VolumeScanStatus
+            {
+                Volume = note.Display,
+                Key = note.Key,
+                LastTickUtc = state.LastSuccessUtc?.ToString("O"),
+                NextTickUtc = state.NextDueUtc.ToString("O"),
+                Deferral = note.Reason,
+                NeedsBaseline = state.Deferral == DeferralKind.NeedsBaseline,
+                CatchingUp = state.CatchingUp,
+                ConsecutiveDeferrals = state.ConsecutiveDeferrals,
+            });
+        }
+
+        Volatile.Write(ref _volumeStatus, rows);
+    }
+
+    private void Remember(VolumeIdentity volume, string reason)
+        => _notes[volume.GuidPath] = new VolumeNote(
+            volume.Display, volume.DriveLetter ?? volume.GuidPath, reason);
 
     private void RefreshGate(StrataSettings settings)
     {
@@ -241,7 +401,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         _gate = new WindowsScanGate(wanted);
     }
 
-    private void DrainRequests(StrataSettings settings)
+    private void DrainRequests(StrataSettings settings, ScanCadenceOptions cadence)
     {
         while (!_stopping.IsCancellationRequested && _requests.TryDequeue(out var request))
         {
@@ -249,11 +409,18 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             {
                 if (request.Tier == ScanTier.Full)
                 {
-                    RunBaseline(request, settings);
+                    RunBaseline(request.Volume, settings, cadence, automatic: false);
                 }
                 else
                 {
-                    Tick(WatcherFor(request.Volume), settings, ignoreGate: true);
+                    // Asked for by hand, so the gate is not consulted — but the cadence still hears
+                    // about it, because a tick that ran is a tick that reset the volume's run of
+                    // deferrals whoever asked for it.
+                    var outcome = RunTick(WatcherFor(request.Volume), settings, ignoreGate: true);
+
+                    LogTick(request.Volume, outcome, forced: false);
+                    _cadence.Record(
+                        request.Volume.GuidPath, ReportOf(outcome), DateTime.UtcNow, cadence);
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -265,15 +432,16 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         }
     }
 
-    private void RunBaseline(ScanRequest request, StrataSettings settings)
+    private void RunBaseline(
+        VolumeIdentity volume, StrataSettings settings, ScanCadenceOptions cadence, bool automatic)
     {
-        BaselineStarting(request.Volume.Display);
+        BaselineStarting(volume.Display);
 
         var activity = new ScanActivity(
-            request.Volume.Display,
+            volume.Display,
             ScanTier.Full,
-            LastEntryCount(request.Volume),
-            request.Volume.UsedBytes,
+            LastEntryCount(volume),
+            volume.UsedBytes,
 
             // A baseline's first seconds are spent clearing the previous scan, so it starts here
             // rather than in the reading phase whose counters would all read zero.
@@ -286,7 +454,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         try
         {
             outcome = BaselineScan.Run(
-                request.Volume,
+                volume,
                 _database,
                 BaselineScan.OptionsFrom(settings, activity.Record),
                 BaselineScan.SnapshotOptionsFrom(settings),
@@ -301,29 +469,43 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         }
 
         BaselineFinished(
-            request.Volume.Display,
+            volume.Display,
             outcome.Result.FileCount,
             outcome.Result.DirectoryCount,
             outcome.Result.Duration.TotalSeconds,
             outcome.WriteTime.TotalSeconds,
             outcome.SnapshotId);
 
+        // "automatic" is in the reason rather than in a column because the log is read by a person
+        // asking why their disk was busy, and the answer "Strata decided to" needs to be in the
+        // sentence rather than inferred from the absence of a request.
+        var what = automatic
+            ? "automatic recovery baseline, the journal could not be resumed — "
+            : "full baseline, ";
+
         // Scan plus write, because what the log is asked to justify is how long the machine was busy
         // on Strata's behalf, and the write is not free at three million rows.
         Record(
-            request.Volume,
+            volume,
             ScanTier.Full,
             ScanOutcome.Ran,
-            $"full baseline, {outcome.Result.FileCount:N0} files in {outcome.Result.DirectoryCount:N0} directories",
+            $"{what}{outcome.Result.FileCount:N0} files in {outcome.Result.DirectoryCount:N0} directories",
             durationMs: (long)(outcome.Result.Duration + outcome.WriteTime).TotalMilliseconds,
             records: outcome.RowsWritten);
 
         // A baseline rewrote every row for the volume, so the directory tree the watcher was holding
         // describes the previous scan.
-        Forget(request.Volume);
+        Forget(volume);
+
+        // And it cleared the journal cursor, so the volume is no longer stuck. Its next tick is one
+        // ordinary interval away rather than immediate: nothing has changed in the seconds since the
+        // scan that finished reading the whole volume.
+        Remember(volume, "");
+        _cadence.Reset(volume.GuidPath, DateTime.UtcNow, cadence);
     }
 
-    private void RunScheduledTicks(StrataSettings settings)
+    /// <summary>Ticks every volume that has fallen due, and only those.</summary>
+    private void RunScheduledTicks(StrataSettings settings, ScanCadenceOptions cadence)
     {
         foreach (var volume in Watchable())
         {
@@ -332,45 +514,155 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                 return;
             }
 
+            if (!_cadence.IsDue(volume.GuidPath, DateTime.UtcNow))
+            {
+                continue;
+            }
+
             try
             {
-                Tick(WatcherFor(volume), settings);
+                TickVolume(WatcherFor(volume), settings, cadence);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                        or Microsoft.Data.Sqlite.SqliteException)
             {
                 TickFailed(ex, volume.Display);
                 Record(volume, ScanTier.Incremental, ScanOutcome.Failed, ex.Message);
+                Remember(volume, ex.Message);
+
+                // A volume that threw takes an ordinary interval before being tried again, and does
+                // not escalate: no amount of forcing fixes an exception, and a volume that was on
+                // the accelerated cadence must not stay on it while failing.
+                _cadence.Record(
+                    volume.GuidPath,
+                    TickReport.Deferred(DeferralKind.NeedsPerson),
+                    DateTime.UtcNow,
+                    cadence);
             }
         }
     }
 
-    private void Tick(VolumeWatcher watcher, StrataSettings settings, bool ignoreGate = false)
+    /// <summary>
+    /// One volume’s turn: tick it, record what happened, and act if it has stopped ticking.
+    /// </summary>
+    /// <remarks>
+    /// The acting is the part that was missing. Before this, a tick that reported it needed a
+    /// baseline was written to the log and forgotten, so the remedy was named on every one of 101
+    /// consecutive deferrals and applied on none of them.
+    /// </remarks>
+    private void TickVolume(VolumeWatcher watcher, StrataSettings settings, ScanCadenceOptions cadence)
+    {
+        var volume = watcher.Volume;
+        var outcome = RunTick(watcher, settings, ignoreGate: false);
+
+        LogTick(volume, outcome, forced: false);
+
+        switch (_cadence.Record(volume.GuidPath, ReportOf(outcome), DateTime.UtcNow, cadence))
+        {
+            case Escalation.TickAnyway:
+                ForceTick(watcher, settings, cadence);
+                break;
+
+            case Escalation.Baseline:
+                RecoverWithBaseline(volume, settings, cadence);
+                break;
+        }
+    }
+
+    /// <summary>Runs one incremental tick, keeping the reported activity honest either way.</summary>
+    private TickOutcome RunTick(VolumeWatcher watcher, StrataSettings settings, bool ignoreGate)
     {
         var activity = new ScanActivity(
             watcher.Volume.Display, ScanTier.Incremental, null, watcher.Volume.UsedBytes);
 
         Volatile.Write(ref _current, activity);
 
-        TickOutcome outcome;
-
         try
         {
-            outcome = watcher.Tick(_gate, settings, ignoreGate);
+            return watcher.Tick(_gate, settings, ignoreGate);
         }
         finally
         {
+            // In a finally because a tick that threw is a tick that is no longer running.
             Volatile.Write(ref _current, null);
         }
+    }
 
+    /// <summary>
+    /// Ticks a volume whose gate has said no once too often.
+    /// </summary>
+    /// <remarks>
+    /// Only ever reached for a busy machine, never for a game on screen — <see cref="ScanCadence"/>
+    /// will not offer this escalation for a presentation-like state, because the first
+    /// non-negotiable outranks the history it costs. What it buys is that a machine merely under
+    /// load for hours does not let its journal cursor drift off the back of a 32 MiB circular
+    /// buffer, which is unrecoverable, in order to avoid a millisecond of journal reading, which is
+    /// not.
+    /// </remarks>
+    private void ForceTick(VolumeWatcher watcher, StrataSettings settings, ScanCadenceOptions cadence)
+    {
+        var volume = watcher.Volume;
+
+        _cadence.Escalated(volume.GuidPath, Escalation.TickAnyway, DateTime.UtcNow);
+        TickEscalated(volume.Display, cadence.DeferralsBeforeEscalating);
+
+        var outcome = RunTick(watcher, settings, ignoreGate: true);
+
+        LogTick(volume, outcome, forced: true);
+        _cadence.Record(volume.GuidPath, ReportOf(outcome), DateTime.UtcNow, cadence);
+    }
+
+    /// <summary>
+    /// Runs a baseline for a volume whose journal can no longer be resumed.
+    /// </summary>
+    /// <remarks>
+    /// Put through the <see cref="ScanTier.Full"/> gate rather than forced, and that is the whole of
+    /// the resource decision. A baseline is minutes of sustained I/O — 142 s on C: during this
+    /// incident — so it must not start over a game, a presentation, or a machine being typed at,
+    /// all of which the Full-tier gate already refuses. Deferring the recovery forever is how the
+    /// volume got 27 hours stale in the first place; waiting for the gate to say yes is the line
+    /// between those two failures, and the gate is asked every cycle so the first idle moment is
+    /// taken.
+    /// <para>
+    /// The cooldown starts only if the scan actually begins. A refusal has not used the recovery up.
+    /// </para>
+    /// </remarks>
+    private void RecoverWithBaseline(
+        VolumeIdentity volume, StrataSettings settings, ScanCadenceOptions cadence)
+    {
+        var decision = _gate.CanScan(ScanTier.Full);
+
+        if (!decision.Allowed)
+        {
+            var detail = string.IsNullOrEmpty(decision.Detail) ? "" : $" ({decision.Detail})";
+            var waiting = "journal cannot be resumed; automatic baseline is waiting for an idle " +
+                          $"moment — {decision.Reason}{detail}";
+
+            RecoveryWaiting(volume.Display, decision.Reason);
+            Record(volume, ScanTier.Full, ScanOutcome.Deferred, waiting);
+            Remember(volume, waiting);
+
+            return;
+        }
+
+        _cadence.Escalated(volume.GuidPath, Escalation.Baseline, DateTime.UtcNow);
+        RecoveryStarting(volume.Display, cadence.DeferralsBeforeEscalating);
+
+        RunBaseline(volume, settings, cadence, automatic: true);
+    }
+
+    /// <summary>Writes one tick to the log, the console, and the per-volume status.</summary>
+    private void LogTick(VolumeIdentity volume, TickOutcome outcome, bool forced)
+    {
         _lastTickUtc = DateTime.UtcNow;
 
         if (!outcome.Ran)
         {
-            TickSkipped(watcher.Volume.Display, outcome.Deferral);
-            Record(watcher.Volume, outcome.Tier, ScanOutcome.Deferred, outcome.Deferral);
+            TickSkipped(volume.Display, outcome.Deferral);
+            Record(volume, outcome.Tier, ScanOutcome.Deferred, outcome.Deferral);
+            Remember(volume, outcome.Deferral);
 
-            // Held rather than cleared on the next tick's start, because the state the UI has to
+            // Held rather than cleared on the next tick’s start, because the state the UI has to
             // render is "paused because a game is running" and that outlives the tick that decided
             // it — the next tick will decide the same thing for the same reason.
             _lastDeferral = outcome.Deferral;
@@ -378,6 +670,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         }
 
         _lastDeferral = "";
+        Remember(volume, "");
 
         // Over-budget ticks are logged rather than absorbed. The 2 s budget is the whole reason the
         // incremental path exists in the shape it does.
@@ -385,22 +678,30 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
         TickCompleted(
             level,
-            watcher.Volume.Display,
+            volume.Display,
             outcome.RecordsRead,
             outcome.MetadataReads,
             outcome.Changes.Count,
             outcome.Duration.TotalMilliseconds,
             outcome.CatchingUp ? " (catching up)" : "");
 
+        var note = forced ? "escalated after repeated deferrals · " : "";
+
         Record(
-            watcher.Volume,
+            volume,
             outcome.Tier,
             ScanOutcome.Ran,
-            Describe(outcome),
+            note + Describe(outcome),
             durationMs: (long)outcome.Duration.TotalMilliseconds,
             records: outcome.RecordsRead,
             events: outcome.Changes.Count);
     }
+
+    /// <summary>A tick’s outcome, in the terms the cadence decides from.</summary>
+    private static TickReport ReportOf(TickOutcome outcome)
+        => outcome.Ran
+            ? outcome.CatchingUp ? TickReport.Behind : TickReport.Complete
+            : TickReport.Deferred(outcome.Kind);
 
     /// <summary>
     /// What a tick did, in one line, for someone auditing the log rather than debugging it.
@@ -594,11 +895,37 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     [LoggerMessage(Level = LogLevel.Debug, Message = "{volume}: {reason}")]
     private partial void TickSkipped(string volume, string reason);
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "{volume}: deferred {count} times running; ticking anyway rather than letting " +
+                  "the journal cursor be trimmed away.")]
+    private partial void TickEscalated(string volume, int count);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "{volume}: the change journal cannot be resumed after {count} ticks; running an " +
+                  "automatic baseline to recover.")]
+    private partial void RecoveryStarting(string volume, int count);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "{volume}: an automatic recovery baseline is due, waiting for an idle moment " +
+                  "({reason}).")]
+    private partial void RecoveryWaiting(string volume, DeferralReason reason);
+
     /// <summary>Level is a parameter because an over-budget tick is a warning and a normal one is not.</summary>
     [LoggerMessage(
         Message = "{volume}: {records} records, {stats} stats, {events} events in {ms:F0} ms{note}")]
     private partial void TickCompleted(
         LogLevel level, string volume, int records, int stats, int events, double ms, string note);
+
+    /// <summary>The last thing said about a volume, for the status endpoint to report.</summary>
+    /// <remarks>
+    /// Kept beside the cadence rather than inside it, because the cadence lives in <c>Core</c> and
+    /// decides from a volume’s history — it has no business holding a display name or a sentence
+    /// written for a person.
+    /// </remarks>
+    private readonly record struct VolumeNote(string Display, string Key, string Reason);
 
     public void Dispose()
     {

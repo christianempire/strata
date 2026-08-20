@@ -111,6 +111,7 @@ public sealed class QueryTests : IDisposable
             IntervalSeconds = 300,
             CpuThresholdPercent = 55.5,
             MaxRecordsPerTick = 20_000,
+            CatchUpIntervalSeconds = 45,
             EventFloorBytes = 4 * MB,
             SnapshotMaxDepth = 6,
             SnapshotSizeFloorBytes = 20 * MB,
@@ -133,6 +134,7 @@ public sealed class QueryTests : IDisposable
         Assert.Equal(written.IntervalSeconds, read.IntervalSeconds);
         Assert.Equal(written.CpuThresholdPercent, read.CpuThresholdPercent);
         Assert.Equal(written.MaxRecordsPerTick, read.MaxRecordsPerTick);
+        Assert.Equal(written.CatchUpIntervalSeconds, read.CatchUpIntervalSeconds);
         Assert.Equal(written.EventFloorBytes, read.EventFloorBytes);
         Assert.Equal(written.SnapshotMaxDepth, read.SnapshotMaxDepth);
         Assert.Equal(written.SnapshotSizeFloorBytes, read.SnapshotSizeFloorBytes);
@@ -156,6 +158,24 @@ public sealed class QueryTests : IDisposable
     public void AnIntervalThatWouldBusyLoopIsRejected(int seconds)
     {
         var settings = new StrataSettings { IntervalSeconds = seconds };
+
+        Assert.NotEmpty(settings.Validate());
+        Assert.Throws<ArgumentException>(() => SettingsRepository.Save(_connection, settings));
+    }
+
+    /// <summary>
+    /// The accelerated interval has the same busy-loop problem at the bottom, and a different one at
+    /// the top: a catch-up interval longer than the ordinary one would make falling behind slow the
+    /// scanner down.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-60)]
+    [InlineData(14)]
+    [InlineData(901)]
+    public void ACatchUpIntervalThatMakesNoSenseIsRejected(int seconds)
+    {
+        var settings = new StrataSettings { CatchUpIntervalSeconds = seconds };
 
         Assert.NotEmpty(settings.Validate());
         Assert.Throws<ArgumentException>(() => SettingsRepository.Save(_connection, settings));
