@@ -257,14 +257,20 @@ where kind is `grew | shrank | appeared | vanished`. Written by the diff engine 
 **This is the table the most valuable screen in the product reads from**, and it is small, so it
 keeps full resolution when directory rollups get downsampled.
 
-**Retention**, run nightly, RRD-style and configurable: every snapshot for 7 days, hourly for 30
-days, daily for 1 year, weekly forever.
+**Retention**, run nightly, RRD-style and configurable: every measurement for 7 days, hourly for 30
+days, daily for 1 year, weekly forever. Built in Phase 4 as `RetentionPolicy` in Core and
+`RetentionRepository` in Storage, run on the scheduler thread after that cycle's ticks so it cannot
+contend with one for the write lock. It applies to `dir_history` and, by age rather than by
+downsampling, to `scan_log`. Measured at 2.4 s for a steady-state nightly pass; see
+docs/MEASUREMENTS.md.
 
 > **One constraint the sparse history imposes on retention.** Because "the size at T" is the latest
 > row at or before T, downsampling must never delete a directory's last row before the horizon — it
 > would leave that directory answering from a *newer* measurement than it should. Retention is
-> therefore "keep the newest row per directory per bucket", not "delete rows older than X". Phase 4
-> work, flagged here because the schema was shaped around it.
+> therefore "keep the newest row per directory per bucket", not "delete rows older than X". Built in
+> Phase 4 exactly that way, with the rule stated twice on purpose: once as one window function that
+> is fast, and once as `RetentionPolicy.Survivors`, which is slow and readable and is what the SQL
+> is tested against.
 
 ## Diff engine
 

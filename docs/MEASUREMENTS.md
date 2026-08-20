@@ -1078,3 +1078,108 @@ The sizing just has to expect them.
 4. **`snapshot_top_files` is still schema-only.** The last unpopulated table in the storage model,
    and it would grow with time, so whether it is filled is a decision retention has to be designed
    around rather than after.
+
+---
+
+# Phase 4: what retention costs, and what it buys
+
+20 Aug 2026, measured on a `.backup` copy of the live 680 MB database so the real history was never
+at risk. `strata prune --as-of` exists for exactly this: the tiers are 7/30/365 days and the database
+is 39 hours old, so without it the first honest measurement would have been in a week.
+
+## The passes
+
+| Pass | Rows removed | Of the table | Duration |
+|---|---:|---:|---:|
+| First, never pruned | **2,137,992** | 54.2% | **8,603 ms** |
+| Next night, steady state | **24,331** | 1.3% | **2,442 ms** |
+| Same day again | **0** | 0% | 1,214 ms |
+
+The middle row is the one that matters, because it is the one that happens every night for the rest
+of the product's life. The first is a one-off backlog of everything recorded before retention
+existed.
+
+The third is idempotence, measured rather than argued: a second pass on the same day removes nothing.
+That is not obvious — a bucket aligned to the run rather than to the epoch would thin a different set
+every night and walk every directory down to a single row over a few months — so it is pinned here
+and in a unit test.
+
+**1,214 ms is the floor**, and it is the cost of the table scan. The predicate is on `taken_unix`,
+which the primary key `(volume_id, dir_id, taken_unix)` does not lead with. An index on time would
+cost 19.1 bytes a row — a 72% overhead on the fastest-growing table in the schema, from
+`docs/STORAGE-MODEL.md` — to speed up something that runs once a night. Not added, on purpose, and
+this is the number that would have to get much worse before that changes.
+
+## What it reclaims
+
+| | Before | After |
+|---|---:|---:|
+| `dir_history` rows | 3,945,353 | 1,807,361 |
+| `dir_history` bytes | 96.1 MB | **38.2 MB** |
+| Database file, after `--compact` | 648.8 MB | **511.7 MB** |
+
+The file shrank by 137 MB while `dir_history` shrank by 58, because `VACUUM` also reclaims the free
+pages the six baselines left scattered through the rest of the file.
+
+**The nightly pass does not do that.** Deleted rows return their pages to SQLite's free list, where
+the next weeks of history are written instead of extending the file — so the file stays 648.8 MB and
+stops growing, which is the outcome that matters. Rewriting a 680 MB database every night to hand
+the space back to Windows is precisely the sustained background disk work this product exists to not
+do. `strata prune --compact` is there for when somebody actually wants the file smaller.
+
+### A measurement that was wrong, and how it announced itself
+
+The first run of `--compact` reported:
+
+```
+648.8 MB -> 1 GB (+377.5 MB)
+```
+
+A compaction that grew the file by 377 MB. It had not: `VACUUM` rebuilds the database inside the
+write-ahead log, and the size was being read as file plus WAL, so the "after" figure counted the
+rebuild twice. It really had reclaimed 137 MB. `Compact` now checkpoints the log before anybody
+measures anything.
+
+Worth recording because the number was absurd enough to be caught. A compaction that reported
+reclaiming 20 MB when it reclaimed 5 would have been believed.
+
+## What it does not touch
+
+`snapshots` and `events` are left at full resolution, deliberately.
+
+`events` is what the most valuable screen in the product reads, and on this machine it is **197 rows
+against 3.9M of history** — thinning it would save nothing measurable and cost the change log.
+`snapshots` is smaller still and carries `ON DELETE CASCADE` to `events`, so thinning it would take
+the change log with it silently. The architecture already said events keep full resolution; the
+cascade is the mechanical reason it has to be `dir_history` alone.
+
+`scan_log` is dropped by age rather than thinned, at 90 days. Nothing reads it as a series — no query
+asks what the log said at time T — so no row is load-bearing for a later one, which is the property
+`dir_history` does not have and the reason they are two different statements.
+
+## The projection, revised again
+
+Phase 1 projected 330 MB a week. Phase 3a measured 449 MB a week and told Phase 4 to size from it.
+Both were `snapshot_dirs`, dropped in migration 007. Measured now, on the model that actually exists:
+
+| | Per week, C: |
+|---|---:|
+| Phase 1 estimate, `snapshot_dirs` | 330 MB |
+| Phase 3a measured, `snapshot_dirs` | 449 MB |
+| **`dir_history`, ordinary ticks** | **a few MB** |
+| `dir_history`, per baseline anchor | 14.7 MB each, when one runs |
+
+The storage problem retention was designed to solve had already been solved by the storage model. It
+still earns its place — an unbounded table on a resident process is a bug waiting for a long enough
+uptime, and 54% of a real table was genuinely redundant — but the honest framing is that it keeps
+history flat rather than that it rescues a database in trouble.
+
+## Still not measured
+
+- **Scan cost with a game running.** Unchanged since Phase 2. Still the constraint the whole design
+  exists to satisfy, and still never tested under real contention.
+- **A retention pass at a year of history.** Everything above extrapolates from 39 hours of real
+  data aged forward with `--as-of`. The row counts are real; how a 30M-row `dir_history` scans is
+  not.
+- **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
+- **Whether elevation closes the 29.6 GB gap on C:.**

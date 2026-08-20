@@ -116,5 +116,15 @@ with the rule above about only drawing controls that do something — it is a re
 one the incident turned on. It sits under the scan interval and shows the drain rate it implies in
 records per second, because that number against the volume's churn is the whole of what it decides.
 
+**Settings has the retention tiers and the history breakdown now, and they say something the mockup
+did not.** Both were left out of Phase 3b because retention did not exist; it does. The tiers are
+preset buttons rather than free entry, because they have to stay in order and a form that lets you
+enter an invalid pair and then rejects it is a worse form than one that cannot — widening a tier
+widens whatever sat behind it. The breakdown adds a sentence the mockup has no equivalent of: most
+of the database is *current* state, sized by how many files the machine has, so shortening retention
+reclaims far less than it looks like it should. Measured on this machine, the history is 14% of a
+680 MB file. Saying so up front is cheaper than letting somebody turn the tiers down and wonder why
+nothing happened.
+
 **Treemap tiles cap at 40 before the tail merges.** The mockup's own figure. Stated here because it
 is a number rather than a shape: the sibling list beside the map still lists every child.

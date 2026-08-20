@@ -304,7 +304,11 @@ at depth 10 — two levels past anything `snapshot_dirs` could represent, at any
 ## Still open
 
 **Retention must preserve each directory's last row before the horizon**, or "size at T" silently
-answers from a newer measurement. Phase 4.
+answers from a newer measurement. ~~Phase 4.~~ **Done.** Downsampling keeps the newest row per
+directory per bucket, so a directory with one row keeps it at any age — verified against real
+history and against a reference implementation of the same rule. Measured: 54.2% of a real
+`dir_history` was redundant, 96.1 MB down to 38.2 MB, and a second pass on the same day removes
+nothing.
 
 **The unattributable remainder.** With complete history a directory's own bytes are exact, but they
 still are not a *child*, so they dilute the diff engine's dominance test without ever being nameable.
