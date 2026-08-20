@@ -514,6 +514,12 @@ an estimate, not a measurement. Measured with `dbstat` over 13 real snapshots:
 still a rolling seven-day window rather than unbounded growth, and Phase 4's retention is what bounds
 it, but the Phase 4 sizing should start from 449 and not 330.
 
+> **Superseded, and do not size Phase 4 from this.** `snapshot_dirs` was dropped in migration 007
+> later the same day and replaced by the sparse `dir_history`, which records a directory only when
+> its subtree total moves. The 449 MB/week belongs to a table that no longer exists. The figure to
+> start from is in "What retention actually has to bound" at the end of this document.
+
+
 ### An index added by reading a plan, and removed by timing the query
 
 Migration 003 added `ix_snapshot_dirs_path` on `(snapshot_id, path)` so the historical subtree walk
@@ -1011,3 +1017,64 @@ a scanner that runs baselines forever.
   elevation, so it is a setup-time question rather than a runtime one.
 - **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
 - **Whether elevation closes the 29.6 GB gap on C:.**
+
+---
+
+# What retention actually has to bound
+
+20 Aug 2026, measured with `dbstat` on the live 680 MB database, 39 hours into continuous running
+across three volumes. Taken before starting Phase 4's retention work, because the figure that
+document previously pointed Phase 4 at — 449 MB a week — belongs to `snapshot_dirs`, a table dropped
+in migration 007.
+
+| Object | Size | Grows with |
+|---|---:|---|
+| `files` | 251.4 MB | files on the machine |
+| `ix_files_file_id` | 191.8 MB | files on the machine |
+| **`dir_history`** | **96.1 MB** | **time** |
+| `dir_totals` | 36.4 MB | directories on the machine |
+| `dir_names` | 31.3 MB | directories ever seen |
+| `ix_dir_totals_parent` | 15.2 MB | directories on the machine |
+| `ix_dir_names_parent` | 14.9 MB | directories ever seen |
+| everything else | < 1 MB combined | — |
+
+**Only `dir_history` grows with time, and it is 14% of the database.** The other 86% is current
+state, sized by how many files and directories the machine has. Retention cannot touch it, and no
+amount of downsampling will make a 680 MB database materially smaller today. That is worth knowing
+before designing retention around an expectation that it will.
+
+## Where the 96 MB came from
+
+`dir_history` holds 3,945,004 rows at **25.5 bytes a row**. It is not one population but three:
+
+| Source | Rows | Size | |
+|---|---:|---:|---|
+| Migration 005's opening seed | 571,376 | ~14.6 MB | one-off, C: only |
+| Baseline anchors, six of them | ~2.89M | ~73.7 MB | **~14.7 MB each on C:** |
+| Ordinary ticks | ~484k | ~12.3 MB | 39 h, all three volumes |
+
+Steady-state ticks on C: at the 15-minute cadence wrote 77, 387 and 568 rows — a few kilobytes each.
+The documented 18.2 MiB/week for C: still stands as the order of magnitude.
+
+**Baselines dominate, at 15 MiB a time**, because `WriteAnchor` records every directory on the volume
+so the Explorer can drill anywhere at any point in history. That is deliberate and documented, and it
+is a new input to retention sizing for a reason that did not exist last week: as of the journal
+recovery work, a baseline is something the scheduler can decide to run on its own. The six-hour
+cooldown caps that at four a day per volume, so the worst case is **59 MiB a day of anchors on C:**,
+against a steady-state tick cost of a few MB a week.
+
+Retention's stated rule — *keep the newest row per directory per bucket*, not *delete rows older than
+X* — absorbs this without needing a special case: several anchors inside one bucket collapse to one.
+The sizing just has to expect them.
+
+## What this means for the retention design
+
+1. **Size it from `dir_history` alone.** Every other table is current state.
+2. **Anchors are the volume, not ticks.** A rule that downsamples per-directory-per-bucket is
+   already the right shape; one that reasoned about "rows per tick" would miss where the bytes are.
+3. **The seven-day full-resolution window is cheap.** At the observed steady-state rate it is single-
+   digit MB per volume, so the aggressive downsampling the Phase 1 and 3a projections implied is not
+   needed to keep the database in hand.
+4. **`snapshot_top_files` is still schema-only.** The last unpopulated table in the storage model,
+   and it would grow with time, so whether it is filled is a decision retention has to be designed
+   around rather than after.
