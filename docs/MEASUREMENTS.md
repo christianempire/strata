@@ -192,6 +192,11 @@ against 260 MB at depth 6. That is roughly double, and it buys attribution insid
 sources of unexplained growth. Revert with `--depth 6` or by changing the default in
 `SnapshotOptions` if you disagree.
 
+> **Superseded.** `snapshot_dirs`, `--depth`, `--floor-mb` and `SnapshotOptions` are all gone -
+> the table in migration 007, the rest on 10 Sep 2026 once it turned out they had stopped doing
+> anything at that point. Kept for the reasoning, which is what produced `dir_history`. See
+> "Two settings that had done nothing since migration 007".
+
 Measured at the new default:
 
 | Volume | Qualifying directories | Per snapshot | Per week |
@@ -1183,3 +1188,159 @@ history flat rather than that it rescues a database in trouble.
   not.
 - **Cold-cache baseline at 8 and 16 workers.** Needs a reboot.
 - **Whether elevation closes the 29.6 GB gap on C:.**
+
+---
+
+# Twenty-two days resident - 10 Sep 2026
+
+Everything above was measured in sessions: a scan run, a number taken, the process stopped. This is
+the first reading taken from a scanner that had simply been *left running* - 19 Aug to 10 Sep, 4,233
+snapshots across three volumes, 5,467 scheduler decisions, **zero failed scans**.
+
+Three of the numbers the design rests on did not survive it.
+
+## The Tier 2 budget was measured on the wrong distribution
+
+`ARCHITECTURE.md` said a steady-state tick was about 250 ms, that the largest bite - 50,000 records
+- was about 1 s, and that the brief's 2 s budget held. That came from the Phase 2 session in the
+table under "Tier 2 tick cost", and it is a fair reading of the ticks in that session. It is not a
+fair reading of C:.
+
+Every completed Tier 2 tick on C:, 1,587 of them:
+
+| Records in the tick | Ticks | Mean | Worst |
+|---|---:|---:|---:|
+| under 5,000 | 281 | 752 ms | 3.2 s |
+| 5,000 - 20,000 | 467 | 1,459 ms | 15.7 s |
+| 20,000 - 50,000 | 395 | 2,791 ms | 27.0 s |
+| at the 50,000 cap | 438 | 3,314 ms | 25.2 s |
+
+**569 of 1,587 C: ticks - 35.9% - exceed the 2 s budget**, 26 of them by more than five times, the
+worst at 27.0 s. Across all three volumes it is 705 of 4,142, or 17.0%; D: and E: are quiet and the
+old figures still describe them.
+
+The per-record cost is not the problem: it ranges 0.2-1.3 ms and the means above scale almost
+linearly with record count. The problem is that the earlier measurement generalised from a quiet
+volume. C: routinely produces 20,000-50,000 records in an ordinary fifteen-minute tick, and a tick
+of that size was never going to fit in 2 s at any per-record cost this design achieves.
+
+This is not a frame-drop risk - scan threads hold `THREAD_MODE_BACKGROUND_BEGIN` throughout. It is a
+**write-lock risk**: a 27 s tick holds the SQLite write transaction for 27 s, and the WAL grew from
+19.5 MB to 39.7 MB over a single afternoon of this, which is checkpoints being starved by exactly
+that. Recorded here rather than fixed; see "Still not measured".
+
+## Every journal on the machine was 32 MB, including the ones Strata made
+
+```
+fsutil usn queryjournal C:   Maximum Size     : 0x0000000002000000 (32.0 MB)
+                             Allocation Delta : 0x0000000000800000 ( 8.0 MB)
+```
+
+D: and E: identical - and D: and E: got their journals from `strata enable-journal`, because
+`Win32UsnJournal.TryCreateJournal` defaulted its `maximumSize` parameter to 32 MB. Strata was not
+inheriting the Windows default; it was independently choosing it.
+
+The consequence, over 22 days on C:: **12 full baselines, 7 of them automatic recovery baselines**,
+costing between 108 s and 313 s each.
+
+The gap before each journal loss, measured from the last good tick:
+
+| Gap before the cursor was lost | Times |
+|---|---:|
+| 0.25 h - a single scan interval | 1 |
+| 1.0 h | 2 |
+| 1.5 - 3.0 h | 7 |
+| 4.0 - 6.0 h | 5 |
+
+The 0.25 h case is the one that matters. The section "The measurement nobody had taken" established
+C:'s journal as roughly 220,000-350,000 records and called that "about half an hour of history at
+the churn rate measured during a heavy build". That estimate was right, and the conclusion drawn
+from it - that `CatchUpIntervalSeconds` would close the gap - was only half the answer. Catching up
+faster helps a scanner that is *behind*. It does nothing for a scanner that is *deferred*, and
+deferring to a fullscreen game is the first non-negotiable in `CLAUDE.md`. Three hours of a game is
+three hours in which no tick may run and the journal wraps regardless of how quickly the next one
+would drain.
+
+The only variable left is how much history the journal keeps while it waits, and that is a number
+Strata chooses. `Win32UsnJournal.DefaultMaximumSize` is now **512 MB**, sixteen times the window for
+half a gigabyte of a terabyte volume, and `strata enable-journal` grows an existing undersized
+journal rather than reporting it as already active. Two tests in `JournalRecoveryTests` state the
+case: a three-hour gap at that file's churn rate loses a 32 MB journal and survives a 512 MB one,
+and a long enough outage still asks for a baseline rather than quietly returning a hole.
+
+## `dir_history` is not expensive; baselines are
+
+The table is 7,525,531 rows and 185.8 MB, against a projection of 18.2 MiB a week. That looks like
+the sparse-history model failing. It is not. Rows written per day, against C: baselines that day:
+
+| Day type | Rows written |
+|---|---:|
+| A day with a C: baseline (Aug 24-28, Sep 4, Sep 8, ...) | 575,000 - 650,000 |
+| A day without one | 5,000 - 50,000 |
+
+A baseline writes an opening anchor for every directory on the volume - 571,376 of them on C: - and
+twelve baselines is essentially the whole table. Ordinary change tracking costs what it was measured
+to cost. **The storage number and the scan-cost number have the same root cause**, and sizing the
+journal fixes both.
+
+571,376 rows also sit at `taken_unix = 0`. Those are the migration 005 seed, kept deliberately and
+explained in migration 006: a directory `snapshot_dirs` never recorded answers "I do not know"
+rather than back-dating today's size across all of recorded history.
+
+## The database, broken down
+
+834.6 MB - 203,759 pages at 4 KB, of which only 5,313 are free, so it is not fragmentation.
+
+| | Size | Share |
+|---|---:|---:|
+| `files` | 261.3 MB | 33.0% |
+| `ix_files_file_id` | 199.4 MB | 25.2% |
+| `dir_history` | 185.8 MB | 23.5% |
+| `dir_names` | 56.7 MB | 7.2% |
+| `dir_totals` | 41.7 MB | 5.3% |
+| `ix_dir_names_parent` | 24.2 MB | 3.1% |
+| `ix_dir_totals_parent` | 17.6 MB | 2.2% |
+| everything else | 3.8 MB | 0.5% |
+
+`ARCHITECTURE.md` recorded 396 MB for the same three volumes. The difference is `dir_history` and
+the growth of `files` and its index as the machine filled up, not a regression in the storage model.
+
+## Retention works, and this is how that was checked
+
+The rule is "keep the newest row per directory per bucket", so counting distinct timestamps per day
+proves nothing - different directories legitimately keep rows at different instants inside one hour.
+The check that does prove it is to count `(directory, hour)` buckets holding more than one row,
+outside the 7-day full-resolution window:
+
+```sql
+SELECT COUNT(*) FROM (
+  SELECT dir_id FROM dir_history
+  WHERE volume_id = 1 AND taken_unix > 0 AND taken_unix < strftime('%s', '2026-09-03')
+  GROUP BY dir_id, taken_unix / 3600 HAVING COUNT(*) > 1);
+```
+
+**0.** Hourly downsampling has been applied to every directory beyond the horizon, with no
+directory's last row before it deleted.
+
+## Two settings that had done nothing since migration 007
+
+`snapshotMaxDepth` and `snapshotSizeFloorBytes` were validated, persisted, sent over `PUT /settings`
+and plumbed through six files. `SnapshotWriter.Write` assigned them to a local and never read it;
+they bounded `snapshot_dirs`, which migration 007 dropped. The CLI help still described `--depth` as
+the "snapshot_dirs depth cap". Removed, along with `PrintSnapshotDirEstimate`, which projected the
+weekly cost of that same dropped table.
+
+Their doc comment claimed they "decide whether a week of 15-minute history costs megabytes or
+gigabytes". The measurement above says what actually decides that: how often a baseline runs.
+
+## Still not measured
+
+- **Scan cost with a game running.** Unchanged since Phase 2, and now the oldest open item in the
+  file. The deferral log proves the scanner *stops* for a game; it has still never been measured
+  *running* against one.
+- **Whether a 512 MB journal ends the recovery baselines.** The arithmetic and the tests say it
+  should. Twenty-two more days of `scan_log` is what would prove it - the same reading as this one,
+  taken again.
+- **What a 27 s write transaction does to API latency.** The WAL growth says the checkpointer
+  notices. No endpoint was timed during one.
+- **`snapshot_top_files`.** Still schema-only, still the last unpopulated table.

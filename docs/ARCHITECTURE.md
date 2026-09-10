@@ -139,20 +139,44 @@ path, so a rename's old path comes from our own rows and only the new one from t
 deletions resolve entirely from the database. Running elevated would return names inline; the
 measured cost says that is an optimisation rather than a requirement.
 
-**Budget, measured.** A steady-state tick is about 250 ms; the largest bite the scanner takes in one
-go, 50,000 records with 7,000 metadata reads, is about 1 s. The brief's 2 s budget holds.
+**Budget, measured - and it does not hold on C:.** The Phase 2 figure was a steady-state tick of
+about 250 ms with the 50,000-record cap costing about 1 s, taken over one session. Twenty-two days
+of resident `scan_log` say otherwise: across 1,587 completed C: ticks the mean is 752 ms under 5,000
+records and **3,314 ms at the cap**, and **35.9% of C: ticks exceed 2 s**, the worst at 27 s. D: and
+E: are quiet and still match the old numbers; the earlier measurement generalised from them.
+
+Cost per record is fine at 0.2-1.3 ms. The budget breaks because C: routinely produces 20,000-50,000
+records in an ordinary fifteen-minute tick, which no per-record cost this design achieves would fit
+into 2 s. This is not a frame-drop risk - scan threads stay in background I/O mode throughout - but
+a long tick holds the SQLite write transaction for its whole duration, and the WAL grows while it
+does. See docs/MEASUREMENTS.md, "Twenty-two days resident".
 
 **Backlogs** are taken in bounded bites with the cursor persisted where they stop, because draining a
 several-hundred-thousand record backlog synchronously is precisely the stall the design exists to
 prevent.
 
 This used to say the journal is a durable queue, so falling behind is safe and self-healing. It is
-durable and **finite**: C:'s is a 32 MiB circular buffer holding roughly 220,000–350,000 records,
+durable and **finite**: at the Windows default of 32 MiB, C:'s held roughly 220,000–350,000 records,
 which at the churn rate measured during a heavy build is about half an hour of history. Falling
 behind is safe only while the deficit stays inside that window. A tick that hits its record cap
 therefore comes back after `CatchUpIntervalSeconds` — 60 by default, against 900 — because 50,000
 records every 900 s drains 55 a second and the volume was writing 116. Only the volume that is
 behind is accelerated; each volume carries its own due time.
+
+**And catching up faster is only half the answer, which twenty-two days of running proved.** C: was
+forced into 12 baselines, 7 of them automatic recoveries at 108-313 s each - and the gap before the
+cursor was lost was **an hour or less on three occasions, once a single scan interval**. Catching up
+helps a scanner that is *behind*. It does nothing for one that is *deferred*, and deferring to a
+fullscreen game is the first non-negotiable in `CLAUDE.md`: three hours of a game is three hours in
+which no tick may run and the journal wraps whatever the next one would drain.
+
+The only remaining variable is how much history the journal keeps while it waits, and Strata chooses
+that number. It was choosing 32 MiB - `TryCreateJournal` defaulted to it, so the journals Strata
+created on D: and E: were the Windows default by Strata's own decision rather than by inheritance.
+`Win32UsnJournal.DefaultMaximumSize` is now **512 MB**, and `strata enable-journal` grows an
+undersized journal instead of reporting it as already active. That is also where 7.4 of the 7.5
+million rows in `dir_history` came from: a baseline writes an opening anchor for every directory on
+the volume, so scan cost and database size had one shared cause.
 
 ### Tier 3 — throttled fallback
 
@@ -180,8 +204,8 @@ Implemented as hard requirements, not best-effort.
 | User actively typing | `GetLastInputInfo` | Defers Tier 1 only. Tier 2 is cheap enough to run regardless. |
 | System CPU load | `GetSystemTimes` deltas, default threshold 70% | Deliberately not `PerformanceCounter`, which is slow to initialise and flaky. |
 | Removable / network | `GetDriveType` | Never scanned unless explicitly opted in. |
-| Tier 2 latency | Hard budget of 2 s in the common case | Over-budget ticks are logged. Very large change sets are processed in capped chunks across ticks rather than blocking. The journal is durable but finite, so a volume left behind is ticked at a shorter interval until it is not. |
-| Journal cursor lost | `FirstUsn` has passed the persisted cursor | Unrecoverable by any tick. Escalates to an automatic Tier 1 baseline after four cycles, still gated, at most one per volume per six hours. |
+| Tier 2 latency | Budget of 2 s in the common case | **Held on D: and E:, not on C:, where 35.9% of ticks exceed it and the worst is 27 s.** Over-budget ticks are logged. Very large change sets are processed in capped chunks across ticks rather than blocking. The journal is durable but finite, so a volume left behind is ticked at a shorter interval until it is not. |
+| Journal cursor lost | `FirstUsn` has passed the persisted cursor | Unrecoverable by any tick. Escalates to an automatic Tier 1 baseline after four cycles, still gated, at most one per volume per six hours. The journal is sized at 512 MB so an unavoidable deferral gap does not reach this state; see Tier 2. |
 
 ## Storage model
 
@@ -307,9 +331,14 @@ A single .NET 9 process, one executable:
 - a Windows tray icon with Open UI / Scan now / Pause / Exit.
 
 Data in `%LOCALAPPDATA%\Strata\`. SQLite via `Microsoft.Data.Sqlite`, WAL mode, raw ADO on the write
-path. Measured footprint: **396 MB for 3.67M files across three volumes**, roughly 108 bytes a row.
-That is a one-time cost rather than a growth rate, because `files` holds current state and is updated
-in place.
+path. Measured footprint at Phase 3: **396 MB for 3.67M files across three volumes**, roughly 108
+bytes a row. That part is a one-time cost rather than a growth rate, because `files` holds current
+state and is updated in place.
+
+After twenty-two days resident the file is **834.6 MB**, and the difference is almost entirely
+`dir_history` at 185.8 MB - which is not the sparse history costing more than projected, but the
+twelve baselines described under Tier 2, each writing an opening anchor for all 571,376 directories
+on C:. Ordinary ticks write 5,000-50,000 history rows a day; a baseline day writes 575,000-650,000.
 
 **Phase 1 is none of that.** It is the same solution with a console entry point exposing
 `strata volumes` and `strata scan`, so that real numbers — scan duration, file counts, resulting
