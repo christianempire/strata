@@ -56,12 +56,6 @@ public sealed record StrataSettings
     /// <summary>Smallest change worth a row in the events feed.</summary>
     public long EventFloorBytes { get; init; } = 1024 * 1024;
 
-    /// <summary>Depth cap for the historical directory rollup.</summary>
-    public int SnapshotMaxDepth { get; init; } = 8;
-
-    /// <summary>Size floor for the historical directory rollup.</summary>
-    public long SnapshotSizeFloorBytes { get; init; } = 10L * 1024 * 1024;
-
     /// <summary>
     /// How far a directory's total may drift before history records it again.
     /// </summary>
@@ -160,16 +154,6 @@ public sealed record StrataSettings
         if (EventFloorBytes < 0)
         {
             errors.Add("eventFloorBytes cannot be negative.");
-        }
-
-        if (SnapshotMaxDepth is < 1 or > 32)
-        {
-            errors.Add("snapshotMaxDepth must be between 1 and 32.");
-        }
-
-        if (SnapshotSizeFloorBytes < 0)
-        {
-            errors.Add("snapshotSizeFloorBytes cannot be negative.");
         }
 
         if (HistoryBandBytes < 0)

@@ -4,31 +4,6 @@ using Strata.Core.Scanning;
 
 namespace Strata.Storage;
 
-/// <summary>How much of the directory tree a snapshot records.</summary>
-/// <remarks>
-/// These bound the only table whose size scales with the number of snapshots, so they are what
-/// decides whether a week of 15-minute history costs megabytes or gigabytes. Measured rather than
-/// guessed; see docs/MEASUREMENTS.md.
-/// </remarks>
-public sealed record SnapshotOptions
-{
-    /// <summary>
-    /// Directories deeper than this are not recorded in the historical rollup.
-    /// </summary>
-    /// <remarks>
-    /// The brief specified 6. Raised to 8 on measurement: across all three volumes on the target
-    /// machine, depth 6 costs about 260 MB per week of full-resolution history and depth 8 about
-    /// 340 MB, and the extra two levels are what make growth inside paths like
-    /// AppData\Local\Packages\&lt;app&gt;\... attributable rather than lumped into an ancestor.
-    /// Those paths are among the most common sources of unexplained growth, which is the entire
-    /// question this product exists to answer.
-    /// </remarks>
-    public int MaxDepth { get; init; } = 8;
-
-    /// <summary>Directories whose subtree is smaller than this are not recorded.</summary>
-    public long SizeFloorBytes { get; init; } = 10L * 1024 * 1024;
-}
-
 /// <summary>Persists a completed scan: the snapshot row, the current rollup, and the history rollup.</summary>
 public static class SnapshotWriter
 {
@@ -39,13 +14,10 @@ public static class SnapshotWriter
     public static long Write(
         SqliteConnection connection,
         long volumeId,
-        ScanResult result,
-        SnapshotOptions? options = null)
+        ScanResult result)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(result);
-
-        options ??= new SnapshotOptions();
 
         using var transaction = connection.BeginTransaction();
 

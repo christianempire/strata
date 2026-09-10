@@ -541,7 +541,6 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                 volume,
                 _database,
                 BaselineScan.OptionsFrom(settings, activity.Record),
-                BaselineScan.SnapshotOptionsFrom(settings),
                 _stopping.Token,
                 activity.SetPhase);
         }

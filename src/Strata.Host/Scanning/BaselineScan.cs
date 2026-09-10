@@ -51,13 +51,11 @@ internal static class BaselineScan
         VolumeIdentity volume,
         StrataDatabase? database,
         ScanOptions scanOptions,
-        SnapshotOptions snapshotOptions,
         CancellationToken cancellationToken,
         Action<ScanPhase>? onPhase = null)
     {
         ArgumentNullException.ThrowIfNull(volume);
         ArgumentNullException.ThrowIfNull(scanOptions);
-        ArgumentNullException.ThrowIfNull(snapshotOptions);
 
         var scanner = new Tier1Scanner(new Win32DirectoryEnumerator(), scanOptions);
 
@@ -96,7 +94,7 @@ internal static class BaselineScan
 
         sink.Complete();
 
-        var snapshotId = SnapshotWriter.Write(connection, volumeId, result, snapshotOptions);
+        var snapshotId = SnapshotWriter.Write(connection, volumeId, result);
 
         // A baseline rebuilds dir_totals wholesale, which is exactly why the name dimension is a
         // separate table: merged into here so that history older than this scan keeps its paths.
@@ -133,17 +131,6 @@ internal static class BaselineScan
             UseBackgroundIoPriority = settings.BackgroundIo,
             ExcludedDirectoryNames = settings.ExcludedDirectoryNames,
             OnProgress = onProgress,
-        };
-    }
-
-    internal static SnapshotOptions SnapshotOptionsFrom(StrataSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        return new SnapshotOptions
-        {
-            MaxDepth = settings.SnapshotMaxDepth,
-            SizeFloorBytes = settings.SnapshotSizeFloorBytes,
         };
     }
 }

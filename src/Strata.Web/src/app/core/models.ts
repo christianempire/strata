@@ -138,8 +138,6 @@ export interface Settings {
   catchUpIntervalSeconds: number;
 
   eventFloorBytes: number;
-  snapshotMaxDepth: number;
-  snapshotSizeFloorBytes: number;
   historyBandBytes: number;
   scanWorkers: number | null;
   backgroundIo: boolean;

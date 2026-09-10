@@ -113,8 +113,6 @@ public sealed class QueryTests : IDisposable
             MaxRecordsPerTick = 20_000,
             CatchUpIntervalSeconds = 45,
             EventFloorBytes = 4 * MB,
-            SnapshotMaxDepth = 6,
-            SnapshotSizeFloorBytes = 20 * MB,
             ScanWorkers = 16,
             BackgroundIo = false,
             DetectBorderlessFullscreen = false,
@@ -141,8 +139,6 @@ public sealed class QueryTests : IDisposable
         Assert.Equal(written.MaxRecordsPerTick, read.MaxRecordsPerTick);
         Assert.Equal(written.CatchUpIntervalSeconds, read.CatchUpIntervalSeconds);
         Assert.Equal(written.EventFloorBytes, read.EventFloorBytes);
-        Assert.Equal(written.SnapshotMaxDepth, read.SnapshotMaxDepth);
-        Assert.Equal(written.SnapshotSizeFloorBytes, read.SnapshotSizeFloorBytes);
         Assert.Equal(written.ScanWorkers, read.ScanWorkers);
         Assert.Equal(written.BackgroundIo, read.BackgroundIo);
         Assert.Equal(written.RetentionEnabled, read.RetentionEnabled);
@@ -600,11 +596,7 @@ public sealed class QueryTests : IDisposable
             TotalSizeOnDisk = rollup.TotalSizeOnDisk,
         };
 
-        var snapshotId = SnapshotWriter.Write(_connection, _volumeId, result, new SnapshotOptions
-        {
-            MaxDepth = 8,
-            SizeFloorBytes = 10 * MB,
-        });
+        var snapshotId = SnapshotWriter.Write(_connection, _volumeId, result);
 
         DirectoryHistoryRepository.MergeNames(_connection, null, _volumeId, result.StartedUtc);
         DirectoryHistoryRepository.WriteAnchor(_connection, null, _volumeId, result.StartedUtc);

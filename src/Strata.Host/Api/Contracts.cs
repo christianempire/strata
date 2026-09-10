@@ -180,10 +180,6 @@ internal sealed record SettingsPatch
 
     public long? EventFloorBytes { get; init; }
 
-    public int? SnapshotMaxDepth { get; init; }
-
-    public long? SnapshotSizeFloorBytes { get; init; }
-
     public long? HistoryBandBytes { get; init; }
 
     public int? ScanWorkers { get; init; }
@@ -221,8 +217,6 @@ internal sealed record SettingsPatch
             MaxRecordsPerTick = MaxRecordsPerTick ?? current.MaxRecordsPerTick,
             CatchUpIntervalSeconds = CatchUpIntervalSeconds ?? current.CatchUpIntervalSeconds,
             EventFloorBytes = EventFloorBytes ?? current.EventFloorBytes,
-            SnapshotMaxDepth = SnapshotMaxDepth ?? current.SnapshotMaxDepth,
-            SnapshotSizeFloorBytes = SnapshotSizeFloorBytes ?? current.SnapshotSizeFloorBytes,
             HistoryBandBytes = HistoryBandBytes ?? current.HistoryBandBytes,
             ScanWorkers = ScanWorkers ?? current.ScanWorkers,
             BackgroundIo = BackgroundIo ?? current.BackgroundIo,

@@ -27,8 +27,6 @@ public static class SettingsRepository
             CatchUpIntervalSeconds =
                 Int32(stored, "catchUpIntervalSeconds", defaults.CatchUpIntervalSeconds),
             EventFloorBytes = Int64(stored, "eventFloorBytes", defaults.EventFloorBytes),
-            SnapshotMaxDepth = Int32(stored, "snapshotMaxDepth", defaults.SnapshotMaxDepth),
-            SnapshotSizeFloorBytes = Int64(stored, "snapshotSizeFloorBytes", defaults.SnapshotSizeFloorBytes),
             HistoryBandBytes = Int64(stored, "historyBandBytes", defaults.HistoryBandBytes),
             ScanWorkers = NullableInt32(stored, "scanWorkers"),
             BackgroundIo = Bool(stored, "backgroundIo", defaults.BackgroundIo),
@@ -66,8 +64,6 @@ public static class SettingsRepository
             ["maxRecordsPerTick"] = Text(settings.MaxRecordsPerTick),
             ["catchUpIntervalSeconds"] = Text(settings.CatchUpIntervalSeconds),
             ["eventFloorBytes"] = Text(settings.EventFloorBytes),
-            ["snapshotMaxDepth"] = Text(settings.SnapshotMaxDepth),
-            ["snapshotSizeFloorBytes"] = Text(settings.SnapshotSizeFloorBytes),
             ["historyBandBytes"] = Text(settings.HistoryBandBytes),
             ["scanWorkers"] = settings.ScanWorkers is null ? "" : Text(settings.ScanWorkers.Value),
             ["backgroundIo"] = Text(settings.BackgroundIo),

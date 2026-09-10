@@ -82,14 +82,6 @@ internal static class Cli
                     options.Threads = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
-                case "--depth":
-                    options.MaxDepth = int.Parse(RequireValue(args, ref i), Culture);
-                    break;
-
-                case "--floor-mb":
-                    options.SizeFloorBytes = long.Parse(RequireValue(args, ref i), Culture) * 1024 * 1024;
-                    break;
-
                 case "--exclude":
                     options.Excluded.Add(RequireValue(args, ref i));
                     break;
@@ -275,8 +267,6 @@ internal static class Cli
             SCAN OPTIONS
               --db <path>          database file (default: %LOCALAPPDATA%\Strata\strata.db)
               --threads <n>        enumeration workers (default: min(8, cores/4))
-              --depth <n>          snapshot_dirs depth cap (default: 8)
-              --floor-mb <n>       snapshot_dirs size floor in MB (default: 10)
               --exclude <name>     skip directories with this name, repeatable
               --no-dedup           do not deduplicate hardlinks, to measure what it costs
               --no-background-io   do not lower I/O priority, to measure what it costs
@@ -339,10 +329,6 @@ internal sealed class CliOptions
     internal string DatabasePath { get; set; } = StrataDatabase.DefaultPath;
 
     internal int? Threads { get; set; }
-
-    internal int MaxDepth { get; set; } = 8;
-
-    internal long SizeFloorBytes { get; set; } = 10L * 1024 * 1024;
 
     internal bool AllVolumes { get; set; }
 
@@ -416,8 +402,6 @@ internal sealed class CliOptions
         MaxRecordsPerTick = MaxRecordsPerTick,
         CatchUpIntervalSeconds = CatchUpIntervalSeconds,
         EventFloorBytes = EventFloorBytes,
-        SnapshotMaxDepth = MaxDepth,
-        SnapshotSizeFloorBytes = SizeFloorBytes,
         ScanWorkers = Threads,
         BackgroundIo = BackgroundIo,
         DetectBorderlessFullscreen = !NoFullscreenDetection,

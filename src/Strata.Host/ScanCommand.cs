@@ -101,11 +101,6 @@ internal static class ScanCommand
             volume,
             database,
             scanOptions,
-            new SnapshotOptions
-            {
-                MaxDepth = options.MaxDepth,
-                SizeFloorBytes = options.SizeFloorBytes,
-            },
             CancellationToken.None);
 
         ClearProgressLine();
@@ -162,7 +157,6 @@ internal static class ScanCommand
         Console.WriteLine();
 
         PrintTopDirectories(result, options.TopDirectories);
-        PrintSnapshotDirEstimate(result, options);
 
         if (options.ShowHistogram)
         {
@@ -203,32 +197,6 @@ internal static class ScanCommand
                 $"{node.SubtreeFileCount,10:N0} files  {path}");
         }
 
-        Console.WriteLine();
-    }
-
-    /// <summary>
-    /// The number the storage design turns on: how many directories a single snapshot would record,
-    /// and therefore what the database costs per week.
-    /// </summary>
-    /// <remarks>
-    /// Retention keeps every snapshot for seven days. At a 15-minute cadence that is 672 snapshots,
-    /// so the per-snapshot row count multiplies by nearly seven hundred. See
-    /// docs/DESIGN-REVIEW.md section A5.
-    /// </remarks>
-    private static void PrintSnapshotDirEstimate(ScanResult result, CliOptions options)
-    {
-        var qualifying = result.Rollup.Nodes.Values.Count(
-            n => n.Depth <= options.MaxDepth && n.SubtreeBytes >= options.SizeFloorBytes);
-
-        const int snapshotsPerWeekAt15Min = 96 * 7;
-        var bytesPerSnapshot = (long)qualifying * HistogramCell.EstimatedBytesPerRow;
-
-        Console.WriteLine(
-            $"  snapshot_dirs at depth<={options.MaxDepth}, floor>={ByteSize.Format(options.SizeFloorBytes)}: " +
-            $"{qualifying:N0} directories");
-        Console.WriteLine(
-            $"    -> ~{ByteSize.Format(bytesPerSnapshot)} per snapshot, " +
-            $"~{ByteSize.Format(bytesPerSnapshot * snapshotsPerWeekAt15Min)} per week at full resolution");
         Console.WriteLine();
     }
 

@@ -26,8 +26,6 @@ describe('Settings retention tiers', () => {
       maxRecordsPerTick: 50_000,
       catchUpIntervalSeconds: 60,
       eventFloorBytes: 1_048_576,
-      snapshotMaxDepth: 8,
-      snapshotSizeFloorBytes: 10_485_760,
       historyBandBytes: 0,
       scanWorkers: null,
       backgroundIo: true,
