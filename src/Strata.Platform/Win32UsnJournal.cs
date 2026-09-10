@@ -83,7 +83,12 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
             return null;
         }
 
-        return TryQuery(out var data) ? new UsnJournalState(data.UsnJournalID, data.FirstUsn, data.NextUsn) : null;
+        return TryQuery(out var data)
+            ? new UsnJournalState(data.UsnJournalID, data.FirstUsn, data.NextUsn)
+            {
+                MaximumSize = data.MaximumSize,
+            }
+            : null;
     }
 
     public UsnReadResult Read(UsnCursor cursor, int maxRecords)
@@ -382,13 +387,44 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
     }
 
     /// <summary>
-    /// Enables a journal on this volume. Requires elevation.
+    /// How much history a journal Strata creates retains, and the size it grows an existing one to.
     /// </summary>
+    /// <remarks>
+    /// Was 32 MB, which is the Windows default and is the wrong default for this product. Measured
+    /// on the target machine across 22 days: C: produces 20,000-50,000 journal records in an
+    /// ordinary 15-minute tick and far more under build load, and a 32 MB journal holds roughly
+    /// 220,000-350,000 records. C: lost its journal and was forced into a recovery baseline 13
+    /// times, twice after a gap of an hour or less - the journal was wrapping inside a single scan
+    /// interval. Each of those baselines cost 140-313 s of full-volume scan and rewrote a history
+    /// row for all 571,000 directories, which is where 7.4 of the 7.5 million rows in dir_history
+    /// came from.
+    /// <para>
+    /// 512 MB is sixteen times the window for half a gigabyte of a terabyte volume. See
+    /// docs/MEASUREMENTS.md.
+    /// </para>
+    /// </remarks>
+    public const ulong DefaultMaximumSize = 512UL * 1024 * 1024;
+
+    /// <summary>How much the journal grows by at a time, kept proportional to its size.</summary>
+    public const ulong DefaultAllocationDelta = 16UL * 1024 * 1024;
+
+    /// <summary>
+    /// Creates a journal on this volume, or resizes the one already there. Requires elevation.
+    /// </summary>
+    /// <remarks>
+    /// FSCTL_CREATE_USN_JOURNAL is documented as creating a journal <em>or modifying an existing
+    /// one</em>, so this is also how an undersized journal is grown. Growing one is documented to
+    /// keep its records and its ID; the caller is expected to read the ID back and check rather than
+    /// take that on trust, because a changed ID means every stored cursor is stale and the volume
+    /// needs a baseline.
+    /// </remarks>
     /// <param name="maximumSize">
     /// How much history the journal retains. Larger means longer offline before a baseline is
-    /// forced; the cost is disk. 32 MB holds roughly a day of ordinary activity on a busy volume.
+    /// forced; the cost is disk.
     /// </param>
-    public unsafe bool TryCreateJournal(ulong maximumSize = 32UL * 1024 * 1024, ulong allocationDelta = 4UL * 1024 * 1024)
+    public unsafe bool TryCreateJournal(
+        ulong maximumSize = DefaultMaximumSize,
+        ulong allocationDelta = DefaultAllocationDelta)
     {
         if (!IsOpen)
         {

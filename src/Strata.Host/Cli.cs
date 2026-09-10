@@ -82,6 +82,11 @@ internal static class Cli
                     options.Threads = int.Parse(RequireValue(args, ref i), Culture);
                     break;
 
+                case "--journal-mb":
+                    options.JournalSizeBytes =
+                        long.Parse(RequireValue(args, ref i), Culture) * 1024 * 1024;
+                    break;
+
                 case "--exclude":
                     options.Excluded.Add(RequireValue(args, ref i));
                     break;
@@ -260,7 +265,8 @@ internal static class Cli
               strata prune                       thin recorded history to the retention tiers
               strata serve                       run the scanner and the localhost API together
               strata tray                        the same, from the notification area, no console
-              strata enable-journal [<volume>]   create a change journal (needs elevation)
+              strata enable-journal [<volume>]   create or grow a change journal (needs elevation)
+                --journal-mb <n>   journal size in MB (default: 512)
               strata install                     copy this build somewhere stable, start it at logon
               strata uninstall                   undo that, keeping the database
 
@@ -329,6 +335,9 @@ internal sealed class CliOptions
     internal string DatabasePath { get; set; } = StrataDatabase.DefaultPath;
 
     internal int? Threads { get; set; }
+
+    /// <summary>Journal size for <c>enable-journal</c>. Null means the measured default.</summary>
+    internal long? JournalSizeBytes { get; set; }
 
     internal bool AllVolumes { get; set; }
 

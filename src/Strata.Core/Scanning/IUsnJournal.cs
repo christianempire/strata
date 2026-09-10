@@ -6,6 +6,17 @@ namespace Strata.Core.Scanning;
 public readonly record struct UsnJournalState(ulong JournalId, long FirstUsn, long NextUsn)
 {
     /// <summary>
+    /// How many bytes of records the journal retains before it trims the oldest.
+    /// </summary>
+    /// <remarks>
+    /// The number that decides whether a volume can go offline for an hour or for a day without
+    /// forcing a baseline, and the one that was wrong on this machine: every volume sat at the
+    /// Windows default of 32 MB, which C: wrapped through inside a single 15-minute tick under
+    /// build load. Zero when the state came from a source that does not report it.
+    /// </remarks>
+    public ulong MaximumSize { get; init; }
+
+    /// <summary>
     /// Whether a stored cursor can still be resumed from.
     /// </summary>
     /// <remarks>

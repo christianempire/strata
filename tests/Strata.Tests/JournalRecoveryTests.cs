@@ -139,6 +139,53 @@ public sealed class JournalRecoveryTests
             gaps);
     }
 
+    // --- Fix 3: a journal large enough that an unavoidable gap is survivable. ---
+
+    /// <summary>Records a 512 MB journal holds, against <see cref="Capacity"/> for 32 MB.</summary>
+    private const int LargeCapacity = Capacity * 16;
+
+    [Fact]
+    public void A_deferral_gap_outlasts_a_32_MB_journal_and_not_a_512_MB_one()
+    {
+        // The failure the measured data actually shows, which is not the drain-rate race above.
+        // Every C: baseline in 22 days followed a gap in which the scanner ran no tick at all —
+        // twice a gap of an hour or less. The scanner cannot shorten those gaps: deferring to a
+        // fullscreen game is the product's first non-negotiable. So the only variable left is how
+        // much history the journal keeps while it waits, and that is a number Strata chooses.
+        //
+        // Three hours of a game at the same churn rate the rest of this file uses.
+        var gap = TimeSpan.FromHours(3);
+        var churn = (int)(gap.TotalSeconds * ChurnPerSecond);
+
+        Assert.True(Wrapped(Capacity, churn), "a 32 MB journal should not survive the gap");
+        Assert.False(Wrapped(LargeCapacity, churn), "a 512 MB journal should survive it");
+    }
+
+    [Fact]
+    public void The_larger_journal_still_reports_a_gap_it_cannot_cover()
+    {
+        // Sizing the journal up buys headroom, not a guarantee, and the honest failure has to
+        // survive the change: a long enough outage still asks for a baseline rather than quietly
+        // returning a hole.
+        var churn = LargeCapacity * 2;
+
+        Assert.True(Wrapped(LargeCapacity, churn));
+    }
+
+    /// <summary>Whether a journal of this size loses a cursor taken before <paramref name="churn"/> records.</summary>
+    private static bool Wrapped(int capacity, int churn)
+    {
+        var journal = new FakeCircularJournal { Capacity = capacity };
+        var store = new FakeFileStateStore();
+
+        // A cursor taken at the head, the way a healthy tick leaves one.
+        var cursor = Scan(journal).Run(UsnCursor.None, store).Cursor;
+
+        journal.Churn(churn);
+
+        return Scan(journal).Run(cursor, store).Status == UsnReadStatus.JournalInvalidated;
+    }
+
     // --- Fix 1: recovering from an invalidated journal, automatically. ---
 
     [Fact]
