@@ -249,6 +249,20 @@ public sealed class Tier2Scanner
             return 0;
         }
 
+        // A hardlink change names the link that was added or removed, not where the file lives now.
+        // Read as a location, the removal of a link was treated as a move to it: the surviving link
+        // was retired as stale and the file recorded again where it no longer is. The link count
+        // says which it was. Fewer links than recorded means one went, and it is the one named here;
+        // if it is not among the links recorded, it was never counted or has already been retired.
+        if (IsLinkChangeOnly(change.Kind) && current.LinkCount <= known.Count)
+        {
+            var removed = change.Name.Length > 0
+                ? FindAt(known, change.ParentId, change.Name)
+                : FindAtParent(known, change.ParentId);
+
+            return removed is { } link ? Retire(link, store, deltas) : 0;
+        }
+
         var touched = 0;
 
         // Split what we already know about this file into the entry at its current location and
@@ -282,6 +296,27 @@ public sealed class Tier2Scanner
             }
 
             elsewhere.Clear();
+        }
+
+        // A rename that changes only the case of a name finds its own entry above, because NTFS
+        // names compare without case, but the stored key is still the old spelling. Writing the new
+        // one beside it would record the file twice, and its deletion would then subtract it twice.
+        if (previous is { } own && !string.Equals(own.Name, name, StringComparison.Ordinal))
+        {
+            store.Delete(own.ParentId, own.Name);
+        }
+
+        // Anything else recorded under this name is no longer there: a directory holds one entry
+        // per name. This is the replace-by-rename that atomic saves, extractors and updaters all use
+        // - write a temporary, rename it over the original - and the replacement's records arrive
+        // before the original's deletion. Overwriting the original's row instead of retiring it left
+        // that deletion with nothing to find, so the original's bytes stayed in the totals for good:
+        // 478 GB on E: in six weeks of a pipeline that unpacks and repacks games.
+        if (previous is null
+            && store.TryGetEntry(change.ParentId, name, out var occupant)
+            && occupant.FileId != change.FileId)
+        {
+            touched += Retire(occupant, store, deltas);
         }
 
         // Exactly one entry per file owns its bytes; further links count zero, so directory rollups
@@ -338,6 +373,37 @@ public sealed class Tier2Scanner
         }
 
         return removed;
+    }
+
+    /// <summary>
+    /// Retires one entry of a file that is otherwise still on disk: its name now belongs to a
+    /// different file, or this one link was removed.
+    /// </summary>
+    /// <remarks>
+    /// If the entry owned its file's bytes and the file has other links still recorded, ownership
+    /// passes to one of them. Otherwise the bytes would leave the totals while the file is still on
+    /// disk under another name.
+    /// </remarks>
+    private static int Retire(StoredEntry entry, IFileStateStore store, Dictionary<long, DirectoryDelta> deltas)
+    {
+        Accumulate(deltas, entry.ParentId, new DirectoryDelta(-entry.CountedBytes, entry.CountedBytes, 0, 1));
+        store.Delete(entry.ParentId, entry.Name);
+
+        if (entry.IsHardLink)
+        {
+            return 1;
+        }
+
+        var links = store.GetEntriesByFileId(entry.FileId);
+
+        if (links.Count > 0)
+        {
+            var heir = links[0] with { IsHardLink = false };
+            store.Upsert(heir);
+            Accumulate(deltas, heir.ParentId, new DirectoryDelta(heir.CountedBytes, 0, 0, 0));
+        }
+
+        return 1;
     }
 
     private string ResolveName(CoalescedChange change, IReadOnlyList<StoredEntry> known)
@@ -403,6 +469,11 @@ public sealed class Tier2Scanner
 
         return null;
     }
+
+    /// <summary>A link was added or removed, and nothing arrived, left or was renamed.</summary>
+    private static bool IsLinkChangeOnly(UsnChangeKind kind)
+        => (kind & UsnChangeKind.HardLinkChanged) != 0
+           && (kind & (UsnChangeKind.Created | UsnChangeKind.RenamedFrom | UsnChangeKind.RenamedTo)) == 0;
 
     private static void Accumulate(Dictionary<long, DirectoryDelta> deltas, long directoryId, DirectoryDelta delta)
         => deltas[directoryId] = deltas.TryGetValue(directoryId, out var existing) ? existing + delta : delta;

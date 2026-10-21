@@ -291,6 +291,160 @@ public sealed class Tier2ScannerTests
         Assert.True(result.Cursor.IsSet);
     }
 
+    /// <summary>
+    /// Writing a temporary and renaming it over the original is how atomic saves, extractors and
+    /// updaters replace a file, and the replacement's records arrive before the original's deletion.
+    /// The original has to come off the totals either way round.
+    /// </summary>
+    /// <remarks>
+    /// Taken the wrong way round, the replacement overwrote the original's row and the deletion that
+    /// followed found nothing to subtract. That is how E: came to report 1,446 GB on a disk with
+    /// 939 GB used.
+    /// </remarks>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void AFileReplacedByARenameOverItGivesUpItsBytes(bool deletionFirst, bool redacted)
+    {
+        var deletion = Change(1, Dir, redacted ? "" : "save.dat", UsnChangeKind.Deleted);
+        var journal = new FakeUsnJournal();
+
+        if (deletionFirst)
+        {
+            journal.Add(deletion);
+        }
+
+        journal
+            .Add(Change(2, Dir, redacted ? "" : "save.tmp", UsnChangeKind.Created))
+            .Add(Change(2, Dir, redacted ? "" : "save.tmp", UsnChangeKind.RenamedFrom))
+            .Add(Change(2, Dir, redacted ? "" : "save.dat", UsnChangeKind.RenamedTo));
+
+        if (!deletionFirst)
+        {
+            journal.Add(deletion);
+        }
+
+        var metadata = new FakeMetadataReader().Set(2, 12 * MB, path: @"\Saves\save.dat");
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithEntry(new StoredEntry(Dir, "save.dat", 1, 10 * MB, 10 * MB, false));
+
+        var result = Run(journal, metadata, store);
+
+        Assert.Equal(2 * MB, result.Deltas[Dir].OwnBytesDelta);
+        Assert.Equal(0, result.Deltas[Dir].FileCountDelta);
+
+        var entry = Assert.Single(store.Entries);
+        Assert.Equal(2, entry.FileId);
+    }
+
+    /// <summary>
+    /// Rotating a backup renames the original aside before the replacement takes its name. Both
+    /// files exist afterwards, so both have to be counted, each once.
+    /// </summary>
+    [Fact]
+    public void RotatingABackupCountsBothFilesOnce()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(2, Dir, "save.tmp", UsnChangeKind.Created))
+            .Add(Change(1, Dir, "save.dat", UsnChangeKind.RenamedFrom))
+            .Add(Change(1, Dir, "save.bak", UsnChangeKind.RenamedTo))
+            .Add(Change(2, Dir, "save.tmp", UsnChangeKind.RenamedFrom))
+            .Add(Change(2, Dir, "save.dat", UsnChangeKind.RenamedTo));
+
+        var metadata = new FakeMetadataReader().Set(1, 10 * MB).Set(2, 12 * MB);
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithEntry(new StoredEntry(Dir, "save.dat", 1, 10 * MB, 10 * MB, false));
+
+        var result = Run(journal, metadata, store);
+
+        Assert.Equal(12 * MB, result.Deltas[Dir].OwnBytesDelta);
+        Assert.Equal(1, result.Deltas[Dir].FileCountDelta);
+        Assert.Equal(["save.bak", "save.dat"], store.Entries.Select(e => e.Name).Order());
+    }
+
+    /// <summary>
+    /// NTFS names compare without case, the stored key does not. A case-only rename must still leave
+    /// one entry, or the file is counted twice and its deletion later subtracts it twice.
+    /// </summary>
+    [Fact]
+    public void ARenameThatOnlyChangesCaseLeavesOneEntry()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(1, Dir, "Readme.TXT", UsnChangeKind.RenamedFrom))
+            .Add(Change(1, Dir, "readme.txt", UsnChangeKind.RenamedTo));
+
+        var metadata = new FakeMetadataReader().Set(1, 3 * MB);
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithEntry(new StoredEntry(Dir, "Readme.TXT", 1, 3 * MB, 3 * MB, false));
+
+        var result = Run(journal, metadata, store);
+
+        Assert.Equal(0, result.Deltas[Dir].OwnBytesDelta);
+        Assert.Equal("readme.txt", Assert.Single(store.Entries).Name);
+    }
+
+    /// <summary>
+    /// Replacing the one link that owned a hardlinked file's bytes must not take the file off the
+    /// totals: it is still on disk under its other name, which inherits the bytes.
+    /// </summary>
+    [Fact]
+    public void ReplacingTheOwningLinkPassesTheBytesToTheSurvivingLink()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(2, Dir, "shared.dll", UsnChangeKind.Created))
+            .Add(Change(1, Dir, "shared.dll", UsnChangeKind.HardLinkChanged));
+
+        var metadata = new FakeMetadataReader().Set(1, 4 * MB).Set(2, 5 * MB);
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithDirectory(OtherDir)
+            .WithEntry(new StoredEntry(Dir, "shared.dll", 1, 4 * MB, 4 * MB, IsHardLink: false))
+            .WithEntry(new StoredEntry(OtherDir, "shared.dll", 1, 4 * MB, 4 * MB, IsHardLink: true));
+
+        var result = Run(journal, metadata, store);
+
+        var total = result.Deltas.Values.Sum(d => d.OwnBytesDelta);
+        Assert.Equal(5 * MB, total);
+
+        var survivor = Assert.Single(store.Entries, e => e.FileId == 1);
+        Assert.Equal(OtherDir, survivor.ParentId);
+        Assert.False(survivor.IsHardLink);
+    }
+
+    /// <summary>
+    /// A hardlink record names the link that changed, not where the file lives. Removing the owning
+    /// link must keep the file's bytes, on the link that survives, and must not record the file
+    /// again at the location it just left.
+    /// </summary>
+    [Theory]
+    [InlineData("owner.dll")]
+    [InlineData("")] // redacted
+    public void RemovingOneLinkOfAHardlinkedFileKeepsItsBytes(string recordName)
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(1, Dir, recordName, UsnChangeKind.HardLinkChanged));
+
+        var metadata = new FakeMetadataReader().Set(1, 4 * MB, linkCount: 1, path: @"\Other\link.dll");
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithDirectory(OtherDir)
+            .WithEntry(new StoredEntry(Dir, "owner.dll", 1, 4 * MB, 4 * MB, IsHardLink: false))
+            .WithEntry(new StoredEntry(OtherDir, "link.dll", 1, 4 * MB, 4 * MB, IsHardLink: true));
+
+        var result = Run(journal, metadata, store);
+
+        Assert.Equal(0, result.Deltas.Values.Sum(d => d.OwnBytesDelta));
+
+        var survivor = Assert.Single(store.Entries);
+        Assert.Equal(OtherDir, survivor.ParentId);
+        Assert.False(survivor.IsHardLink);
+    }
+
     [Fact]
     public void AQuietTickDoesNothingAndCostsNothing()
     {
