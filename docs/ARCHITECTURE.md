@@ -126,6 +126,21 @@ the Tier 1 gate so it waits for the machine to be idle, and rate-limited to one 
 hours so a baseline that does not help cannot re-arm hourly. See `ScanCadence` and the incident
 write-up in `docs/MEASUREMENTS.md`.
 
+**The rollup is kept by deltas, so a lost delta stays lost.** Between baselines nothing recomputes
+`dir_totals`; it is whatever the ticks have added up to. Four ways of losing a delta were found
+together on 21 Oct, after E: had reported 1,446 GB on a disk with 939 GB used for weeks while every
+tick succeeded: a capped tick skipping the rest of its read buffer, a file replaced by a rename over
+it never being subtracted, a removed hardlink being read as a move, and directory records doing
+nothing unless the directory was new. A directory record now moves the tree as well as growing it:
+a moved directory carries its recorded totals from one ancestor chain to the other, and a deleted one
+is taken out with anything still recorded beneath it, after the tick's own deltas, which makes a
+deletion the point where drift beneath it is corrected.
+
+What catches the next one is `RollupDrift`. After each scheduled tick the gap between recorded size
+on disk and used space is compared with the same gap at the last baseline; past 1% of the volume the
+same gated, rate-limited baseline as a lost journal runs. Drift above the volume is the one symptom
+that cannot be legitimate. Drift below it can, and is never acted on.
+
 **Elevation: settled, and better than the brief assumed.** Reading the journal needs no elevation at
 all. A directory handle on the volume root plus `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` is sufficient;
 the `\\.\C:` + GENERIC_READ form the brief describes is what needs administrator. Only

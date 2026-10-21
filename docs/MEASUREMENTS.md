@@ -1333,8 +1333,79 @@ weekly cost of that same dropped table.
 Their doc comment claimed they "decide whether a week of 15-minute history costs megabytes or
 gigabytes". The measurement above says what actually decides that: how often a baseline runs.
 
+## E: was half a terabyte over, and every tick succeeded
+
+Found on 21 Oct because the Explorer looked wrong, not because anything reported a problem: E: had
+not failed a scan since August.
+
+| Volume | Used, per Windows | Strata's total, as found | After a fresh baseline |
+|---|---:|---:|---:|
+| E: | 938.8 GB | **1,445.9 GB** | 932.4 GB |
+| C: | 872.8 GB | 938.0 GB | 834.4 GB |
+| D: | 894.6 GB | 900.5 GB | 889.2 GB |
+
+D: looked right only because its error happened to land near the true figure. On E:, nearly all of
+it sat in folders that no longer had anything in them:
+
+| Folder on E: | Strata | Walked from disk |
+|---|---:|---:|
+| `GamcoreGames` | 552.9 GB | empty |
+| `GamcoreInput` | 19.8 GB | empty |
+| `GamcoreUploads` | 44.2 GB, **-12,760 files** | 106.5 GB, 286,281 files |
+
+**How the drift was located.** For every directory, the bytes its rollup implies it holds directly
+(its subtree total minus its children's) against the sum of its rows in `files`. That separates the
+two ways it can be wrong. The `files` table was close to the disk - 968 GB counted on E:, about 25 GB
+high - and the rollup was 478 GB above *it*: rows had gone without their bytes coming off the
+totals. Drift by directory, as found:
+
+| Volume | Directories drifting | Net drift, rollup over `files` |
+|---|---:|---:|
+| E: | 15,441 of 574,122 | 716.6 GB (478 GB of it reaching the root) |
+| C: | 5,550 of 958,745 | 89.3 GB |
+| D: | 93 of 15,915 | 40.0 GB |
+
+The difference on E: between 716.6 GB and 478 GB is directories whose parent was never recorded, so
+their deltas never reached the root in either direction.
+
+The history of `E:\GamcoreGames` shows it was not one event. It is a working folder that a pipeline
+fills with unpacked Ren'Py games and empties again, and on every cycle it fell back less than it rose:
+0 to 553 GB over six weeks.
+
+**The four causes**, each fixed in its own commit with tests:
+
+1. **A file replaced by renaming another over it was never subtracted.** The replacement's records
+   arrive first, its upsert on `(parent, name)` overwrote the original's row, and the original's
+   deletion then found nothing to subtract. Atomic saves, extractors and Steam updates all do this.
+   This is the 478 GB. Reproduced in a test before fixing: replacing 10 MB with 10 MB left +10 MB.
+2. **A capped tick skipped the rest of its read buffer.** The cursor came from the buffer header,
+   past every record in the 64 KiB buffer, even when the 50,000-record cap stopped parsing partway.
+   E: had 1,462 capped ticks. Lost deletions are the 25 GB in `files`, and lost directory records are
+   the unparented directories.
+3. **Removing a hardlink was read as a move to it**, retiring the surviving link and recording the
+   file where it no longer was. Found by the tests written for (1).
+4. **A directory record did nothing unless the directory was new.** Moved directories kept their old
+   parent, deleted ones stayed forever (E: had 574,122 recorded directories; the baseline found
+   105,049), and `subtree_dirs` was never maintained, so the Explorer could not expand a folder made
+   since the last baseline. `subtree_on_disk` was also being moved by the logical delta.
+
+Found along the way: every tick recorded the free space from when the process started, because the
+watcher kept the volume it was created with. E: logged ten distinct values in a week.
+
+**After the fixes, a fresh baseline of each volume:** E: 24.5 s, D: 2.8 s, C: 229.3 s. The same
+per-directory comparison then finds **zero drift on all three volumes**.
+
+**What catches the next one.** `RollupDrift` compares, after each scheduled tick, the gap between
+recorded size on disk and used space with the same gap at the last baseline, and past 1% of the
+volume runs the gated, rate-limited recovery baseline. Its first ticks on the fixed build, before
+the requested baselines ran, measured E: at 474.7 GB over, C: at 88 GB and D: at 9.5 GB, and queued a
+recovery for each that waited for the machine to be idle, as it should.
+
 ## Still not measured
 
+- **Whether the drift guard ever fires again.** It should not, now that the causes found are fixed.
+  If `scan_log` shows "the recorded total had drifted" on any volume, there is a fifth cause, and the
+  per-directory comparison above is how to find it.
 - **Scan cost with a game running.** Unchanged since Phase 2, and now the oldest open item in the
   file. The deferral log proves the scanner *stops* for a game; it has still never been measured
   *running* against one.
