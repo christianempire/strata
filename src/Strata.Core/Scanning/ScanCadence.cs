@@ -267,6 +267,23 @@ public sealed class ScanCadence
         return wanted;
     }
 
+    /// <summary>
+    /// Whether an automatic baseline may start now, for a caller that has found its own reason for
+    /// one rather than been offered it by <see cref="Record"/>.
+    /// </summary>
+    /// <remarks>
+    /// The same cooldown as the journal recovery, shared with it: whatever the reason, a baseline
+    /// that did not help is not repeated within <see cref="ScanCadenceOptions.BaselineCooldown"/>.
+    /// </remarks>
+    public bool MayRebaseline(string volume, DateTime utcNow, ScanCadenceOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        return !_volumes.TryGetValue(volume, out var state)
+               || state.LastBaselineUtc is not { } last
+               || utcNow - last >= options.BaselineCooldown;
+    }
+
     /// <summary>Tells the cadence that an escalation actually started, which is what rate-limits it.</summary>
     public void Escalated(string volume, Escalation escalation, DateTime utcNow)
     {

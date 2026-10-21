@@ -618,6 +618,44 @@ public static class IncrementalRepository
         command.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Size on disk and free space as the most recent baseline measured them, or null with none.
+    /// </summary>
+    /// <remarks>
+    /// Read once per watcher rather than per tick, since a baseline replaces the watcher. Retention
+    /// never thins <c>snapshots</c>, so the latest baseline is always still there.
+    /// </remarks>
+    public static (long OnDisk, long FreeBytes)? LastBaseline(SqliteConnection connection, long volumeId)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT total_on_disk, free_bytes FROM snapshots
+            WHERE volume_id = $v AND scan_tier = $tier
+            ORDER BY taken_utc DESC LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$v", volumeId);
+        command.Parameters.AddWithValue("$tier", (int)ScanTier.Full);
+
+        using var reader = command.ExecuteReader();
+
+        return reader.Read() ? (reader.GetInt64(0), reader.GetInt64(1)) : null;
+    }
+
+    /// <summary>Size on disk recorded by one snapshot.</summary>
+    public static long RecordedOnDisk(SqliteConnection connection, SqliteTransaction? transaction, long snapshotId)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT total_on_disk FROM snapshots WHERE id = $id;";
+        command.Parameters.AddWithValue("$id", snapshotId);
+
+        return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Marks a volume as having a usable baseline, which Tier 2 requires before it can run.</summary>
     public static void MarkBaseline(SqliteConnection connection, long volumeId, DateTime whenUtc)
     {

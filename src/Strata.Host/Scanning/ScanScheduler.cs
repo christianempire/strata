@@ -493,7 +493,7 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
             {
                 if (request.Tier == ScanTier.Full)
                 {
-                    RunBaseline(request.Volume, settings, cadence, automatic: false);
+                    RunBaseline(request.Volume, settings, cadence, automaticCause: null);
                 }
                 else
                 {
@@ -516,8 +516,12 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         }
     }
 
+    /// <param name="automaticCause">
+    /// Why Strata started this baseline of its own accord, in words for the log; null when a person
+    /// asked for it.
+    /// </param>
     private void RunBaseline(
-        VolumeIdentity volume, StrataSettings settings, ScanCadenceOptions cadence, bool automatic)
+        VolumeIdentity volume, StrataSettings settings, ScanCadenceOptions cadence, string? automaticCause)
     {
         BaselineStarting(volume.Display);
 
@@ -562,9 +566,9 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         // "automatic" is in the reason rather than in a column because the log is read by a person
         // asking why their disk was busy, and the answer "Strata decided to" needs to be in the
         // sentence rather than inferred from the absence of a request.
-        var what = automatic
-            ? "automatic recovery baseline, the journal could not be resumed — "
-            : "full baseline, ";
+        var what = automaticCause is null
+            ? "full baseline, "
+            : $"automatic recovery baseline, {automaticCause} — ";
 
         // Scan plus write, because what the log is asked to justify is how long the machine was busy
         // on Strata's behalf, and the write is not free at three million rows.
@@ -647,10 +651,27 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
                 break;
 
             case Escalation.Baseline:
-                RecoverWithBaseline(volume, settings, cadence);
-                break;
+                RecoverWithBaseline(volume, settings, cadence, JournalLost);
+                return;
+        }
+
+        // A tick that ran can still be wrong. The rollup is kept by deltas between baselines, and a
+        // delta lost to a bug stays lost: E: reported 1,446 GB on a disk with 939 GB used while every
+        // tick succeeded. Drift above the volume is the one symptom that cannot be legitimate, so it
+        // gets the same remedy as a lost journal, through the same gate and the same cooldown.
+        if (outcome.OvercountBytes is { } over
+            && RollupDrift.NeedsBaseline(over, volume.TotalBytes)
+            && _cadence.MayRebaseline(volume.GuidPath, DateTime.UtcNow, cadence))
+        {
+            RecoverWithBaseline(
+                volume,
+                settings,
+                cadence,
+                $"the recorded total had drifted {ByteSize.Format(over)} above the volume since the last baseline");
         }
     }
+
+    private const string JournalLost = "the journal could not be resumed";
 
     /// <summary>Runs one incremental tick, keeping the reported activity honest either way.</summary>
     private TickOutcome RunTick(VolumeWatcher watcher, StrataSettings settings, bool ignoreGate)
@@ -696,7 +717,8 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// Runs a baseline for a volume whose journal can no longer be resumed.
+    /// Runs a baseline for a volume whose journal can no longer be resumed, or whose recorded total
+    /// has drifted away from the volume.
     /// </summary>
     /// <remarks>
     /// Put through the <see cref="ScanTier.Full"/> gate rather than forced, and that is the whole of
@@ -711,14 +733,14 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
     /// </para>
     /// </remarks>
     private void RecoverWithBaseline(
-        VolumeIdentity volume, StrataSettings settings, ScanCadenceOptions cadence)
+        VolumeIdentity volume, StrataSettings settings, ScanCadenceOptions cadence, string cause)
     {
         var decision = _gate.CanScan(ScanTier.Full);
 
         if (!decision.Allowed)
         {
             var detail = string.IsNullOrEmpty(decision.Detail) ? "" : $" ({decision.Detail})";
-            var waiting = "journal cannot be resumed; automatic baseline is waiting for an idle " +
+            var waiting = $"{cause}; automatic baseline is waiting for an idle " +
                           $"moment — {decision.Reason}{detail}";
 
             RecoveryWaiting(volume.Display, decision.Reason);
@@ -729,9 +751,9 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         }
 
         _cadence.Escalated(volume.GuidPath, Escalation.Baseline, DateTime.UtcNow);
-        RecoveryStarting(volume.Display, cadence.DeferralsBeforeEscalating);
+        RecoveryStarting(volume.Display, cause);
 
-        RunBaseline(volume, settings, cadence, automatic: true);
+        RunBaseline(volume, settings, cadence, automaticCause: cause);
     }
 
     /// <summary>Writes one tick to the log, the console, and the per-volume status.</summary>
@@ -925,6 +947,9 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
         {
             if (string.Equals(existing.Volume.GuidPath, volume.GuidPath, StringComparison.OrdinalIgnoreCase))
             {
+                // The enumeration is fresh every cycle and the watcher is not, so it takes the
+                // current free space with it into the snapshot this tick writes.
+                existing.Volume = volume;
                 return existing;
             }
         }
@@ -997,9 +1022,8 @@ internal sealed partial class ScanScheduler : IHostedService, IDisposable
 
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "{volume}: the change journal cannot be resumed after {count} ticks; running an " +
-                  "automatic baseline to recover.")]
-    private partial void RecoveryStarting(string volume, int count);
+        Message = "{volume}: {cause}; running an automatic baseline to recover.")]
+    private partial void RecoveryStarting(string volume, string cause);
 
     [LoggerMessage(
         Level = LogLevel.Information,

@@ -81,6 +81,12 @@ internal sealed record TickOutcome
 
     internal IReadOnlyList<AttributedChange> Changes { get; init; } = [];
 
+    /// <summary>
+    /// How far the recorded total has outgrown used space since the last baseline, or null when
+    /// there is no baseline to measure from. See <see cref="RollupDrift"/>.
+    /// </summary>
+    internal long? OvercountBytes { get; init; }
+
     /// <summary>The tick budget from the brief. An overrun is logged, never silently absorbed.</summary>
     internal bool OverBudget => Duration > TimeSpan.FromSeconds(2);
 
@@ -113,6 +119,10 @@ internal sealed class VolumeWatcher : IDisposable
     /// </remarks>
     private Dictionary<long, DirectoryNode>? _tree;
 
+    /// <summary>What the last baseline measured, read once: a baseline replaces the watcher.</summary>
+    private (long OnDisk, long FreeBytes)? _baseline;
+    private bool _baselineRead;
+
     internal VolumeWatcher(VolumeIdentity volume, StrataDatabase database)
     {
         Volume = volume;
@@ -121,7 +131,16 @@ internal sealed class VolumeWatcher : IDisposable
         _metadata = new Win32FileMetadataReader(volume);
     }
 
-    internal VolumeIdentity Volume { get; }
+    /// <summary>
+    /// The volume as last enumerated.
+    /// </summary>
+    /// <remarks>
+    /// Settable because the watcher outlives the enumeration that created it, and the free space it
+    /// carries is what each tick's snapshot records. Fixed at construction, every snapshot repeated
+    /// the free space of the moment the process started: E: logged ten distinct values in a week of
+    /// writing and deleting hundreds of gigabytes.
+    /// </remarks>
+    internal VolumeIdentity Volume { get; set; }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Performance",
@@ -228,6 +247,8 @@ internal sealed class VolumeWatcher : IDisposable
         // error to notice.
         IncrementalRepository.SaveCursor(connection, transaction, volumeId, result.Cursor);
 
+        var overcount = Overcount(connection, transaction, volumeId, snapshotId);
+
         phase.Restart();
         transaction.Commit();
         var commitMs = phase.ElapsedMilliseconds;
@@ -255,7 +276,29 @@ internal sealed class VolumeWatcher : IDisposable
             EventMs = eventMs,
             CommitMs = commitMs,
             Changes = changes,
+            OvercountBytes = overcount,
         };
+    }
+
+    /// <summary>How far this tick's recorded total has drifted above the volume since the baseline.</summary>
+    private long? Overcount(SqliteConnection connection, SqliteTransaction transaction, long volumeId, long snapshotId)
+    {
+        if (!_baselineRead)
+        {
+            _baseline = IncrementalRepository.LastBaseline(connection, volumeId);
+            _baselineRead = true;
+        }
+
+        if (_baseline is not { } baseline || Volume.TotalBytes <= 0)
+        {
+            return null;
+        }
+
+        return RollupDrift.Overcount(
+            IncrementalRepository.RecordedOnDisk(connection, transaction, snapshotId),
+            Volume.UsedBytes,
+            baseline.OnDisk,
+            Volume.TotalBytes - baseline.FreeBytes);
     }
 
     /// <summary>Turns this tick's deltas into the rows the events feed shows.</summary>
