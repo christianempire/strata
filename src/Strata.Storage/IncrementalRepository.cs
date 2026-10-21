@@ -130,7 +130,8 @@ public static class IncrementalRepository
             UPDATE dir_totals
             SET subtree_bytes   = subtree_bytes + $b,
                 subtree_on_disk = subtree_on_disk + $o,
-                subtree_files   = subtree_files + $f
+                subtree_files   = subtree_files + $f,
+                subtree_dirs    = subtree_dirs + $n
             WHERE volume_id = $v AND dir_id = $d;
             """;
 
@@ -139,6 +140,7 @@ public static class IncrementalRepository
         command.Parameters.Add("$b", SqliteType.Integer);
         command.Parameters.Add("$o", SqliteType.Integer);
         command.Parameters.Add("$f", SqliteType.Integer);
+        command.Parameters.Add("$n", SqliteType.Integer);
         command.Prepare();
 
         var updated = 0;
@@ -149,10 +151,196 @@ public static class IncrementalRepository
             command.Parameters["$b"].Value = delta.OwnBytesDelta;
             command.Parameters["$o"].Value = delta.OwnOnDiskDelta;
             command.Parameters["$f"].Value = delta.FileCountDelta;
+            command.Parameters["$n"].Value = delta.DirCountDelta;
             updated += command.ExecuteNonQuery();
         }
 
         return new RollupFanOut(updated, totals);
+    }
+
+    /// <summary>
+    /// Takes deleted directories out of the tree, with whatever was still recorded beneath them.
+    /// </summary>
+    /// <remarks>
+    /// Run after the tick's own deltas, so the deletions of the files a directory held have already
+    /// travelled up through it. What is left beneath it then should be nothing; if it is not, it is
+    /// something earlier ticks missed, and since NTFS will not delete a directory that holds
+    /// anything, it is gone either way. It comes off every ancestor, which makes a deletion the
+    /// point where any drift beneath that directory is corrected.
+    /// <para>
+    /// Only the topmost of the removed directories moves the totals, because its subtree already
+    /// includes any removed directory beneath it. A history row of zero is written for every removed
+    /// directory that was last recorded as holding something, or the Explorer would show it at that
+    /// size at every later instant.
+    /// </para>
+    /// </remarks>
+    public static RollupFanOut RemoveDirectories(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long volumeId,
+        IReadOnlyCollection<long> removed,
+        DateTime takenUtc)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(removed);
+
+        if (removed.Count == 0)
+        {
+            return RollupFanOut.Empty;
+        }
+
+        var parents = LoadParentChain(connection, transaction, volumeId, removed);
+        var doomed = new HashSet<long>(removed.Where(parents.ContainsKey));
+        var deltas = new Dictionary<long, DirectoryDelta>();
+        var subtree = new List<long>();
+
+        using var read = connection.CreateCommand();
+        read.Transaction = transaction;
+        read.CommandText = """
+            SELECT parent_id, name, subtree_bytes, subtree_on_disk, subtree_files, subtree_dirs
+            FROM dir_totals WHERE volume_id = $v AND dir_id = $d;
+            """;
+        read.Parameters.AddWithValue("$v", volumeId);
+        read.Parameters.Add("$d", SqliteType.Integer);
+
+        foreach (var dirId in doomed)
+        {
+            if (HasDoomedAncestor(dirId, parents, doomed))
+            {
+                continue;
+            }
+
+            read.Parameters["$d"].Value = dirId;
+
+            using (var reader = read.ExecuteReader())
+            {
+                if (!reader.Read())
+                {
+                    continue;
+                }
+
+                var directory = new StoredDirectory(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetInt64(2),
+                    reader.GetInt64(3),
+                    reader.GetInt64(4),
+                    reader.GetInt32(5));
+
+                if (directory.ParentId != dirId)
+                {
+                    deltas[directory.ParentId] = deltas.TryGetValue(directory.ParentId, out var existing)
+                        ? existing + directory.Departure
+                        : directory.Departure;
+                }
+            }
+
+            CollectSubtree(connection, transaction, volumeId, dirId, subtree);
+        }
+
+        // Apply first, while every ancestor is still where the chain expects it.
+        var fanOut = ApplyDeltas(connection, transaction, volumeId, deltas);
+
+        using var zero = connection.CreateCommand();
+        zero.Transaction = transaction;
+        zero.CommandText = """
+            INSERT OR REPLACE INTO dir_history
+                (volume_id, dir_id, taken_unix, subtree_bytes, subtree_files)
+            SELECT volume_id, dir_id, $t, 0, 0
+            FROM dir_totals
+            WHERE volume_id = $v AND dir_id = $d AND recorded_bytes <> 0;
+            """;
+        zero.Parameters.AddWithValue("$v", volumeId);
+        zero.Parameters.AddWithValue("$t", new DateTimeOffset(takenUtc).ToUnixTimeSeconds());
+        zero.Parameters.Add("$d", SqliteType.Integer);
+
+        using var files = connection.CreateCommand();
+        files.Transaction = transaction;
+        files.CommandText = "DELETE FROM files WHERE volume_id = $v AND parent_id = $d;";
+        files.Parameters.AddWithValue("$v", volumeId);
+        files.Parameters.Add("$d", SqliteType.Integer);
+
+        using var dir = connection.CreateCommand();
+        dir.Transaction = transaction;
+        dir.CommandText = "DELETE FROM dir_totals WHERE volume_id = $v AND dir_id = $d;";
+        dir.Parameters.AddWithValue("$v", volumeId);
+        dir.Parameters.Add("$d", SqliteType.Integer);
+
+        foreach (var dirId in subtree)
+        {
+            zero.Parameters["$d"].Value = dirId;
+            zero.ExecuteNonQuery();
+            files.Parameters["$d"].Value = dirId;
+            files.ExecuteNonQuery();
+            dir.Parameters["$d"].Value = dirId;
+            dir.ExecuteNonQuery();
+        }
+
+        return fanOut;
+    }
+
+    private static bool HasDoomedAncestor(long dirId, Dictionary<long, long> parents, HashSet<long> doomed)
+    {
+        var current = dirId;
+        var guard = 0;
+
+        while (parents.TryGetValue(current, out var parent) && parent != current && guard++ < 4096)
+        {
+            if (doomed.Contains(parent))
+            {
+                return true;
+            }
+
+            current = parent;
+        }
+
+        return false;
+    }
+
+    /// <summary>A directory and every directory recorded beneath it, walked a level at a time.</summary>
+    private static void CollectSubtree(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long volumeId,
+        long dirId,
+        List<long> into)
+    {
+        using var children = connection.CreateCommand();
+        children.Transaction = transaction;
+        children.CommandText = """
+            SELECT dir_id FROM dir_totals INDEXED BY ix_dir_totals_parent
+            WHERE volume_id = $v AND parent_id = $p;
+            """;
+        children.Parameters.AddWithValue("$v", volumeId);
+        children.Parameters.Add("$p", SqliteType.Integer);
+
+        var seen = new HashSet<long> { dirId };
+        var level = new List<long> { dirId };
+        into.Add(dirId);
+
+        while (level.Count > 0)
+        {
+            var next = new List<long>();
+
+            foreach (var parent in level)
+            {
+                children.Parameters["$p"].Value = parent;
+                using var reader = children.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    var child = reader.GetInt64(0);
+
+                    if (seen.Add(child))
+                    {
+                        next.Add(child);
+                    }
+                }
+            }
+
+            into.AddRange(next);
+            level = next;
+        }
     }
 
     /// <summary>Loads the directory tree above a set of changed directories.</summary>

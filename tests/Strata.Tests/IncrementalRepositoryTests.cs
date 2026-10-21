@@ -4,6 +4,7 @@ using Strata.Core.Model;
 using Strata.Core.Rollup;
 using Strata.Core.Scanning;
 using Strata.Storage;
+using Strata.Tests.Fakes;
 
 namespace Strata.Tests;
 
@@ -72,6 +73,97 @@ public sealed class IncrementalRepositoryTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A directory moved by a real tick must leave every total exactly where a fresh baseline of the
+    /// moved tree would put it: bytes, size on disk, files, directories beneath, and depth.
+    /// </summary>
+    [Fact]
+    public void AMoveLeavesTheSameTotalsAsABaselineOfTheMovedTree()
+    {
+        WriteBaseline();
+
+        // Documents (with Notes beneath it) moves from Users\chris into Games.
+        var journal = new FakeUsnJournal()
+            .Add(Change(22, 21, "Documents", UsnChangeKind.RenamedFrom))
+            .Add(Change(22, 24, "Documents", UsnChangeKind.RenamedTo));
+
+        RunTick(journal);
+
+        var moved = Tree();
+        moved[22] = new(22, 24, "Documents") { OwnBytes = 600 * MB, OwnSizeOnDisk = 500 * MB, OwnFileCount = 60 };
+        var expected = RollupEngine.Compute(moved, RootDirId).Nodes;
+
+        foreach (var (dirId, node) in expected)
+        {
+            Assert.Equal(
+                (node.SubtreeBytes, node.SubtreeSizeOnDisk, node.SubtreeFileCount, (long)node.SubtreeDirCount),
+                Totals(dirId));
+            Assert.Equal(node.Depth, Depth("dir_totals", dirId));
+            Assert.Equal(node.Depth, Depth("dir_names", dirId));
+        }
+    }
+
+    /// <summary>
+    /// A deleted directory leaves the tree, and so does anything still recorded beneath it. NTFS
+    /// will not delete a directory that holds anything, so whatever is left there is drift from
+    /// earlier ticks, and it comes off every ancestor rather than staying in the totals for good.
+    /// </summary>
+    [Fact]
+    public void ARemovedDirectoryTakesWhateverWasLeftBeneathItOffEveryAncestor()
+    {
+        WriteBaseline();
+        InsertFile(23, "stale.bin", 10 * MB);
+
+        var fanOut = Remove(22);
+
+        Assert.Equal(0, Rows("SELECT COUNT(*) FROM dir_totals WHERE dir_id IN (22, 23);"));
+        Assert.Equal(0, Rows("SELECT COUNT(*) FROM files WHERE parent_id = 23;"));
+
+        foreach (var dirId in new[] { 21L, 20, RootDirId })
+        {
+            var (bytes, onDisk, files, dirs) = Totals(dirId);
+            var (baseBytes, baseOnDisk, baseFiles, baseDirs) = BaselineTotals(dirId);
+
+            Assert.Equal(baseBytes - (610 * MB), bytes);
+            Assert.Equal(baseOnDisk - (510 * MB), onDisk);
+            Assert.Equal(baseFiles - 70, files);
+            Assert.Equal(baseDirs - 2, dirs);
+        }
+
+        Assert.Contains(21L, fanOut.Touched.Keys);
+    }
+
+    /// <summary>
+    /// The Explorer reads a directory's size at an instant as its latest row at or before it, so a
+    /// removed directory needs a last row of zero or it shows at its old size forever after.
+    /// </summary>
+    [Fact]
+    public void ARemovedDirectoryEndsItsHistoryAtZero()
+    {
+        WriteBaseline();
+
+        Remove(22);
+
+        Assert.Equal(0, Rows($"SELECT subtree_bytes FROM dir_history WHERE dir_id = 22 AND taken_unix = {Unix(At(5))};"));
+        Assert.Equal(0, Rows($"SELECT subtree_bytes FROM dir_history WHERE dir_id = 23 AND taken_unix = {Unix(At(5))};"));
+    }
+
+    /// <summary>A directory removed along with its parent is counted once, inside the parent.</summary>
+    [Fact]
+    public void NestedRemovalsAreCountedOnce()
+    {
+        WriteBaseline();
+
+        Remove(23, 22);
+
+        var (bytes, _, files, dirs) = Totals(RootDirId);
+        var (baseBytes, _, baseFiles, baseDirs) = BaselineTotals(RootDirId);
+
+        Assert.Equal(baseBytes - (610 * MB), bytes);
+        Assert.Equal(baseFiles - 70, files);
+        Assert.Equal(baseDirs - 2, dirs);
+    }
+
     // --- fixtures ---------------------------------------------------------------------------
 
     private static Dictionary<long, DirectoryNode> Tree() => new()
@@ -118,6 +210,56 @@ public sealed class IncrementalRepositoryTests : IDisposable
         transaction.Commit();
         return fanOut;
     }
+
+    /// <summary>One tick through the real store and rollup, as VolumeWatcher runs it.</summary>
+    private void RunTick(FakeUsnJournal journal)
+    {
+        using var transaction = _connection.BeginTransaction();
+
+        Tier2Result result;
+
+        using (var store = new SqliteFileStateStore(_connection, _volumeId, transaction))
+        {
+            result = new Tier2Scanner(journal, new FakeMetadataReader()).Run(new UsnCursor(42, 1), store);
+        }
+
+        IncrementalRepository.ApplyDeltas(_connection, transaction, _volumeId, result.Deltas);
+        IncrementalRepository.RemoveDirectories(
+            _connection, transaction, _volumeId, result.RemovedDirectories, At(5));
+        transaction.Commit();
+    }
+
+    private RollupFanOut Remove(params long[] dirIds)
+    {
+        using var transaction = _connection.BeginTransaction();
+        var fanOut = IncrementalRepository.RemoveDirectories(_connection, transaction, _volumeId, dirIds, At(5));
+        transaction.Commit();
+        return fanOut;
+    }
+
+    private void InsertFile(long parentId, string name, long size)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO files (volume_id, parent_id, name, file_id, logical_size, size_on_disk,
+                               attributes, modified_unix, is_hard_link)
+            VALUES ($v, $p, $n, $f, $s, $s, 0, 0, 0);
+            """;
+        command.Parameters.AddWithValue("$v", _volumeId);
+        command.Parameters.AddWithValue("$p", parentId);
+        command.Parameters.AddWithValue("$n", name);
+        command.Parameters.AddWithValue("$f", 9000 + parentId);
+        command.Parameters.AddWithValue("$s", size);
+        command.ExecuteNonQuery();
+    }
+
+    private long Depth(string table, long dirId)
+        => Rows($"SELECT depth FROM {table} WHERE volume_id = {_volumeId} AND dir_id = {dirId};");
+
+    private static UsnChange Change(long dirId, long parentId, string name, UsnChangeKind kind)
+        => new(0, dirId, parentId, name, kind, 0x10u, DateTime.UnixEpoch);
+
+    private static long Unix(DateTime utc) => new DateTimeOffset(utc).ToUnixTimeSeconds();
 
     private (long Bytes, long OnDisk, long Files, long Dirs) Totals(long dirId)
     {

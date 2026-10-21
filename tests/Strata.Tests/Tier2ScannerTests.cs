@@ -1,3 +1,4 @@
+using Strata.Core.Diffing;
 using Strata.Core.Model;
 using Strata.Core.Scanning;
 using Strata.Tests.Fakes;
@@ -208,8 +209,90 @@ public sealed class Tier2ScannerTests
 
         var result = Run(journal, metadata, store);
 
-        Assert.Empty(result.Deltas);
+        Assert.Equal(new DirectoryDelta(0, 0, 0, 0, DirCountDelta: 1), Assert.Single(result.Deltas).Value);
         Assert.True(store.DirectoryExists(900));
+    }
+
+    /// <summary>
+    /// A moved directory takes its totals with it. It used to keep its old parent, so everything
+    /// later written beneath it was credited to the folder it had left.
+    /// </summary>
+    [Fact]
+    public void AMovedDirectoryCarriesItsTotalsToItsNewParent()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(300, Dir, "Game", UsnChangeKind.RenamedFrom, isDirectory: true))
+            .Add(Change(300, OtherDir, "Game", UsnChangeKind.RenamedTo, isDirectory: true));
+
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithDirectory(OtherDir)
+            .WithDirectory(300, new StoredDirectory(Dir, "Game", 50 * MB, 40 * MB, 10, 2));
+
+        var result = Run(journal, new FakeMetadataReader(), store);
+
+        Assert.Equal(new DirectoryDelta(-50 * MB, 0, 0, 10, -40 * MB, -3), result.Deltas[Dir]);
+        Assert.Equal(new DirectoryDelta(50 * MB, 0, 10, 0, 40 * MB, 3), result.Deltas[OtherDir]);
+        Assert.Equal(OtherDir, store.Directories[300].ParentId);
+        Assert.Equal([300L], result.MovedDirectories);
+    }
+
+    [Fact]
+    public void ARenamedDirectoryKeepsItsTotalsWhereTheyAre()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(300, Dir, "", UsnChangeKind.RenamedFrom, isDirectory: true))
+            .Add(Change(300, Dir, "", UsnChangeKind.RenamedTo, isDirectory: true));
+
+        var metadata = new FakeMetadataReader().Set(300, 0, path: @"\Games\Renamed");
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithDirectory(300, new StoredDirectory(Dir, "Game", 50 * MB, 50 * MB, 10, 2));
+
+        var result = Run(journal, metadata, store);
+
+        Assert.Empty(result.Deltas);
+        Assert.Equal("Renamed", store.Directories[300].Name);
+        Assert.Equal([300L], result.MovedDirectories);
+    }
+
+    /// <summary>
+    /// A deleted directory is reported, not removed: the deletions of the files it held are in the
+    /// same tick, and they need it still in the tree to reach its ancestors.
+    /// </summary>
+    [Fact]
+    public void ADeletedDirectoryIsReportedForRemovalAfterItsFiles()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(1, 300, "last.bin", UsnChangeKind.Deleted))
+            .Add(Change(300, Dir, "Game", UsnChangeKind.Deleted, isDirectory: true));
+
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithDirectory(300, new StoredDirectory(Dir, "Game", 8 * MB, 8 * MB, 1, 0))
+            .WithEntry(new StoredEntry(300, "last.bin", 1, 8 * MB, 8 * MB, false));
+
+        var result = Run(journal, new FakeMetadataReader(), store);
+
+        Assert.Equal(-8 * MB, result.Deltas[300].OwnBytesDelta);
+        Assert.Equal([300L], result.RemovedDirectories);
+        Assert.True(store.DirectoryExists(300));
+    }
+
+    [Fact]
+    public void ADirectoryCreatedAndDeletedInOneTickLeavesNoTrace()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(300, Dir, "tmp", UsnChangeKind.Created, isDirectory: true))
+            .Add(Change(300, Dir, "tmp", UsnChangeKind.Deleted, isDirectory: true));
+
+        var store = new FakeFileStateStore().WithDirectory(Dir);
+
+        var result = Run(journal, new FakeMetadataReader(), store);
+
+        Assert.Empty(result.Deltas);
+        Assert.Empty(result.RemovedDirectories);
+        Assert.False(store.DirectoryExists(300));
     }
 
     /// <summary>

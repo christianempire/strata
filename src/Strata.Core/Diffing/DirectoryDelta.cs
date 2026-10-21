@@ -8,7 +8,9 @@ namespace Strata.Core.Diffing;
 /// <para>
 /// Size on disk is carried separately from the logical size because the two part ways for every
 /// compressed or sparse file, and the rollup keeps a total of each. Optional, because only the
-/// incremental scanner maintains a rollup; attribution works in logical bytes.
+/// incremental scanner maintains a rollup; attribution works in logical bytes. So is
+/// <see cref="DirCountDelta"/>, the change in directories beneath, which a new, moved or removed
+/// directory makes to its parent's subtree.
 /// </para>
 /// </remarks>
 public readonly record struct DirectoryDelta(
@@ -16,7 +18,8 @@ public readonly record struct DirectoryDelta(
     long OwnChurnBytes,
     int FilesAdded,
     int FilesRemoved,
-    long OwnOnDiskDelta = 0)
+    long OwnOnDiskDelta = 0,
+    int DirCountDelta = 0)
 {
     public int FileCountDelta => FilesAdded - FilesRemoved;
 
@@ -28,7 +31,8 @@ public readonly record struct DirectoryDelta(
             a.OwnChurnBytes + b.OwnChurnBytes,
             a.FilesAdded + b.FilesAdded,
             a.FilesRemoved + b.FilesRemoved,
-            a.OwnOnDiskDelta + b.OwnOnDiskDelta);
+            a.OwnOnDiskDelta + b.OwnOnDiskDelta,
+            a.DirCountDelta + b.DirCountDelta);
 }
 
 /// <summary>How a change is described to a human.</summary>

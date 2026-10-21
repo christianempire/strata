@@ -95,13 +95,18 @@ internal sealed class FakeMetadataReader : IFileMetadataReader, IFilePathResolve
 internal sealed class FakeFileStateStore : IFileStateStore
 {
     private readonly Dictionary<(long Parent, string Name), StoredEntry> _entries = [];
-    private readonly HashSet<long> _directories = [];
+    private readonly Dictionary<long, StoredDirectory> _directories = [];
 
     internal IReadOnlyCollection<StoredEntry> Entries => _entries.Values;
 
+    internal IReadOnlyDictionary<long, StoredDirectory> Directories => _directories;
+
     internal FakeFileStateStore WithDirectory(long id)
+        => WithDirectory(id, new StoredDirectory(5, $"dir{id}", 0, 0, 0, 0));
+
+    internal FakeFileStateStore WithDirectory(long id, StoredDirectory directory)
     {
-        _directories.Add(id);
+        _directories[id] = directory;
         return this;
     }
 
@@ -121,7 +126,14 @@ internal sealed class FakeFileStateStore : IFileStateStore
 
     public void Delete(long parentId, string name) => _entries.Remove((parentId, name));
 
-    public bool DirectoryExists(long directoryId) => _directories.Contains(directoryId);
+    public bool DirectoryExists(long directoryId) => _directories.ContainsKey(directoryId);
 
-    public void AddDirectory(long directoryId, long parentId, string name) => _directories.Add(directoryId);
+    public void AddDirectory(long directoryId, long parentId, string name)
+        => _directories.TryAdd(directoryId, new StoredDirectory(parentId, name, 0, 0, 0, 0));
+
+    public bool TryGetDirectory(long directoryId, out StoredDirectory directory)
+        => _directories.TryGetValue(directoryId, out directory);
+
+    public void MoveDirectory(long directoryId, long parentId, string name)
+        => _directories[directoryId] = _directories[directoryId] with { ParentId = parentId, Name = name };
 }

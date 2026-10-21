@@ -19,6 +19,7 @@ namespace Strata.Storage;
 public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
 {
     private readonly SqliteConnection _connection;
+    private readonly SqliteTransaction? _transaction;
     private readonly long _volumeId;
 
     private readonly SqliteCommand _selectByKey;
@@ -28,6 +29,7 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
     private readonly SqliteCommand _dirExists;
     private readonly SqliteCommand _addDir;
     private readonly SqliteCommand _addDirName;
+    private readonly SqliteCommand _selectDir;
 
     private bool _disposed;
 
@@ -36,6 +38,7 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
         ArgumentNullException.ThrowIfNull(connection);
 
         _connection = connection;
+        _transaction = transaction;
         _volumeId = volumeId;
 
         _selectByKey = Prepare(transaction, """
@@ -99,6 +102,11 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
                     COALESCE((SELECT depth + 1 FROM dir_totals WHERE volume_id = $v AND dir_id = $p), 1),
                     $t);
             """, Int("$d"), Int("$p"), Text("$n"), Text("$t"));
+
+        _selectDir = Prepare(transaction, """
+            SELECT parent_id, name, subtree_bytes, subtree_on_disk, subtree_files, subtree_dirs
+            FROM dir_totals WHERE volume_id = $v AND dir_id = $d;
+            """, Int("$d"));
     }
 
     private static SqliteParameter Int(string name) => new(name, SqliteType.Integer);
@@ -199,6 +207,153 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
         _addDirName.ExecuteNonQuery();
     }
 
+    public bool TryGetDirectory(long directoryId, out StoredDirectory directory)
+    {
+        _selectDir.Parameters["$d"].Value = directoryId;
+
+        using var reader = _selectDir.ExecuteReader();
+
+        if (reader.Read())
+        {
+            directory = new StoredDirectory(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetInt64(3),
+                reader.GetInt64(4),
+                reader.GetInt32(5));
+            return true;
+        }
+
+        directory = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Re-parents or renames a directory in both the totals and the name dimension.
+    /// </summary>
+    /// <remarks>
+    /// Rare next to everything else a tick does, so the commands are built here rather than prepared
+    /// up front. The name dimension follows the move as a baseline's merge would: it is the same
+    /// directory, and its history goes with it.
+    /// <para>
+    /// Depth is stored rather than derived, and a moved directory takes every directory beneath it
+    /// to a new depth. They are walked a level at a time on the parent index; a recursive CTE over
+    /// <c>dir_totals</c> plans as a range scan of the whole volume per level here.
+    /// </para>
+    /// </remarks>
+    public void MoveDirectory(long directoryId, long parentId, string name)
+    {
+        using var move = Command("""
+            UPDATE dir_totals
+            SET parent_id = $p,
+                name      = $n,
+                depth     = COALESCE(
+                    (SELECT depth + 1 FROM dir_totals WHERE volume_id = $v AND dir_id = $p), 1)
+            WHERE volume_id = $v AND dir_id = $d
+            RETURNING depth;
+            """);
+
+        using var before = Command("SELECT depth FROM dir_totals WHERE volume_id = $v AND dir_id = $d;");
+        before.Parameters.AddWithValue("$d", directoryId);
+
+        if (before.ExecuteScalar() is not long oldDepth)
+        {
+            return;
+        }
+
+        move.Parameters.AddWithValue("$d", directoryId);
+        move.Parameters.AddWithValue("$p", parentId);
+        move.Parameters.AddWithValue("$n", name);
+        var newDepth = Convert.ToInt64(move.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+
+        using var rename = Command("""
+            INSERT INTO dir_names (volume_id, dir_id, parent_id, name, depth, first_seen_utc)
+            VALUES ($v, $d, $p, $n, $depth, $t)
+            ON CONFLICT (volume_id, dir_id) DO UPDATE SET
+                parent_id = excluded.parent_id,
+                name      = excluded.name,
+                depth     = excluded.depth;
+            """);
+
+        rename.Parameters.AddWithValue("$d", directoryId);
+        rename.Parameters.AddWithValue("$p", parentId);
+        rename.Parameters.AddWithValue("$n", name);
+        rename.Parameters.AddWithValue("$depth", newDepth);
+        rename.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("O"));
+        rename.ExecuteNonQuery();
+
+        if (newDepth != oldDepth)
+        {
+            ShiftDepthsBeneath(directoryId, newDepth - oldDepth);
+        }
+    }
+
+    private void ShiftDepthsBeneath(long directoryId, long shift)
+    {
+        using var children = Command("""
+            SELECT dir_id FROM dir_totals INDEXED BY ix_dir_totals_parent
+            WHERE volume_id = $v AND parent_id = $p;
+            """);
+        children.Parameters.Add(Int("$p"));
+
+        using var shiftTotals = Command(
+            "UPDATE dir_totals SET depth = depth + $s WHERE volume_id = $v AND dir_id = $d;");
+        shiftTotals.Parameters.AddWithValue("$s", shift);
+        shiftTotals.Parameters.Add(Int("$d"));
+
+        using var shiftNames = Command(
+            "UPDATE dir_names SET depth = depth + $s WHERE volume_id = $v AND dir_id = $d;");
+        shiftNames.Parameters.AddWithValue("$s", shift);
+        shiftNames.Parameters.Add(Int("$d"));
+
+        var visited = new HashSet<long> { directoryId };
+        var level = new List<long> { directoryId };
+
+        while (level.Count > 0)
+        {
+            var next = new List<long>();
+
+            foreach (var parent in level)
+            {
+                children.Parameters["$p"].Value = parent;
+
+                using (var reader = children.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var child = reader.GetInt64(0);
+
+                        // Only the root is its own parent, but a cycle in stale data must not spin.
+                        if (visited.Add(child))
+                        {
+                            next.Add(child);
+                        }
+                    }
+                }
+            }
+
+            foreach (var child in next)
+            {
+                shiftTotals.Parameters["$d"].Value = child;
+                shiftTotals.ExecuteNonQuery();
+                shiftNames.Parameters["$d"].Value = child;
+                shiftNames.ExecuteNonQuery();
+            }
+
+            level = next;
+        }
+    }
+
+    private SqliteCommand Command(string sql)
+    {
+        var command = _connection.CreateCommand();
+        command.Transaction = _transaction;
+        command.CommandText = sql;
+        command.Parameters.AddWithValue("$v", _volumeId);
+        return command;
+    }
+
     private static StoredEntry Read(SqliteDataReader reader)
         => new(
             reader.GetInt64(0),
@@ -224,5 +379,6 @@ public sealed class SqliteFileStateStore : IFileStateStore, IDisposable
         _dirExists.Dispose();
         _addDir.Dispose();
         _addDirName.Dispose();
+        _selectDir.Dispose();
     }
 }

@@ -67,6 +67,19 @@ public sealed class Tier2Result
 
     public int DirectoryChanges { get; init; }
 
+    /// <summary>Directories this tick re-parented or renamed, already applied to the store.</summary>
+    public IReadOnlyList<long> MovedDirectories { get; init; } = [];
+
+    /// <summary>
+    /// Recorded directories this tick saw deleted.
+    /// </summary>
+    /// <remarks>
+    /// Not applied by the scanner. The caller removes them once <see cref="Deltas"/> have been
+    /// applied, because the deletions of the files they held are among those deltas and need the
+    /// directory still in place to reach its ancestors.
+    /// </remarks>
+    public IReadOnlyList<long> RemovedDirectories { get; init; } = [];
+
     /// <summary>A baseline is the only way forward, because the journal cannot bridge the gap.</summary>
     public bool RequiresBaseline => Status is UsnReadStatus.JournalInvalidated or UsnReadStatus.JournalNotActive;
 
@@ -112,6 +125,8 @@ public sealed class Tier2Scanner
     private readonly System.Diagnostics.Stopwatch _metaClock = new();
     private readonly System.Diagnostics.Stopwatch _storeClock = new();
     private int _dirChanges;
+    private List<long> _movedDirectories = [];
+    private List<long> _removedDirectories = [];
 
     public Tier2Scanner(IUsnJournal journal, IFileMetadataReader metadata, Tier2Options? options = null)
     {
@@ -143,6 +158,8 @@ public sealed class Tier2Scanner
         _metaClock.Reset();
         _storeClock.Reset();
         _dirChanges = 0;
+        _movedDirectories = [];
+        _removedDirectories = [];
 
         // Coalesce first. A single file written in a loop produces hundreds of DATA_EXTEND records,
         // and reading its size once at the end is both cheaper and more correct than reading it
@@ -172,6 +189,8 @@ public sealed class Tier2Scanner
             MetadataDuration = _metaClock.Elapsed,
             StoreDuration = _storeClock.Elapsed,
             DirectoryChanges = _dirChanges,
+            MovedDirectories = _movedDirectories,
+            RemovedDirectories = _removedDirectories,
         };
     }
 
@@ -204,22 +223,10 @@ public sealed class Tier2Scanner
         Dictionary<long, DirectoryDelta> deltas,
         ref int metadataReads)
     {
-        // Directories carry no bytes of their own; their totals come from the files beneath them.
-        // A new directory still has to be recorded so its children have somewhere to attach.
         if (change.IsDirectory)
         {
             _dirChanges++;
-            _storeClock.Start();
-            var seen = store.DirectoryExists(change.FileId);
-            _storeClock.Stop();
-
-            if (!seen && TryResolveName(change, out var dirName))
-            {
-                _storeClock.Start();
-                store.AddDirectory(change.FileId, change.ParentId, dirName);
-                _storeClock.Stop();
-            }
-
+            ApplyDirectory(change, store, deltas);
             return 0;
         }
 
@@ -349,6 +356,79 @@ public sealed class Tier2Scanner
             updated.CountedOnDisk - (previous?.CountedOnDisk ?? 0)));
 
         return touched;
+    }
+
+    /// <summary>
+    /// Applies a change to a directory entry: one appearing, moving, being renamed, or going.
+    /// </summary>
+    /// <remarks>
+    /// Directories carry no bytes of their own; their totals come from the files beneath them. What
+    /// a directory record changes is the shape of the tree those totals travel up, and until this
+    /// was handled only a new directory changed it. A moved directory kept its old parent, so
+    /// everything later written beneath it was credited to the folder it had left; a deleted one
+    /// stayed in the tree for good, as an empty folder the Explorer still listed.
+    /// </remarks>
+    private void ApplyDirectory(CoalescedChange change, IFileStateStore store, Dictionary<long, DirectoryDelta> deltas)
+    {
+        _storeClock.Start();
+        var seen = store.TryGetDirectory(change.FileId, out var recorded);
+        _storeClock.Stop();
+
+        if ((change.Kind & UsnChangeKind.Deleted) != 0)
+        {
+            // Taken out of the tree only after this tick's deltas are applied: the files it held
+            // were deleted first, in this tick, and their deletions still have to travel up through
+            // it. A directory created and deleted inside the tick was never recorded at all.
+            if (seen)
+            {
+                _removedDirectories.Add(change.FileId);
+            }
+
+            return;
+        }
+
+        if (!seen)
+        {
+            // A new directory has to be recorded so its children have somewhere to attach.
+            if (TryResolveName(change, out var dirName))
+            {
+                _storeClock.Start();
+                store.AddDirectory(change.FileId, change.ParentId, dirName);
+                _storeClock.Stop();
+
+                Accumulate(deltas, change.ParentId, new DirectoryDelta(0, 0, 0, 0, DirCountDelta: 1));
+            }
+
+            return;
+        }
+
+        // Only a rename can move a directory or change its name, and resolving a name costs a call
+        // per directory under the unprivileged read, so nothing else is looked at.
+        if ((change.Kind & (UsnChangeKind.RenamedFrom | UsnChangeKind.RenamedTo)) == 0)
+        {
+            return;
+        }
+
+        var name = TryResolveName(change, out var resolved) ? resolved : recorded.Name;
+
+        if (recorded.ParentId == change.ParentId && string.Equals(recorded.Name, name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (recorded.ParentId != change.ParentId)
+        {
+            // Its totals are what was recorded before this tick, which is what the old chain holds;
+            // anything this tick adds beneath it travels up the new chain on its own.
+            Accumulate(deltas, recorded.ParentId, recorded.Departure);
+            Accumulate(deltas, change.ParentId, recorded.Arrival);
+        }
+
+        _storeClock.Start();
+        store.MoveDirectory(change.FileId, change.ParentId, name);
+        _storeClock.Stop();
+
+        _movedDirectories.Add(change.FileId);
     }
 
     /// <summary>

@@ -22,6 +22,39 @@ public readonly record struct StoredEntry(
     public DirectoryDelta Removal => new(-CountedBytes, CountedBytes, 0, 1, -CountedOnDisk);
 }
 
+/// <summary>One recorded directory and what is currently totalled beneath it.</summary>
+public readonly record struct StoredDirectory(
+    long ParentId,
+    string Name,
+    long SubtreeBytes,
+    long SubtreeOnDisk,
+    long SubtreeFiles,
+    int SubtreeDirs)
+{
+    /// <summary>
+    /// What carrying this directory and everything beneath it into a parent does to that parent.
+    /// </summary>
+    /// <remarks>
+    /// Negated, it is what taking it out does. Not churn: nothing was written or freed, the bytes
+    /// changed address.
+    /// </remarks>
+    public DirectoryDelta Arrival => new(
+        SubtreeBytes,
+        0,
+        (int)Math.Max(0, SubtreeFiles),
+        (int)Math.Max(0, -SubtreeFiles),
+        SubtreeOnDisk,
+        SubtreeDirs + 1);
+
+    public DirectoryDelta Departure => new(
+        -SubtreeBytes,
+        0,
+        (int)Math.Max(0, -SubtreeFiles),
+        (int)Math.Max(0, SubtreeFiles),
+        -SubtreeOnDisk,
+        -(SubtreeDirs + 1));
+}
+
 /// <summary>
 /// The current recorded state of a volume, as Tier 2 needs to see it.
 /// </summary>
@@ -57,4 +90,16 @@ public interface IFileStateStore
 
     /// <summary>Records a directory discovered by Tier 2 that no baseline has seen.</summary>
     void AddDirectory(long directoryId, long parentId, string name);
+
+    /// <summary>A recorded directory, with the totals beneath it as they stood before this tick.</summary>
+    bool TryGetDirectory(long directoryId, out StoredDirectory directory);
+
+    /// <summary>
+    /// Re-parents or renames a recorded directory, keeping the depth of everything beneath it true.
+    /// </summary>
+    /// <remarks>
+    /// Changes structure only. The totals it carries are moved by the caller, as deltas, so they
+    /// travel up both ancestor chains with everything else in the tick.
+    /// </remarks>
+    void MoveDirectory(long directoryId, long parentId, string name);
 }

@@ -181,6 +181,12 @@ internal sealed class VolumeWatcher : IDisposable
 
         var phase = Stopwatch.StartNew();
         var fanOut = IncrementalRepository.ApplyDeltas(connection, transaction, volumeId, result.Deltas);
+
+        // After the deltas, never before: the files a deleted directory held were deleted in this
+        // tick too, and their deletions needed the directory in place to reach its ancestors.
+        var removal = IncrementalRepository.RemoveDirectories(
+            connection, transaction, volumeId, result.RemovedDirectories, DateTime.UtcNow);
+
         var rollupMs = phase.ElapsedMilliseconds;
         phase.Restart();
 
@@ -194,7 +200,8 @@ internal sealed class VolumeWatcher : IDisposable
         // considered — everything else on the volume is unchanged by definition and costs nothing
         // to skip. This is what replaced writing all 5,740 qualifying directories every tick.
         var historyRows = DirectoryHistoryRepository.Record(
-            connection, transaction, volumeId, DateTime.UtcNow, fanOut.Touched.Keys,
+            connection, transaction, volumeId, DateTime.UtcNow,
+            fanOut.Touched.Keys.Concat(removal.Touched.Keys).Distinct(),
             settings.HistoryBandBytes);
 
         var historyMs = phase.ElapsedMilliseconds;
@@ -209,6 +216,12 @@ internal sealed class VolumeWatcher : IDisposable
         }
 
         var eventMs = phase.ElapsedMilliseconds;
+
+        // Out of the cached tree only now, so this tick's attribution could still name them.
+        foreach (var dirId in result.RemovedDirectories)
+        {
+            _tree?.Remove(dirId);
+        }
 
         // The cursor is committed with the data it describes. Committing it separately would let a
         // crash between the two skip those records permanently, which corrupts history with no
@@ -253,7 +266,7 @@ internal sealed class VolumeWatcher : IDisposable
         Tier2Result result,
         StrataSettings settings)
     {
-        if (result.Deltas.Count == 0)
+        if (result.Deltas.Count == 0 && result.MovedDirectories.Count == 0)
         {
             return [];
         }
@@ -265,10 +278,25 @@ internal sealed class VolumeWatcher : IDisposable
             return [];
         }
 
+        // A moved directory's cached node still has its old parent and name. Dropping it lets it be
+        // read back as it now stands. Its descendants keep their cached depth, which is stale by the
+        // size of the move but still above zero, and paths are built by following parents to the
+        // root, so they come out right.
+        foreach (var dirId in result.MovedDirectories)
+        {
+            tree.Remove(dirId);
+        }
+
         // Directories this tick has just discovered are not in the cached tree, and the attribution
         // engine drops a delta whose directory it cannot find. Stitching them on first is what makes
         // a fresh game install visible in the feed instead of only in the totals.
-        IncrementalRepository.AddMissingNodes(connection, transaction, volumeId, tree, result.Deltas.Keys);
+        IncrementalRepository.AddMissingNodes(
+            connection, transaction, volumeId, tree, result.Deltas.Keys.Concat(result.MovedDirectories));
+
+        if (result.Deltas.Count == 0)
+        {
+            return [];
+        }
 
         var rootId = tree.Values.FirstOrDefault(n => n.Depth == 0)?.Id ?? 5;
         var prefix = Volume.DriveLetter ?? Volume.GuidPath;
