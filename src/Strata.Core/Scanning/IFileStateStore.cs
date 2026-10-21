@@ -1,3 +1,4 @@
+using Strata.Core.Diffing;
 using Strata.Core.Model;
 
 namespace Strata.Core.Scanning;
@@ -13,6 +14,12 @@ public readonly record struct StoredEntry(
 {
     /// <summary>Bytes this entry contributes to rollups. Zero for a link counted elsewhere.</summary>
     public long CountedBytes => IsHardLink ? 0 : LogicalSize;
+
+    /// <summary>Allocated bytes this entry contributes to rollups, on the same terms.</summary>
+    public long CountedOnDisk => IsHardLink ? 0 : SizeOnDisk;
+
+    /// <summary>What taking this entry off the totals does to its directory.</summary>
+    public DirectoryDelta Removal => new(-CountedBytes, CountedBytes, 0, 1, -CountedOnDisk);
 }
 
 /// <summary>

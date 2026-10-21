@@ -54,9 +54,10 @@ internal sealed class FakeMetadataReader : IFileMetadataReader, IFilePathResolve
 
     internal int ReadCount { get; private set; }
 
-    internal FakeMetadataReader Set(long fileId, long size, int linkCount = 1, string? path = null)
+    internal FakeMetadataReader Set(
+        long fileId, long size, int linkCount = 1, string? path = null, long? onDisk = null)
     {
-        _files[fileId] = new FileMetadata(size, size, 0x80, DateTime.UnixEpoch, linkCount);
+        _files[fileId] = new FileMetadata(size, onDisk ?? size, 0x80, DateTime.UnixEpoch, linkCount);
 
         if (path is not null)
         {

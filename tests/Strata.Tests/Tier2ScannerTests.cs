@@ -445,6 +445,28 @@ public sealed class Tier2ScannerTests
         Assert.False(survivor.IsHardLink);
     }
 
+    /// <summary>
+    /// A compressed or sparse file takes less space than its length, and the rollup keeps a total of
+    /// each. Feeding the logical delta into both made size on disk a second copy of the logical size.
+    /// </summary>
+    [Fact]
+    public void SizeOnDiskMovesByItsOwnDeltaNotTheLogicalOne()
+    {
+        var journal = new FakeUsnJournal()
+            .Add(Change(1, Dir, "new.vhdx", UsnChangeKind.Created))
+            .Add(Change(2, Dir, "old.log", UsnChangeKind.Deleted));
+
+        var metadata = new FakeMetadataReader().Set(1, 40 * MB, onDisk: 3 * MB);
+        var store = new FakeFileStateStore()
+            .WithDirectory(Dir)
+            .WithEntry(new StoredEntry(Dir, "old.log", 2, 10 * MB, 2 * MB, false));
+
+        var delta = Run(journal, metadata, store).Deltas[Dir];
+
+        Assert.Equal(30 * MB, delta.OwnBytesDelta);
+        Assert.Equal(1 * MB, delta.OwnOnDiskDelta);
+    }
+
     [Fact]
     public void AQuietTickDoesNothingAndCostsNothing()
     {

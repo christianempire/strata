@@ -290,7 +290,7 @@ public sealed class Tier2Scanner
         {
             foreach (var stale in elsewhere)
             {
-                Accumulate(deltas, stale.ParentId, new DirectoryDelta(-stale.CountedBytes, stale.CountedBytes, 0, 1));
+                Accumulate(deltas, stale.ParentId, stale.Removal);
                 store.Delete(stale.ParentId, stale.Name);
                 touched++;
             }
@@ -345,7 +345,8 @@ public sealed class Tier2Scanner
             after - before,
             Math.Abs(after - before),
             previous is null ? 1 : 0,
-            0));
+            0,
+            updated.CountedOnDisk - (previous?.CountedOnDisk ?? 0)));
 
         return touched;
     }
@@ -367,7 +368,7 @@ public sealed class Tier2Scanner
 
         foreach (var entry in known)
         {
-            Accumulate(deltas, entry.ParentId, new DirectoryDelta(-entry.CountedBytes, entry.CountedBytes, 0, 1));
+            Accumulate(deltas, entry.ParentId, entry.Removal);
             store.Delete(entry.ParentId, entry.Name);
             removed++;
         }
@@ -386,7 +387,7 @@ public sealed class Tier2Scanner
     /// </remarks>
     private static int Retire(StoredEntry entry, IFileStateStore store, Dictionary<long, DirectoryDelta> deltas)
     {
-        Accumulate(deltas, entry.ParentId, new DirectoryDelta(-entry.CountedBytes, entry.CountedBytes, 0, 1));
+        Accumulate(deltas, entry.ParentId, entry.Removal);
         store.Delete(entry.ParentId, entry.Name);
 
         if (entry.IsHardLink)
@@ -400,7 +401,7 @@ public sealed class Tier2Scanner
         {
             var heir = links[0] with { IsHardLink = false };
             store.Upsert(heir);
-            Accumulate(deltas, heir.ParentId, new DirectoryDelta(heir.CountedBytes, 0, 0, 0));
+            Accumulate(deltas, heir.ParentId, new DirectoryDelta(heir.CountedBytes, 0, 0, 0, heir.CountedOnDisk));
         }
 
         return 1;

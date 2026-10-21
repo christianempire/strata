@@ -5,12 +5,18 @@ namespace Strata.Core.Diffing;
 /// Net and churn are tracked separately because they answer different questions. A build directory
 /// that wrote and deleted 50 GB has a net near zero and is invisible to "what grew", but it is the
 /// most interesting thing on the disk if the question is SSD wear.
+/// <para>
+/// Size on disk is carried separately from the logical size because the two part ways for every
+/// compressed or sparse file, and the rollup keeps a total of each. Optional, because only the
+/// incremental scanner maintains a rollup; attribution works in logical bytes.
+/// </para>
 /// </remarks>
 public readonly record struct DirectoryDelta(
     long OwnBytesDelta,
     long OwnChurnBytes,
     int FilesAdded,
-    int FilesRemoved)
+    int FilesRemoved,
+    long OwnOnDiskDelta = 0)
 {
     public int FileCountDelta => FilesAdded - FilesRemoved;
 
@@ -21,7 +27,8 @@ public readonly record struct DirectoryDelta(
             a.OwnBytesDelta + b.OwnBytesDelta,
             a.OwnChurnBytes + b.OwnChurnBytes,
             a.FilesAdded + b.FilesAdded,
-            a.FilesRemoved + b.FilesRemoved);
+            a.FilesRemoved + b.FilesRemoved,
+            a.OwnOnDiskDelta + b.OwnOnDiskDelta);
 }
 
 /// <summary>How a change is described to a human.</summary>

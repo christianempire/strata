@@ -129,7 +129,7 @@ public static class IncrementalRepository
         command.CommandText = """
             UPDATE dir_totals
             SET subtree_bytes   = subtree_bytes + $b,
-                subtree_on_disk = subtree_on_disk + $b,
+                subtree_on_disk = subtree_on_disk + $o,
                 subtree_files   = subtree_files + $f
             WHERE volume_id = $v AND dir_id = $d;
             """;
@@ -137,6 +137,7 @@ public static class IncrementalRepository
         command.Parameters.AddWithValue("$v", volumeId);
         command.Parameters.Add("$d", SqliteType.Integer);
         command.Parameters.Add("$b", SqliteType.Integer);
+        command.Parameters.Add("$o", SqliteType.Integer);
         command.Parameters.Add("$f", SqliteType.Integer);
         command.Prepare();
 
@@ -146,6 +147,7 @@ public static class IncrementalRepository
         {
             command.Parameters["$d"].Value = dirId;
             command.Parameters["$b"].Value = delta.OwnBytesDelta;
+            command.Parameters["$o"].Value = delta.OwnOnDiskDelta;
             command.Parameters["$f"].Value = delta.FileCountDelta;
             updated += command.ExecuteNonQuery();
         }
