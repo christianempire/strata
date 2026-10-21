@@ -232,7 +232,18 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
                 }
 
                 nextUsn = MemoryMarshal.Read<long>(buffer.AsSpan(0, sizeof(long)));
-                ParseRecords(buffer.AsSpan(sizeof(long), (int)returned - sizeof(long)), into, maxRecords);
+
+                // The header's cursor is past every record in the buffer, which is only where to
+                // resume if every record was taken. A tick that reaches its cap partway through has
+                // to resume at the first one it left, or the rest of the buffer is skipped for good.
+                // That was up to 64 KiB of records lost on every capped tick: deletions that never
+                // came off the totals, and directories that never went into the tree.
+                if (ParseRecords(buffer.AsSpan(sizeof(long), (int)returned - sizeof(long)), into, maxRecords)
+                    is { } resume)
+                {
+                    nextUsn = resume;
+                }
+
                 return true;
             }
         }
@@ -251,22 +262,35 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
     /// record version. Callers therefore cannot rely on <c>UsnChange.Name</c> being populated and
     /// must resolve paths by file ID instead; see Win32FileMetadataReader.TryGetPath.
     /// </remarks>
-    private static void ParseRecords(ReadOnlySpan<byte> buffer, List<UsnChange> into, int maxRecords)
+    /// <returns>
+    /// The USN of the first record left unread because <paramref name="maxRecords"/> was reached,
+    /// or null when the whole buffer was consumed.
+    /// </returns>
+    internal static long? ParseRecords(ReadOnlySpan<byte> buffer, List<UsnChange> into, int maxRecords)
     {
         var offset = 0;
 
-        while (offset + 8 <= buffer.Length && into.Count < maxRecords)
+        while (offset + 8 <= buffer.Length)
         {
             var record = buffer[offset..];
             var length = (int)MemoryMarshal.Read<uint>(record);
 
             if (length <= 0 || offset + length > buffer.Length)
             {
-                return;
+                return null;
             }
 
             var major = MemoryMarshal.Read<ushort>(record[Usn.MajorVersion..]);
 
+            if (into.Count >= maxRecords)
+            {
+                return major switch
+                {
+                    2 => MemoryMarshal.Read<long>(record[Usn.V2Usn..]),
+                    3 => MemoryMarshal.Read<long>(record[Usn.V3Usn..]),
+                    _ => null,
+                };
+            }
 
             if (major == 2)
             {
@@ -281,6 +305,8 @@ public sealed class Win32UsnJournal : IUsnJournal, IDisposable
             // would produce a plausible but wrong change, which is worse than missing one.
             offset += length;
         }
+
+        return null;
     }
 
     private static void AppendV2(ReadOnlySpan<byte> record, List<UsnChange> into)
